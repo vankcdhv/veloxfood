@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package user.v1;
+
+option go_package = "project/proto/user/v1;userv1";
+
+import "google/protobuf/timestamp.proto";
+
+message User {
+  string id = 1;
+  string email = 2;
+  string full_name = 3;
+  string phone = 4;
+  string status = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message GetUserRequest {
+  string id = 1;
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+message GetUserBatchRequest {
+  repeated string ids = 1;
+}
+
+message GetUserBatchResponse {
+  repeated User users = 1;
+}
+
+message GetVendorMembershipRequest {
+  string user_id = 1;
+  string vendor_id = 2;
+}
+
+message GetVendorMembershipResponse {
+  string role_in_vendor = 1;
+  string status = 2;
+  bool found = 3;
+}
+
+service UserService {
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc GetUserBatch(GetUserBatchRequest) returns (GetUserBatchResponse);
+  rpc GetVendorMembership(GetVendorMembershipRequest) returns (GetVendorMembershipResponse);
+}

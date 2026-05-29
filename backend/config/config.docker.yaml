@@ -1,0 +1,53 @@
+app:
+  env: production
+  port: 8080
+  grpc_port: 50051
+  base_url: http://localhost:8080
+  # Local docker stack still serves over plain HTTP — keep secure=false.
+  # Set cookie_secure=true (and cookie_domain) behind real HTTPS in production.
+  cookie_secure: false
+  cookie_domain: ""
+
+database:
+  host: postgres
+  port: 5432
+  user: dev_user
+  password: dev_password
+  name: user_db
+  ssl_mode: disable
+
+redis:
+  addr: redis:6379
+  password: ""
+  db: 0
+
+kafka:
+  brokers:
+    - kafka:9092
+
+rabbitmq:
+  url: amqp://dev_user:dev_password@rabbitmq:5672/
+
+dtm:
+  addr: dtm:36790
+
+jwt:
+  private_key_path: ""
+  public_key_path: ""
+  # Override via APP_JWT_PRIVATE_KEY_PEM / APP_JWT_PUBLIC_KEY_PEM env vars in prod
+  private_key_pem: ""
+  public_key_pem: ""
+  access_ttl: 15m
+  refresh_ttl: 168h
+
+otp:
+  ttl: 5m
+  max_attempts: 5
+
+smtp:
+  host: ""
+  port: 587
+  username: ""
+  password: ""
+  from: noreply@smartcanteen.local
+  tls_enabled: true
