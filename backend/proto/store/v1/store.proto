@@ -39,6 +39,19 @@ message DecrementSlotQuotaResponse {
   int32 remaining = 2;
 }
 
+// GetStoreOwnershipRequest looks up the ownership record for a store so that
+// callers can verify vendor_id without holding store data themselves.
+message GetStoreOwnershipRequest {
+  string store_id = 1;
+}
+
+message GetStoreOwnershipResponse {
+  bool   found        = 1;
+  string vendor_id    = 2;
+  string owner_user_id = 3;
+  string name         = 4;
+}
+
 service StoreService {
   // GetStoreForOrder assembles store availability, ship fee, and menu snapshot
   // for the order service before order placement.
@@ -47,4 +60,9 @@ service StoreService {
   // DecrementSlotQuota atomically reduces sold count for a quota slot.
   // Returns ok=false if quota is exhausted.
   rpc DecrementSlotQuota(DecrementSlotQuotaRequest) returns (DecrementSlotQuotaResponse);
+
+  // GetStoreOwnership returns the vendor_id and owner_user_id for a store so
+  // peer services (e.g. promotion) can authorise store-scoped mutations without
+  // holding a local copy of store data.
+  rpc GetStoreOwnership(GetStoreOwnershipRequest) returns (GetStoreOwnershipResponse);
 }

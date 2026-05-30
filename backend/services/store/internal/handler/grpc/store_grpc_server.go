@@ -7,10 +7,12 @@ import (
 
 	"project/pkg/apperror"
 	storev1 "project/proto/store/v1"
+	"project/services/store/internal/repository"
 	"project/services/store/internal/usecase"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"gorm.io/gorm"
 )
 
 // StoreServiceServer implements the proto-generated gRPC StoreService.
@@ -18,15 +20,18 @@ type StoreServiceServer struct {
 	storev1.UnimplementedStoreServiceServer
 	storeForOrderUC usecase.StoreForOrderUsecase
 	quotaUC         usecase.QuotaUsecase
+	storeRepo       repository.StoreRepository
 }
 
 func NewStoreServiceServer(
 	storeForOrderUC usecase.StoreForOrderUsecase,
 	quotaUC usecase.QuotaUsecase,
+	storeRepo repository.StoreRepository,
 ) *StoreServiceServer {
 	return &StoreServiceServer{
 		storeForOrderUC: storeForOrderUC,
 		quotaUC:         quotaUC,
+		storeRepo:       storeRepo,
 	}
 }
 
@@ -61,6 +66,25 @@ func (s *StoreServiceServer) GetStoreForOrder(ctx context.Context, req *storev1.
 		Served:        result.Served,
 		Items:         protoItems,
 		OrderDeadline: result.OrderDeadline,
+	}, nil
+}
+
+// GetStoreOwnership returns the vendor_id and owner_user_id for a store.
+// Promotion service calls this to authorise store-scoped mutations without
+// maintaining a local copy of store data.
+func (s *StoreServiceServer) GetStoreOwnership(ctx context.Context, req *storev1.GetStoreOwnershipRequest) (*storev1.GetStoreOwnershipResponse, error) {
+	store, err := s.storeRepo.GetByID(ctx, req.GetStoreId())
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &storev1.GetStoreOwnershipResponse{Found: false}, nil
+		}
+		return nil, status.Error(codes.Internal, "get store ownership failed")
+	}
+	return &storev1.GetStoreOwnershipResponse{
+		Found:       true,
+		VendorId:    store.VendorID,
+		OwnerUserId: store.OwnerUserID,
+		Name:        store.Name,
 	}, nil
 }
 

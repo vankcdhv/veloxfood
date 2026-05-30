@@ -78,7 +78,7 @@ func main() {
 		storeForOrderUC := usecase.NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, roomResolver)
 		quotaUC := usecase.NewQuotaUsecase(catalogRepo)
 
-		storev1.RegisterStoreServiceServer(s, grpchandler.NewStoreServiceServer(storeForOrderUC, quotaUC))
+		storev1.RegisterStoreServiceServer(s, grpchandler.NewStoreServiceServer(storeForOrderUC, quotaUC, storeRepo))
 	})
 
 	a.Run()

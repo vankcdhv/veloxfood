@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	StoreService_GetStoreForOrder_FullMethodName   = "/store.v1.StoreService/GetStoreForOrder"
 	StoreService_DecrementSlotQuota_FullMethodName = "/store.v1.StoreService/DecrementSlotQuota"
+	StoreService_GetStoreOwnership_FullMethodName  = "/store.v1.StoreService/GetStoreOwnership"
 )
 
 // StoreServiceClient is the client API for StoreService service.
@@ -33,6 +34,10 @@ type StoreServiceClient interface {
 	// DecrementSlotQuota atomically reduces sold count for a quota slot.
 	// Returns ok=false if quota is exhausted.
 	DecrementSlotQuota(ctx context.Context, in *DecrementSlotQuotaRequest, opts ...grpc.CallOption) (*DecrementSlotQuotaResponse, error)
+	// GetStoreOwnership returns the vendor_id and owner_user_id for a store so
+	// peer services (e.g. promotion) can authorise store-scoped mutations without
+	// holding a local copy of store data.
+	GetStoreOwnership(ctx context.Context, in *GetStoreOwnershipRequest, opts ...grpc.CallOption) (*GetStoreOwnershipResponse, error)
 }
 
 type storeServiceClient struct {
@@ -63,6 +68,16 @@ func (c *storeServiceClient) DecrementSlotQuota(ctx context.Context, in *Decreme
 	return out, nil
 }
 
+func (c *storeServiceClient) GetStoreOwnership(ctx context.Context, in *GetStoreOwnershipRequest, opts ...grpc.CallOption) (*GetStoreOwnershipResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetStoreOwnershipResponse)
+	err := c.cc.Invoke(ctx, StoreService_GetStoreOwnership_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // StoreServiceServer is the server API for StoreService service.
 // All implementations must embed UnimplementedStoreServiceServer
 // for forward compatibility.
@@ -73,6 +88,10 @@ type StoreServiceServer interface {
 	// DecrementSlotQuota atomically reduces sold count for a quota slot.
 	// Returns ok=false if quota is exhausted.
 	DecrementSlotQuota(context.Context, *DecrementSlotQuotaRequest) (*DecrementSlotQuotaResponse, error)
+	// GetStoreOwnership returns the vendor_id and owner_user_id for a store so
+	// peer services (e.g. promotion) can authorise store-scoped mutations without
+	// holding a local copy of store data.
+	GetStoreOwnership(context.Context, *GetStoreOwnershipRequest) (*GetStoreOwnershipResponse, error)
 	mustEmbedUnimplementedStoreServiceServer()
 }
 
@@ -88,6 +107,9 @@ func (UnimplementedStoreServiceServer) GetStoreForOrder(context.Context, *GetSto
 }
 func (UnimplementedStoreServiceServer) DecrementSlotQuota(context.Context, *DecrementSlotQuotaRequest) (*DecrementSlotQuotaResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DecrementSlotQuota not implemented")
+}
+func (UnimplementedStoreServiceServer) GetStoreOwnership(context.Context, *GetStoreOwnershipRequest) (*GetStoreOwnershipResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetStoreOwnership not implemented")
 }
 func (UnimplementedStoreServiceServer) mustEmbedUnimplementedStoreServiceServer() {}
 func (UnimplementedStoreServiceServer) testEmbeddedByValue()                      {}
@@ -146,6 +168,24 @@ func _StoreService_DecrementSlotQuota_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _StoreService_GetStoreOwnership_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetStoreOwnershipRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreServiceServer).GetStoreOwnership(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StoreService_GetStoreOwnership_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreServiceServer).GetStoreOwnership(ctx, req.(*GetStoreOwnershipRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // StoreService_ServiceDesc is the grpc.ServiceDesc for StoreService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -160,6 +200,10 @@ var StoreService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DecrementSlotQuota",
 			Handler:    _StoreService_DecrementSlotQuota_Handler,
+		},
+		{
+			MethodName: "GetStoreOwnership",
+			Handler:    _StoreService_GetStoreOwnership_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

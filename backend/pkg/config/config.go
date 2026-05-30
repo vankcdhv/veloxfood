@@ -24,6 +24,9 @@ type Config struct {
 	// LocationService addresses the location-service for cross-service gRPC
 	// (e.g. store resolves a delivery room's building for shipping-fee lookup).
 	LocationService ServiceEndpoint `mapstructure:"location_service"`
+	// StoreService addresses the store-service for cross-service gRPC
+	// (e.g. promotion verifies store ownership before mutating vouchers).
+	StoreService ServiceEndpoint `mapstructure:"store_service"`
 }
 
 // UserServiceConfig points other services at the user-service for cross-service

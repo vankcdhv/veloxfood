@@ -180,6 +180,33 @@ services:
         fluentd-max-retries: "30"
         tag: "service.store"
 
+  promotion-service:
+    build:
+      context: .
+      dockerfile: docker/services/Dockerfile
+      args:
+        SERVICE_NAME: promotion
+    volumes:
+      - ./config/promotion.docker.yaml:/config/promotion.yaml:ro
+    ports:
+      - "8084:8084"
+      - "50055:50055"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "localhost:24224"
+        fluentd-async: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: "service.promotion"
+
 volumes:
   postgres_data:
   redis_data:

@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package promotion.v1;
+
+option go_package = "project/proto/promotion/v1;promotionv1";
+
+// ApplyPromotionRequest is sent by the order service to reserve promotions before
+// an order is confirmed. Each code maps to one promotion row.
+message ApplyPromotionRequest {
+  string order_id    = 1;
+  string store_id    = 2;
+  string customer_id = 3;
+  repeated string codes = 4;
+  int64  subtotal    = 5; // VND
+  int32  item_count  = 6;
+}
+
+// AppliedCode carries the discount breakdown for a single promotion code.
+message AppliedCode {
+  string code   = 1;
+  string type   = 2; // ORDER_DISCOUNT | SHIP_DISCOUNT
+  int64  amount = 3; // VND discount applied
+}
+
+// ApplyPromotionResponse reports success/failure and the total discount breakdown.
+message ApplyPromotionResponse {
+  bool   success       = 1;
+  int64  item_discount = 2; // total VND off item subtotal
+  int64  ship_discount = 3; // total VND off shipping
+  repeated AppliedCode applied = 4;
+  string error_reason  = 5; // non-empty when success=false
+}
+
+// ConfirmUsageRequest finalises RESERVED usages for an order (RESERVED→CONFIRMED).
+message ConfirmUsageRequest {
+  string order_id = 1;
+}
+
+message ConfirmUsageResponse {
+  bool success = 1;
+}
+
+// ReleaseUsageRequest voids RESERVED usages for an order and decrements used_count.
+message ReleaseUsageRequest {
+  string order_id = 1;
+}
+
+message ReleaseUsageResponse {
+  bool success = 1;
+}
+
+service PromotionService {
+  // ApplyPromotion reserves one or more promotion codes for an order (idempotent
+  // by order_id — re-sending returns the existing discount breakdown).
+  rpc ApplyPromotion(ApplyPromotionRequest) returns (ApplyPromotionResponse);
+
+  // ConfirmUsage transitions RESERVED usages to CONFIRMED once the order is placed.
+  rpc ConfirmUsage(ConfirmUsageRequest) returns (ConfirmUsageResponse);
+
+  // ReleaseUsage voids RESERVED usages and returns the quota to the pool when an
+  // order is cancelled or payment fails.
+  rpc ReleaseUsage(ReleaseUsageRequest) returns (ReleaseUsageResponse);
+}
