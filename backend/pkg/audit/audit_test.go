@@ -27,9 +27,9 @@ func TestRedactSensitive_RemovesPasswordKeys(t *testing.T) {
 		{
 			name: "token and code stripped",
 			payload: map[string]any{
-				"token":   "rawtoken",
-				"code":    "123456",
-				"action":  "reset",
+				"token":  "rawtoken",
+				"code":   "123456",
+				"action": "reset",
 			},
 			banned:  []string{"token", "code"},
 			allowed: []string{"action"},

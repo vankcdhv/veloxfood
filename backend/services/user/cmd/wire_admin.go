@@ -49,8 +49,6 @@ func buildAdminHandlers(deps app.Dependencies, rbacUC usecase.RBACUsecase) *admi
 
 func buildAdminHandlersFull(deps app.Dependencies, rbacUC usecase.RBACUsecase, authStore store.AuthStore) *adminHandlers {
 	userRepo := persistence.NewUserGormRepository(deps.DB)
-	studentRepo := persistence.NewStudentProfileGormRepository(deps.DB)
-	facultyRepo := persistence.NewFacultyProfileGormRepository(deps.DB)
 	membershipRepo := persistence.NewVendorMembershipGormRepository(deps.DB)
 	outboxRepo := persistence.NewOutboxGormRepository(deps.DB)
 	auditLogger := audit.NewGormLogger(deps.DB)
@@ -58,8 +56,6 @@ func buildAdminHandlersFull(deps app.Dependencies, rbacUC usecase.RBACUsecase, a
 	adminUserUC := usecase.NewAdminUserUsecase(
 		deps.DB,
 		userRepo,
-		studentRepo,
-		facultyRepo,
 		outboxRepo,
 		rbacUC,
 		authStore,

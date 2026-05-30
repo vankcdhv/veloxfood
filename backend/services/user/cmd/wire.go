@@ -7,8 +7,8 @@ import (
 	"github.com/google/wire"
 	"gorm.io/gorm"
 
-	grpchandler "project/services/user/internal/handler/grpc"
 	"project/services/user/internal/handler/event"
+	grpchandler "project/services/user/internal/handler/grpc"
 	"project/services/user/internal/infrastructure/persistence"
 	"project/services/user/internal/usecase"
 )

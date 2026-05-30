@@ -62,6 +62,8 @@ plans/**/*
 !plans/templates/*
 screenshots/*
 docs/screenshots/*
+# Root docs/ holds business specs + real third-party secrets — never commit
+/docs/
 logs.txt
 test-ck
 __pycache__

@@ -22,10 +22,10 @@ func NewUserRoleHandler(rbacUC usecase.RBACUsecase) *UserRoleHandler {
 }
 
 type assignRoleRequest struct {
-	RoleID    string            `json:"role_id" binding:"required"`
-	ScopeType entity.ScopeType  `json:"scope_type" binding:"required"`
-	ScopeID   *string           `json:"scope_id"`
-	ExpiresAt *time.Time        `json:"expires_at"`
+	RoleID    string           `json:"role_id" binding:"required"`
+	ScopeType entity.ScopeType `json:"scope_type" binding:"required"`
+	ScopeID   *string          `json:"scope_id"`
+	ExpiresAt *time.Time       `json:"expires_at"`
 }
 
 func (h *UserRoleHandler) ListUserRoles(c *gin.Context) {

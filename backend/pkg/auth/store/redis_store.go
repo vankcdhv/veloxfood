@@ -35,8 +35,8 @@ func NewRedisAuthStore(cfg config.RedisConfig) (AuthStore, error) {
 	return &redisAuthStore{client: client}, nil
 }
 
-func jtiKey(jti string) string        { return jtiKeyPrefix + jti }
-func userJTIsKey(uid string) string   { return userKeyPrefix + uid + userKeySuffix }
+func jtiKey(jti string) string      { return jtiKeyPrefix + jti }
+func userJTIsKey(uid string) string { return userKeyPrefix + uid + userKeySuffix }
 
 func (s *redisAuthStore) Whitelist(ctx context.Context, jti, userID string, ttl time.Duration) error {
 	pipe := s.client.Pipeline()

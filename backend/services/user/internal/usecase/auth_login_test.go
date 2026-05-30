@@ -42,8 +42,8 @@ func (m *loginUserRepo) GetByID(_ context.Context, _ string) (*entity.User, erro
 func (m *loginUserRepo) GetByEmail(_ context.Context, _ string) (*entity.User, error) {
 	return nil, nil
 }
-func (m *loginUserRepo) Update(_ context.Context, _ *entity.User) error            { return nil }
-func (m *loginUserRepo) Delete(_ context.Context, _ string) error                  { return nil }
+func (m *loginUserRepo) Update(_ context.Context, _ *entity.User) error { return nil }
+func (m *loginUserRepo) Delete(_ context.Context, _ string) error       { return nil }
 func (m *loginUserRepo) List(_ context.Context, _, _ int) ([]*entity.User, int64, error) {
 	return nil, 0, nil
 }

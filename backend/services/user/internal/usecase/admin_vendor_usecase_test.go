@@ -52,7 +52,9 @@ func (m *mockAdminMembershipRepo) UpdateStatus(_ context.Context, id string, _ e
 func (m *mockAdminMembershipRepo) UpsertActiveMembership(_ context.Context, _ *entity.VendorMembership) error {
 	return nil
 }
-func (m *mockAdminMembershipRepo) CountOwners(_ context.Context, _ string) (int, error) { return 1, nil }
+func (m *mockAdminMembershipRepo) CountOwners(_ context.Context, _ string) (int, error) {
+	return 1, nil
+}
 
 // ---- helpers ----
 

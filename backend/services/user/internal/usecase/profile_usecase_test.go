@@ -2,25 +2,22 @@ package usecase_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 	"time"
 
 	"project/services/user/internal/entity"
 	"project/services/user/internal/usecase"
-
-	"gorm.io/gorm"
 )
 
-// ---- mock UserRepository (minimal, reuses fields from rbac_usecase_test.go in same package) ----
+// ---- mock UserRepository (shared across usecase tests in this package) ----
 
 type mockUserRepo struct {
 	user *entity.User
 	err  error
 }
 
-func (m *mockUserRepo) Create(_ context.Context, _ *entity.User) error          { return nil }
+func (m *mockUserRepo) Create(_ context.Context, _ *entity.User) error { return nil }
 func (m *mockUserRepo) GetByID(_ context.Context, _ string) (*entity.User, error) {
 	return m.user, m.err
 }
@@ -45,34 +42,6 @@ func (m *mockUserRepo) UpdatePassword(_ context.Context, _, _ string) error     
 func (m *mockUserRepo) GetByIDs(_ context.Context, _ []string) ([]*entity.User, error) {
 	return nil, nil
 }
-
-// ---- mock StudentProfileRepository ----
-
-type mockStudentRepo struct {
-	profile *entity.StudentProfile
-	err     error
-	upserted *entity.StudentProfile
-}
-
-func (m *mockStudentRepo) GetByUserID(_ context.Context, _ string) (*entity.StudentProfile, error) {
-	return m.profile, m.err
-}
-func (m *mockStudentRepo) Upsert(_ context.Context, p *entity.StudentProfile) error {
-	m.upserted = p
-	return nil
-}
-
-// ---- mock FacultyProfileRepository ----
-
-type mockFacultyRepo struct {
-	profile *entity.FacultyProfile
-	err     error
-}
-
-func (m *mockFacultyRepo) GetByUserID(_ context.Context, _ string) (*entity.FacultyProfile, error) {
-	return m.profile, m.err
-}
-func (m *mockFacultyRepo) Upsert(_ context.Context, _ *entity.FacultyProfile) error { return nil }
 
 // ---- mock RBACUsecase (minimal — only ListUserRoles needed) ----
 
@@ -113,19 +82,10 @@ func newTestUser() *entity.User {
 
 // ---- tests ----
 
-func TestGetMe_WithStudentProfile(t *testing.T) {
-	rawAllergies := json.RawMessage(`["peanut"]`)
-	student := &entity.StudentProfile{
-		UserID:      "user-uuid-1",
-		StudentCode: "SV001",
-		Allergies:   &rawAllergies,
-	}
-
+func TestGetMe_Basic(t *testing.T) {
 	uc := usecase.NewProfileUsecase(
 		&mockUserRepo{user: newTestUser()},
-		&mockStudentRepo{profile: student},
-		&mockFacultyRepo{err: gorm.ErrRecordNotFound},
-		nil,
+		nil, // membershipRepo optional
 		&mockRBACUsecase{roles: []*entity.UserRole{}},
 	)
 
@@ -136,40 +96,14 @@ func TestGetMe_WithStudentProfile(t *testing.T) {
 	if bundle.User == nil {
 		t.Fatal("expected user in bundle")
 	}
-	if bundle.StudentProfile == nil {
-		t.Fatal("expected student profile in bundle")
-	}
-	if bundle.FacultyProfile != nil {
-		t.Error("expected faculty profile to be nil")
-	}
-	if bundle.StudentProfile.StudentCode != "SV001" {
-		t.Errorf("expected student_code=SV001, got %s", bundle.StudentProfile.StudentCode)
-	}
-}
-
-func TestGetMe_NoStudentProfile(t *testing.T) {
-	uc := usecase.NewProfileUsecase(
-		&mockUserRepo{user: newTestUser()},
-		&mockStudentRepo{err: gorm.ErrRecordNotFound},
-		&mockFacultyRepo{err: gorm.ErrRecordNotFound},
-		nil,
-		&mockRBACUsecase{},
-	)
-
-	bundle, err := uc.GetMe(context.Background(), "user-uuid-1")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if bundle.StudentProfile != nil {
-		t.Error("expected student profile to be nil when record not found")
+	if bundle.VendorMemberships == nil {
+		t.Error("expected non-nil vendor memberships slice")
 	}
 }
 
 func TestGetMe_UserNotFound(t *testing.T) {
 	uc := usecase.NewProfileUsecase(
 		&mockUserRepo{err: errors.New("not found")},
-		&mockStudentRepo{},
-		&mockFacultyRepo{},
 		nil,
 		&mockRBACUsecase{},
 	)
@@ -177,66 +111,5 @@ func TestGetMe_UserNotFound(t *testing.T) {
 	_, err := uc.GetMe(context.Background(), "bad-id")
 	if err == nil {
 		t.Fatal("expected error when user not found")
-	}
-}
-
-func TestUpdateStudentProfile_AllergiesLimit(t *testing.T) {
-	rawAllergies := json.RawMessage(`[]`)
-	student := &entity.StudentProfile{
-		UserID:      "user-uuid-1",
-		StudentCode: "SV001",
-		Allergies:   &rawAllergies,
-	}
-
-	uc := usecase.NewProfileUsecase(
-		&mockUserRepo{user: newTestUser()},
-		&mockStudentRepo{profile: student},
-		&mockFacultyRepo{},
-		nil,
-		&mockRBACUsecase{},
-	)
-
-	tooMany := make([]string, 11)
-	for i := range tooMany {
-		tooMany[i] = "item"
-	}
-	_, err := uc.UpdateStudentProfile(context.Background(), "user-uuid-1", usecase.UpdateStudentProfileInput{
-		Allergies: &tooMany,
-	})
-	if err == nil {
-		t.Fatal("expected error for >10 allergies")
-	}
-	if err.Error() != "allergies must not exceed 10 elements" {
-		t.Errorf("unexpected error message: %s", err.Error())
-	}
-}
-
-func TestUpdateStudentProfile_DormitoryRoom(t *testing.T) {
-	rawAllergies := json.RawMessage(`[]`)
-	studentMock := &mockStudentRepo{
-		profile: &entity.StudentProfile{
-			UserID:      "user-uuid-1",
-			StudentCode: "SV001",
-			Allergies:   &rawAllergies,
-		},
-	}
-
-	uc := usecase.NewProfileUsecase(
-		&mockUserRepo{user: newTestUser()},
-		studentMock,
-		&mockFacultyRepo{},
-		nil,
-		&mockRBACUsecase{},
-	)
-
-	room := "A-101"
-	p, err := uc.UpdateStudentProfile(context.Background(), "user-uuid-1", usecase.UpdateStudentProfileInput{
-		DormitoryRoom: &room,
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if p.DormitoryRoom == nil || *p.DormitoryRoom != "A-101" {
-		t.Error("expected dormitory_room to be updated")
 	}
 }

@@ -1,6 +1,8 @@
 // cmd/migrate/main.go
-// Reads config/config.yaml via Viper, builds DSN, runs golang-migrate.
-// Usage: go run ./cmd/migrate [up|down|version|force <v>|goto <v>]
+// Reads the service config via Viper, builds DSN, runs golang-migrate.
+// Usage: go run ./cmd/migrate [<service>] up|down|version|force <v>|goto <v>
+// <service> defaults to "user". Each service migrates its own database from
+// services/<service>/migrations using config/<service>.yaml (user → config.yaml).
 package main
 
 import (
@@ -17,18 +19,33 @@ import (
 	"project/pkg/config"
 )
 
-const migrationsPath = "services/user/migrations"
+var migrateCommands = map[string]bool{
+	"up": true, "down": true, "version": true, "force": true, "goto": true,
+}
 
 func main() {
 	args := os.Args[1:]
+
+	// Optional leading <service> token (anything that isn't a command).
+	service := "user"
+	if len(args) > 0 && !migrateCommands[args[0]] {
+		service = args[0]
+		args = args[1:]
+	}
 	if len(args) == 0 {
-		slog.Error("[migrate] command required: up | down | version | force <v> | goto <v>")
+		slog.Error("[migrate] command required: [<service>] up | down | version | force <v> | goto <v>")
 		os.Exit(1)
 	}
 
-	cfg, err := config.Load("config/config.yaml")
+	configPath := "config/config.yaml"
+	if service != "user" {
+		configPath = fmt.Sprintf("config/%s.yaml", service)
+	}
+	migrationsPath := fmt.Sprintf("services/%s/migrations", service)
+
+	cfg, err := config.Load(configPath)
 	if err != nil {
-		slog.Error("[migrate] failed to load config", "error", err)
+		slog.Error("[migrate] failed to load config", "service", service, "path", configPath, "error", err)
 		os.Exit(1)
 	}
 

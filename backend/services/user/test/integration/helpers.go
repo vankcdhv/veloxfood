@@ -9,9 +9,12 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -22,9 +25,9 @@ import (
 	"project/pkg/auth/store"
 	rediscache "project/pkg/cache/redis"
 	"project/pkg/config"
-	"project/pkg/database"
 	pkgmailer "project/pkg/mailer"
 	pkgmiddleware "project/pkg/middleware"
+	"project/pkg/testutil"
 	handlerhttp "project/services/user/internal/handler/http"
 	v1 "project/services/user/internal/handler/http/v1"
 	"project/services/user/internal/infrastructure/persistence"
@@ -35,6 +38,27 @@ import (
 )
 
 const skipEnv = "SKIP_INTEGRATION"
+
+// testConfigPath resolves backend/config/config.yaml relative to this source
+// file, so integration tests run regardless of the working directory or machine.
+func testConfigPath() string {
+	_, file, _, _ := runtime.Caller(0) // .../services/user/test/integration/helpers.go
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "../../../../config/config.yaml"))
+}
+
+func userMigrationsPath() string {
+	_, file, _, _ := runtime.Caller(0)
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "../../migrations"))
+}
+
+// fakeUploader implements usecase.FileUploader without touching MinIO —
+// it drains the reader and echoes the object key.
+type fakeUploader struct{}
+
+func (fakeUploader) Put(_ context.Context, objectKey, _ string, r io.Reader, _ int64) (string, error) {
+	_, _ = io.Copy(io.Discard, r)
+	return objectKey, nil
+}
 
 func skipIfNoInfra(t *testing.T) {
 	t.Helper()
@@ -95,17 +119,18 @@ func setupTestApp(t *testing.T) *testApp {
 	t.Helper()
 	skipIfNoInfra(t)
 
-	cfg, err := config.Load("/Users/levan/develop/thacsi/distributed_system/project/backend/config/config.yaml")
+	cfg, err := config.Load(testConfigPath())
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
 
-	db, err := database.NewPostgresDB(cfg.Database)
-	if err != nil {
-		t.Skipf("DB unavailable (%v) — set SKIP_INTEGRATION=1 to suppress", err)
-	}
+	// Isolated test DB (user_db_test) — never touches the dev user_db. Seeded
+	// roles/permissions come from the migrations run here, so they survive
+	// truncateAll (which omits those tables).
+	db := testutil.SetupTestDB(t, cfg, userMigrationsPath())
 
 	truncateAll(t, db)
+	t.Cleanup(func() { truncateAll(t, db) })
 
 	// Generate RSA keypair on the fly — no secrets/ dependency.
 	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -133,38 +158,40 @@ func setupTestApp(t *testing.T) *testApp {
 	rbacRepo := persistence.NewRBACGormRepository(db)
 	membershipRepo := persistence.NewVendorMembershipGormRepository(db)
 	invitationRepo := persistence.NewInvitationGormRepository(db)
-	cardRepo := persistence.NewCardGormRepository(db)
 	outboxRepo := persistence.NewOutboxGormRepository(db)
-	studentRepo := persistence.NewStudentProfileGormRepository(db)
-	facultyRepo := persistence.NewFacultyProfileGormRepository(db)
 
 	otpSvc := usecase.NewOTPService(otpRepo, mc, cfg.OTP.TTL, cfg.OTP.MaxAttempts)
 	authUC := usecase.NewAuthUsecase(userRepo, otpRepo, resetRepo, jwtSvc, authRedis, mc, otpSvc, auditLogger)
 	rbacUC := usecase.NewRBACUsecase(rbacRepo, cache)
-	profileUC := usecase.NewProfileUsecase(userRepo, studentRepo, facultyRepo, membershipRepo, rbacUC)
-	cardUC := usecase.NewCardUsecase(cardRepo, userRepo, auditLogger)
+	profileUC := usecase.NewProfileUsecase(userRepo, membershipRepo, rbacUC)
 	roleUC := usecase.NewRoleUsecase(roleRepo, permRepo, rbacUC)
 	permUC := usecase.NewPermissionUsecase(permRepo)
 	onboardUC := usecase.NewVendorOnboardUsecase(db, membershipRepo, roleRepo, outboxRepo, rbacUC, auditLogger)
 	staffUC := usecase.NewVendorStaffUsecase(db, invitationRepo, membershipRepo, roleRepo, outboxRepo, rbacUC, mc, "http://localhost:8080", auditLogger)
-	adminUserUC := usecase.NewAdminUserUsecase(db, userRepo, studentRepo, facultyRepo, outboxRepo, rbacUC, authRedis, auditLogger)
+	adminUserUC := usecase.NewAdminUserUsecase(db, userRepo, outboxRepo, rbacUC, authRedis, auditLogger)
 	adminVendorUC := usecase.NewAdminVendorUsecase(db, membershipRepo, outboxRepo, rbacUC, auditLogger)
+
+	// Shipper (register + admin approve) with an in-memory fake uploader.
+	shipperRepo := persistence.NewShipperProfileGormRepository(db)
+	shipperRegisterUC := usecase.NewShipperRegisterUsecase(db, shipperRepo, outboxRepo, fakeUploader{}, auditLogger)
+	adminShipperUC := usecase.NewAdminShipperUsecase(db, shipperRepo, roleRepo, outboxRepo, rbacUC, auditLogger)
 
 	authMW := authmw.AuthRequired(jwtSvc, authRedis)
 
 	routerCfg := handlerhttp.RouterConfig{
-		AuthHandler:        v1.NewAuthHandler(authUC, v1.CookieConfig{AccessTTL: 15 * time.Minute, RefreshTTL: 168 * time.Hour}),
-		RoleHandler:        v1.NewRoleHandler(roleUC),
-		PermissionHandler:  v1.NewPermissionHandler(permUC),
-		UserRoleHandler:    v1.NewUserRoleHandler(rbacUC),
-		MeHandler:          v1.NewMeHandler(profileUC),
-		CardAdminHandler:   v1.NewCardAdminHandler(cardUC),
-		VendorHandler:      v1.NewVendorHandler(onboardUC, staffUC),
-		InvitationHandler:  v1.NewInvitationHandler(staffUC),
-		AdminUserHandler:   v1.NewAdminUserHandler(adminUserUC),
-		AdminVendorHandler: v1.NewAdminVendorHandler(adminVendorUC),
-		AuthMiddleware:     authMW,
-		PermChecker:        rbacUC,
+		AuthHandler:         v1.NewAuthHandler(authUC, v1.CookieConfig{AccessTTL: 15 * time.Minute, RefreshTTL: 168 * time.Hour}),
+		RoleHandler:         v1.NewRoleHandler(roleUC),
+		PermissionHandler:   v1.NewPermissionHandler(permUC),
+		UserRoleHandler:     v1.NewUserRoleHandler(rbacUC),
+		MeHandler:           v1.NewMeHandler(profileUC),
+		VendorHandler:       v1.NewVendorHandler(onboardUC, staffUC),
+		InvitationHandler:   v1.NewInvitationHandler(staffUC),
+		AdminUserHandler:    v1.NewAdminUserHandler(adminUserUC),
+		AdminVendorHandler:  v1.NewAdminVendorHandler(adminVendorUC),
+		ShipperHandler:      v1.NewShipperHandler(shipperRegisterUC),
+		AdminShipperHandler: v1.NewAdminShipperHandler(adminShipperUC),
+		AuthMiddleware:      authMW,
+		PermChecker:         rbacUC,
 	}
 
 	gin.SetMode(gin.TestMode)
@@ -187,10 +214,10 @@ func setupTestApp(t *testing.T) *testApp {
 func truncateAll(t *testing.T, db *gorm.DB) {
 	t.Helper()
 	tables := []string{
-		"audit_logs", "outbox_events", "card_identifiers",
+		"audit_logs", "outbox_events",
 		"otp_codes", "password_reset_tokens", "invitations",
 		"user_roles", "vendor_memberships",
-		"student_profiles", "faculty_profiles",
+		"shipper_profiles", "identities",
 		"users",
 	}
 	for _, tbl := range tables {

@@ -87,8 +87,6 @@ func newAdminUserUCWithDB(t *testing.T, db *gorm.DB, userRepo *mockUserRepo, rba
 	return usecase.NewAdminUserUsecase(
 		db,
 		userRepo,
-		&mockStudentRepo{},
-		&mockFacultyRepo{},
 		&mockAdminOutboxRepo{},
 		rbac,
 		authStore,

@@ -16,12 +16,20 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// permChecker is the narrow RBAC capability the gRPC server needs (satisfied by
+// usecase.RBACUsecase) — kept minimal so cross-service auth stays decoupled.
+type permChecker interface {
+	HasPermission(ctx context.Context, userID, code string) (bool, error)
+	HasVendorPermission(ctx context.Context, userID, vendorID, code string) (bool, error)
+}
+
 // UserServiceServer implements the proto-generated gRPC UserService.
 type UserServiceServer struct {
 	userv1.UnimplementedUserServiceServer
 	userUC         usecase.UserUsecase
 	userRepo       repository.UserRepository
 	membershipRepo repository.VendorMembershipRepository
+	rbac           permChecker
 }
 
 // NewUserServiceServer wires the gRPC server with required dependencies.
@@ -29,12 +37,38 @@ func NewUserServiceServer(
 	userUC usecase.UserUsecase,
 	userRepo repository.UserRepository,
 	membershipRepo repository.VendorMembershipRepository,
+	rbac permChecker,
 ) *UserServiceServer {
 	return &UserServiceServer{
 		userUC:         userUC,
 		userRepo:       userRepo,
 		membershipRepo: membershipRepo,
+		rbac:           rbac,
 	}
+}
+
+// CheckPermission authorizes a global permission against the RBAC source of truth.
+func (s *UserServiceServer) CheckPermission(ctx context.Context, req *userv1.CheckPermissionRequest) (*userv1.CheckPermissionResponse, error) {
+	if req.GetUserId() == "" || req.GetPermissionCode() == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id and permission_code are required")
+	}
+	ok, err := s.rbac.HasPermission(ctx, req.GetUserId(), req.GetPermissionCode())
+	if err != nil {
+		return nil, mapError(err)
+	}
+	return &userv1.CheckPermissionResponse{HasPermission: ok}, nil
+}
+
+// CheckVendorPermission authorizes a vendor-scoped permission against the RBAC source of truth.
+func (s *UserServiceServer) CheckVendorPermission(ctx context.Context, req *userv1.CheckVendorPermissionRequest) (*userv1.CheckVendorPermissionResponse, error) {
+	if req.GetUserId() == "" || req.GetVendorId() == "" || req.GetPermissionCode() == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id, vendor_id and permission_code are required")
+	}
+	ok, err := s.rbac.HasVendorPermission(ctx, req.GetUserId(), req.GetVendorId(), req.GetPermissionCode())
+	if err != nil {
+		return nil, mapError(err)
+	}
+	return &userv1.CheckVendorPermissionResponse{HasPermission: ok}, nil
 }
 
 func (s *UserServiceServer) GetUser(ctx context.Context, req *userv1.GetUserRequest) (*userv1.GetUserResponse, error) {

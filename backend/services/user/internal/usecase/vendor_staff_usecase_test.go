@@ -122,9 +122,8 @@ type mockVendorRoleRepo struct {
 func newTestVendorRoleRepo() *mockVendorRoleRepo {
 	return &mockVendorRoleRepo{
 		byCode: map[string]*entity.Role{
-			entity.RoleCodeVendorOwner:        {ID: "role-owner", Code: entity.RoleCodeVendorOwner},
-			entity.RoleCodeVendorStaffKitchen: {ID: "role-kitchen", Code: entity.RoleCodeVendorStaffKitchen},
-			entity.RoleCodeVendorStaffCashier: {ID: "role-cashier", Code: entity.RoleCodeVendorStaffCashier},
+			entity.RoleCodeVendorOwner: {ID: "role-owner", Code: entity.RoleCodeVendorOwner},
+			entity.RoleCodeVendorStaff: {ID: "role-staff", Code: entity.RoleCodeVendorStaff},
 		},
 	}
 }
@@ -227,7 +226,7 @@ func TestInviteStaff_Duplicate_Returns409(t *testing.T) {
 		ID:           "existing-inv",
 		VendorID:     "vendor-1",
 		Email:        strPtrV("staff@example.com"),
-		RoleInVendor: entity.RoleInVendorKitchen,
+		RoleInVendor: entity.RoleInVendorStaff,
 		Status:       entity.InvitationStatusPending,
 		ExpiresAt:    time.Now().Add(24 * time.Hour),
 	}
@@ -240,7 +239,7 @@ func TestInviteStaff_Duplicate_Returns409(t *testing.T) {
 	staffUC := buildTestStaffUC(invRepo, &mockVendorMembershipRepo{})
 	_, err := staffUC.Invite(context.Background(), "owner-1", "vendor-1", usecase.InviteStaffInput{
 		Email:        "staff@example.com",
-		RoleInVendor: entity.RoleInVendorKitchen,
+		RoleInVendor: entity.RoleInVendorStaff,
 	})
 
 	if !errors.Is(err, usecase.ErrInvitationDuplicate) {
@@ -268,7 +267,7 @@ func TestInviteStaff_Success_DBStoresHash(t *testing.T) {
 
 	out, err := staffUC.Invite(context.Background(), "owner-1", "vendor-1", usecase.InviteStaffInput{
 		Email:        "new@example.com",
-		RoleInVendor: entity.RoleInVendorKitchen,
+		RoleInVendor: entity.RoleInVendorStaff,
 		VendorName:   "Test Canteen",
 	})
 
@@ -302,7 +301,7 @@ func TestAcceptAtomic_MockRaceCondition_OnlyOneWins(t *testing.T) {
 	inv := &entity.Invitation{
 		ID:           "inv-race-1",
 		VendorID:     "vendor-race",
-		RoleInVendor: entity.RoleInVendorKitchen,
+		RoleInVendor: entity.RoleInVendorStaff,
 		Status:       entity.InvitationStatusPending,
 		ExpiresAt:    time.Now().Add(24 * time.Hour),
 		TokenHash:    hash,

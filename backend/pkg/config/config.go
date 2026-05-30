@@ -8,16 +8,49 @@ import (
 )
 
 type Config struct {
-	App      AppConfig      `mapstructure:"app"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Redis    RedisConfig    `mapstructure:"redis"`
-	Kafka    KafkaConfig    `mapstructure:"kafka"`
-	RabbitMQ RabbitMQConfig `mapstructure:"rabbitmq"`
-	DTM      DTMConfig      `mapstructure:"dtm"`
-	JWT      JWTConfig      `mapstructure:"jwt"`
-	OTP      OTPConfig      `mapstructure:"otp"`
-	SMTP     SMTPConfig     `mapstructure:"smtp"`
-	Outbox   OutboxConfig   `mapstructure:"outbox"`
+	App         AppConfig         `mapstructure:"app"`
+	Database    DatabaseConfig    `mapstructure:"database"`
+	Redis       RedisConfig       `mapstructure:"redis"`
+	Kafka       KafkaConfig       `mapstructure:"kafka"`
+	RabbitMQ    RabbitMQConfig    `mapstructure:"rabbitmq"`
+	DTM         DTMConfig         `mapstructure:"dtm"`
+	JWT         JWTConfig         `mapstructure:"jwt"`
+	OTP         OTPConfig         `mapstructure:"otp"`
+	SMTP        SMTPConfig        `mapstructure:"smtp"`
+	Outbox      OutboxConfig      `mapstructure:"outbox"`
+	GoogleOAuth GoogleOAuthConfig `mapstructure:"google_oauth"`
+	MinIO       MinIOConfig       `mapstructure:"minio"`
+	UserService UserServiceConfig `mapstructure:"user_service"`
+	// LocationService addresses the location-service for cross-service gRPC
+	// (e.g. store resolves a delivery room's building for shipping-fee lookup).
+	LocationService ServiceEndpoint `mapstructure:"location_service"`
+}
+
+// UserServiceConfig points other services at the user-service for cross-service
+// calls (e.g. permission checks over gRPC).
+type UserServiceConfig struct {
+	GRPCAddr string `mapstructure:"grpc_addr"`
+}
+
+// ServiceEndpoint addresses a peer service for cross-service gRPC calls.
+type ServiceEndpoint struct {
+	GRPCAddr string `mapstructure:"grpc_addr"`
+}
+
+// GoogleOAuthConfig holds Google OAuth 2.0 web client credentials.
+type GoogleOAuthConfig struct {
+	ClientID     string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
+	RedirectURI  string `mapstructure:"redirect_uri"`
+}
+
+// MinIOConfig holds S3-compatible object storage settings.
+type MinIOConfig struct {
+	Endpoint  string `mapstructure:"endpoint"`
+	AccessKey string `mapstructure:"access_key"`
+	SecretKey string `mapstructure:"secret_key"`
+	Bucket    string `mapstructure:"bucket"`
+	UseSSL    bool   `mapstructure:"use_ssl"`
 }
 
 type AppConfig struct {
@@ -61,8 +94,8 @@ type DTMConfig struct {
 type JWTConfig struct {
 	PrivateKeyPath string        `mapstructure:"private_key_path"`
 	PublicKeyPath  string        `mapstructure:"public_key_path"`
-	PrivateKeyPEM  string        `mapstructure:"private_key_pem"`  // base64-encoded PEM, prod fallback
-	PublicKeyPEM   string        `mapstructure:"public_key_pem"`   // base64-encoded PEM, prod fallback
+	PrivateKeyPEM  string        `mapstructure:"private_key_pem"` // base64-encoded PEM, prod fallback
+	PublicKeyPEM   string        `mapstructure:"public_key_pem"`  // base64-encoded PEM, prod fallback
 	AccessTTL      time.Duration `mapstructure:"access_ttl"`
 	RefreshTTL     time.Duration `mapstructure:"refresh_ttl"`
 }

@@ -23,10 +23,8 @@ const (
 type IdentityProvider string
 
 const (
-	IdentityProviderSchoolSSO IdentityProvider = "school_sso"
-	IdentityProviderGoogle    IdentityProvider = "google"
-	IdentityProviderLocal     IdentityProvider = "local"
-	IdentityProviderGuest     IdentityProvider = "guest"
+	IdentityProviderGoogle IdentityProvider = "google"
+	IdentityProviderLocal  IdentityProvider = "local"
 )
 
 // ScopeType for role assignments — global or vendor-scoped.
@@ -41,10 +39,8 @@ const (
 type RoleInVendor string
 
 const (
-	RoleInVendorOwner   RoleInVendor = "OWNER"
-	RoleInVendorManager RoleInVendor = "MANAGER"
-	RoleInVendorKitchen RoleInVendor = "KITCHEN"
-	RoleInVendorCashier RoleInVendor = "CASHIER"
+	RoleInVendorOwner RoleInVendor = "OWNER"
+	RoleInVendorStaff RoleInVendor = "STAFF"
 )
 
 // VendorMembershipStatus for vendor_memberships.status.
@@ -66,22 +62,23 @@ const (
 	InvitationStatusRevoked  InvitationStatus = "revoked"
 )
 
-// CardKind for card_identifiers.kind.
-type CardKind string
-
-const (
-	CardKindRFID CardKind = "rfid"
-	CardKindFace CardKind = "face"
-)
-
 // OTPPurpose for otp_codes.purpose.
 type OTPPurpose string
 
 const (
-	OTPPurposeLogin           OTPPurpose = "login"
-	OTPPurposeRegisterVerify  OTPPurpose = "register_verify"
-	OTPPurposePasswordReset   OTPPurpose = "password_reset"
-	OTPPurposePhoneVerify     OTPPurpose = "phone_verify"
+	OTPPurposeLogin          OTPPurpose = "login"
+	OTPPurposeRegisterVerify OTPPurpose = "register_verify"
+	OTPPurposePasswordReset  OTPPurpose = "password_reset"
+	OTPPurposePhoneVerify    OTPPurpose = "phone_verify"
+)
+
+// ShipperStatus for shipper_profiles.status (Admin approval lifecycle).
+type ShipperStatus string
+
+const (
+	ShipperStatusPending  ShipperStatus = "pending"
+	ShipperStatusApproved ShipperStatus = "approved"
+	ShipperStatusRejected ShipperStatus = "rejected"
 )
 
 // OutboxStatus for outbox_events.status.
@@ -97,13 +94,10 @@ const (
 // Business logic must NOT hard-code role checks against these strings;
 // use dynamic permission checks via role_permissions table instead.
 const (
-	RoleCodeSuperAdmin        = "SUPER_ADMIN"
-	RoleCodeSchoolAdmin       = "SCHOOL_ADMIN"
-	RoleCodeVendorOwner       = "VENDOR_OWNER"
-	RoleCodeVendorStaffKitchen = "VENDOR_STAFF_KITCHEN"
-	RoleCodeVendorStaffCashier = "VENDOR_STAFF_CASHIER"
-	RoleCodeStudent           = "STUDENT"
-	RoleCodeFaculty           = "FACULTY"
-	RoleCodeGuest             = "GUEST"
-	RoleCodeShipper           = "SHIPPER"
+	RoleCodeSuperAdmin  = "SUPER_ADMIN"
+	RoleCodeAdmin       = "ADMIN"
+	RoleCodeCustomer    = "CUSTOMER"
+	RoleCodeVendorOwner = "VENDOR_OWNER"
+	RoleCodeVendorStaff = "VENDOR_STAFF"
+	RoleCodeShipper     = "SHIPPER"
 )

@@ -8,10 +8,10 @@ import (
 	"project/pkg/audit"
 	"project/pkg/config"
 	"project/pkg/database"
+	userv1 "project/proto/user/v1"
 	grpchandler "project/services/user/internal/handler/grpc"
 	"project/services/user/internal/infrastructure/persistence"
 	"project/services/user/internal/usecase"
-	userv1 "project/proto/user/v1"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -21,7 +21,7 @@ import (
 func TestGRPCGetUser_NotFound(t *testing.T) {
 	skipIfNoInfra(t)
 
-	cfg, err := config.Load("/Users/levan/develop/thacsi/distributed_system/project/backend/config/config.yaml")
+	cfg, err := config.Load(testConfigPath())
 	if err != nil {
 		t.Skipf("config load failed: %v", err)
 	}
@@ -36,7 +36,8 @@ func TestGRPCGetUser_NotFound(t *testing.T) {
 	_ = audit.NoopLogger{} // audit not needed for gRPC handler
 
 	userUC := usecase.NewUserUsecase(userRepo)
-	srv := grpchandler.NewUserServiceServer(userUC, userRepo, membershipRepo)
+	// rbac=nil: this test only exercises GetUser, not CheckPermission.
+	srv := grpchandler.NewUserServiceServer(userUC, userRepo, membershipRepo, nil)
 
 	// Start gRPC server on random port
 	lis, err := net.Listen("tcp", "127.0.0.1:0")

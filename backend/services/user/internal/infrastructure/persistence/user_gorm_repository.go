@@ -68,7 +68,9 @@ func (r *userGormRepository) GetByIDs(ctx context.Context, ids []string) ([]*ent
 		return nil, nil
 	}
 	var users []*entity.User
-	if err := r.db.WithContext(ctx).Where("id = ANY(?)", ids).Find(&users).Error; err != nil {
+	// GORM expands a slice arg for "IN ?" into the correct ($1,$2,...) form;
+	// "= ANY(?)" would mis-bind the slice and error at the driver.
+	if err := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&users).Error; err != nil {
 		return nil, err
 	}
 	return users, nil

@@ -54,3 +54,16 @@ outbox:
   tick_every: 2s
   batch_size: 50
   max_attempts: 5
+
+google_oauth:
+  client_id: "194202809974-gr217ea4e9bk7uv25rbifdclsjqg4ual.apps.googleusercontent.com"
+  # client_secret: KHÔNG commit — inject qua env GOOGLE_OAUTH_CLIENT_SECRET khi chạy local
+  client_secret: ""
+  redirect_uri: "http://localhost:8080/api/v1/auth/google/callback"
+
+minio:
+  endpoint: "localhost:9000"
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+  bucket: "veloxfood"
+  use_ssl: false

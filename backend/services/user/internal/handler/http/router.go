@@ -9,17 +9,19 @@ import (
 
 // RouterConfig bundles all handler + middleware deps for route registration.
 type RouterConfig struct {
-	AuthHandler        *v1.AuthHandler
-	RoleHandler        *v1.RoleHandler
-	PermissionHandler  *v1.PermissionHandler
-	UserRoleHandler    *v1.UserRoleHandler
-	MeHandler          *v1.MeHandler
-	CardAdminHandler   *v1.CardAdminHandler
-	VendorHandler      *v1.VendorHandler
-	InvitationHandler  *v1.InvitationHandler
-	AdminUserHandler   *v1.AdminUserHandler
-	AdminVendorHandler *v1.AdminVendorHandler
-	AuthMiddleware     gin.HandlerFunc
+	AuthHandler         *v1.AuthHandler
+	AuthOAuthHandler    *v1.AuthOAuthHandler
+	RoleHandler         *v1.RoleHandler
+	PermissionHandler   *v1.PermissionHandler
+	UserRoleHandler     *v1.UserRoleHandler
+	MeHandler           *v1.MeHandler
+	VendorHandler       *v1.VendorHandler
+	InvitationHandler   *v1.InvitationHandler
+	AdminUserHandler    *v1.AdminUserHandler
+	AdminVendorHandler  *v1.AdminVendorHandler
+	ShipperHandler      *v1.ShipperHandler
+	AdminShipperHandler *v1.AdminShipperHandler
+	AuthMiddleware      gin.HandlerFunc
 	// PermChecker is the RBAC usecase, used to build per-route PermissionRequired middleware.
 	PermChecker authmw.PermissionChecker
 }
@@ -41,6 +43,13 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 			auth.POST("/forgot-password", cfg.AuthHandler.ForgotPassword)
 			auth.POST("/reset-password", cfg.AuthHandler.ResetPassword)
 		}
+	}
+
+	// ---------- Public: Google OAuth ----------
+	if cfg.AuthOAuthHandler != nil {
+		oauthGrp := api.Group("/auth/google")
+		oauthGrp.GET("/login", cfg.AuthOAuthHandler.GoogleLogin)
+		oauthGrp.GET("/callback", cfg.AuthOAuthHandler.GoogleCallback)
 	}
 
 	// ---------- Protected routes — require valid JWT ----------
@@ -88,16 +97,6 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 		me := protected.Group("/me")
 		me.GET("", cfg.MeHandler.GetMe)
 		me.PATCH("", cfg.MeHandler.UpdateMe)
-		me.PATCH("/student-profile", cfg.MeHandler.UpdateStudentProfile)
-		me.PATCH("/faculty-profile", cfg.MeHandler.UpdateFacultyProfile)
-	}
-
-	// Admin card management.
-	if cfg.CardAdminHandler != nil {
-		adminCards := protected.Group("/admin/users/:user_id/cards")
-		adminCards.POST("", perm("user.update"), cfg.CardAdminHandler.BindCard)
-		adminCards.DELETE("/:card_id", perm("user.update"), cfg.CardAdminHandler.RevokeCard)
-		adminCards.GET("", perm("user.read"), cfg.CardAdminHandler.ListCards)
 	}
 
 	// Admin user management.
@@ -108,8 +107,19 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 		adminUsers.POST("/:user_id/reactivate", perm("user.suspend"), cfg.AdminUserHandler.ReactivateUser)
 		adminUsers.POST("/:user_id/roles", perm("user.assign_role"), cfg.AdminUserHandler.AssignRole)
 		adminUsers.DELETE("/:user_id/roles/:role_id", perm("user.assign_role"), cfg.AdminUserHandler.RemoveRole)
-		adminUsers.PATCH("/:user_id/student-profile", perm("user.update"), cfg.AdminUserHandler.UpdateStudentProfile)
-		adminUsers.PATCH("/:user_id/faculty-profile", perm("user.update"), cfg.AdminUserHandler.UpdateFacultyProfile)
+	}
+
+	// Shipper self-registration (any authenticated user applies).
+	if cfg.ShipperHandler != nil {
+		protected.POST("/shipper/register", cfg.ShipperHandler.Register)
+	}
+
+	// Admin shipper approval.
+	if cfg.AdminShipperHandler != nil {
+		adminShippers := protected.Group("/admin/shippers")
+		adminShippers.GET("", perm("shipper.approve"), cfg.AdminShipperHandler.List)
+		adminShippers.POST("/:user_id/approve", perm("shipper.approve"), cfg.AdminShipperHandler.Approve)
+		adminShippers.POST("/:user_id/reject", perm("shipper.reject"), cfg.AdminShipperHandler.Reject)
 	}
 
 	// Admin vendor management.

@@ -41,10 +41,16 @@ func main() {
 			cfg.AuthMiddleware = rbac.authMiddleware
 			cfg.PermChecker = rbac.permChecker
 
-			// Profile + card handlers depend on RBAC usecase for ListUserRoles.
+			// Profile handlers depend on RBAC usecase for ListUserRoles.
 			profile := buildProfileHandlers(deps, rbac.rbacUC)
 			cfg.MeHandler = profile.meHandler
-			cfg.CardAdminHandler = profile.cardAdminHandler
+
+			// Google OAuth (optional — disabled if not configured).
+			if oauthHandler, oerr := buildOAuthHandler(deps, rbac.rbacUC); oerr != nil {
+				slog.Error("oauth handler setup failed — google login disabled", "err", oerr)
+			} else {
+				cfg.AuthOAuthHandler = oauthHandler
+			}
 
 			// Vendor onboarding + staff management.
 			vendor := buildVendorHandlers(deps, rbac.rbacUC)
@@ -55,6 +61,12 @@ func main() {
 			admin := buildAdminHandlers(deps, rbac.rbacUC)
 			cfg.AdminUserHandler = admin.adminUserHandler
 			cfg.AdminVendorHandler = admin.adminVendorHandler
+
+			// Shipper registration + admin approval (MinIO-backed uploads).
+			uploader := newMinioUploader(deps)
+			shipper := buildShipperHandlers(deps, rbac.rbacUC, uploader)
+			cfg.ShipperHandler = shipper.shipperHandler
+			cfg.AdminShipperHandler = shipper.adminShipperHandler
 		}
 
 		handlerhttp.RegisterRoutes(r, cfg)
@@ -67,8 +79,10 @@ func main() {
 	a.RegisterGRPC(func(s *grpc.Server, deps app.Dependencies) {
 		userRepo := persistence.NewUserGormRepository(deps.DB)
 		membershipRepo := persistence.NewVendorMembershipGormRepository(deps.DB)
+		rbacRepo := persistence.NewRBACGormRepository(deps.DB)
 		userUC := usecase.NewUserUsecase(userRepo)
-		userv1.RegisterUserServiceServer(s, grpchandler.NewUserServiceServer(userUC, userRepo, membershipRepo))
+		rbacUC := usecase.NewRBACUsecase(rbacRepo, deps.Cache)
+		userv1.RegisterUserServiceServer(s, grpchandler.NewUserServiceServer(userUC, userRepo, membershipRepo, rbacUC))
 	})
 
 	a.Run()

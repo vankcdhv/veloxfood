@@ -116,18 +116,13 @@ func (uc *vendorStaffUsecase) Accept(ctx context.Context, userID string, input A
 }
 
 // mapRoleInVendorToRoleCode maps RoleInVendor to the system role code string.
-// MANAGER maps to VENDOR_MANAGER — not seeded by default, admin must create it.
+// Vendor RBAC has exactly two roles: Owner and Staff.
 func mapRoleInVendorToRoleCode(r entity.RoleInVendor) (string, error) {
 	switch r {
 	case entity.RoleInVendorOwner:
 		return entity.RoleCodeVendorOwner, nil
-	case entity.RoleInVendorKitchen:
-		return entity.RoleCodeVendorStaffKitchen, nil
-	case entity.RoleInVendorCashier:
-		return entity.RoleCodeVendorStaffCashier, nil
-	case entity.RoleInVendorManager:
-		// VENDOR_MANAGER is not a seeded system role — admin creates it via roles API (D7).
-		return "VENDOR_MANAGER", nil
+	case entity.RoleInVendorStaff:
+		return entity.RoleCodeVendorStaff, nil
 	default:
 		return "", ErrInvalidInviteRole
 	}

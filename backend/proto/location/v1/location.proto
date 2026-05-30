@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package location.v1;
+
+option go_package = "project/proto/location/v1;locationv1";
+
+// Room delivery target resolved across the building/floor/room tree.
+// location_id == room_id across the system.
+message ResolvedRoom {
+  string room_id = 1;
+  string room_code = 2;
+  string room_name = 3;
+  string floor_id = 4;
+  string floor_name = 5;
+  string building_id = 6;
+  string building_name = 7;
+  bool active = 8;
+}
+
+message GetRoomRequest {
+  string room_id = 1;
+}
+
+message GetRoomResponse {
+  ResolvedRoom room = 1;
+  bool found = 2;
+}
+
+service LocationService {
+  // GetRoom resolves a room to its full building/floor/room path for other
+  // services (Store ship-fee, Order delivery address).
+  rpc GetRoom(GetRoomRequest) returns (GetRoomResponse);
+}

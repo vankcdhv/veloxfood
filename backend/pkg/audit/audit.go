@@ -36,7 +36,7 @@ type Logger interface {
 // NoopLogger is a no-op implementation for tests and dependency injection.
 type NoopLogger struct{}
 
-func (NoopLogger) Record(_ context.Context, _ Entry) error                { return nil }
+func (NoopLogger) Record(_ context.Context, _ Entry) error               { return nil }
 func (NoopLogger) RecordTx(_ context.Context, _ *gorm.DB, _ Entry) error { return nil }
 
 // ---- context helpers for IP / User-Agent ----

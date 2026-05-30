@@ -4,7 +4,7 @@
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative \
 		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
-		proto/user/v1/*.proto
+		proto/user/v1/*.proto proto/location/v1/*.proto proto/store/v1/*.proto
 
 # Build
 build:
@@ -22,15 +22,15 @@ test:
 lint:
 	golangci-lint run ./...
 
-# Database migrations (reads DSN from config/config.yaml)
+# Database migrations. Default service=user; override: make migrate-up SVC=location
 migrate-up:
-	go run ./cmd/migrate up
+	go run ./cmd/migrate $(SVC) up
 
 migrate-down:
-	go run ./cmd/migrate down
+	go run ./cmd/migrate $(SVC) down
 
 migrate-version:
-	go run ./cmd/migrate version
+	go run ./cmd/migrate $(SVC) version
 
 # Docker
 docker-up:

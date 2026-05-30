@@ -23,7 +23,9 @@ func (m *mockRBACRepository) ListUserPermissions(_ context.Context, _ string, _ 
 	m.called = true
 	return m.perms, m.err
 }
-func (m *mockRBACRepository) AssignRoleToUser(_ context.Context, _ *entity.UserRole) error { return nil }
+func (m *mockRBACRepository) AssignRoleToUser(_ context.Context, _ *entity.UserRole) error {
+	return nil
+}
 func (m *mockRBACRepository) RemoveRoleFromUser(_ context.Context, _, _ string, _ entity.ScopeType, _ *string) error {
 	return nil
 }

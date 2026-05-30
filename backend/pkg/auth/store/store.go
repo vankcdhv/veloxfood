@@ -10,8 +10,9 @@ import (
 // Redis crash → all tokens invalid (fail-closed by design).
 //
 // Key layout:
-//   auth:jti:<jti>         string = user_id, TTL mirrors token TTL
-//   auth:user:<uid>:jtis   SET of active jtis for the user
+//
+//	auth:jti:<jti>         string = user_id, TTL mirrors token TTL
+//	auth:user:<uid>:jtis   SET of active jtis for the user
 type AuthStore interface {
 	// Whitelist records jti as valid. Paired with SADD to user set.
 	Whitelist(ctx context.Context, jti, userID string, ttl time.Duration) error

@@ -43,8 +43,33 @@ message GetVendorMembershipResponse {
   bool found = 3;
 }
 
+message CheckPermissionRequest {
+  string user_id = 1;
+  string permission_code = 2;
+}
+
+message CheckPermissionResponse {
+  bool has_permission = 1;
+}
+
+message CheckVendorPermissionRequest {
+  string user_id = 1;
+  string vendor_id = 2;
+  string permission_code = 3;
+}
+
+message CheckVendorPermissionResponse {
+  bool has_permission = 1;
+}
+
 service UserService {
   rpc GetUser(GetUserRequest) returns (GetUserResponse);
   rpc GetUserBatch(GetUserBatchRequest) returns (GetUserBatchResponse);
   rpc GetVendorMembership(GetVendorMembershipRequest) returns (GetVendorMembershipResponse);
+  // CheckPermission lets other services authorize global permissions against
+  // the user-service's RBAC (single source of truth).
+  rpc CheckPermission(CheckPermissionRequest) returns (CheckPermissionResponse);
+  // CheckVendorPermission authorizes a vendor-scoped permission so vendor-facing
+  // services (store, etc.) can enforce per-vendor RBAC without local tables.
+  rpc CheckVendorPermission(CheckVendorPermissionRequest) returns (CheckVendorPermissionResponse);
 }

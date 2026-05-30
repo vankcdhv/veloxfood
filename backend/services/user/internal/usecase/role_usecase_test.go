@@ -95,9 +95,9 @@ func (m *mockPermRepo) GetByID(_ context.Context, id string) (*entity.Permission
 func (m *mockPermRepo) GetByCode(_ context.Context, _ string) (*entity.Permission, error) {
 	return nil, gorm.ErrRecordNotFound
 }
-func (m *mockPermRepo) Create(_ context.Context, _ *entity.Permission) error            { return nil }
-func (m *mockPermRepo) Update(_ context.Context, _ *entity.Permission) error            { return nil }
-func (m *mockPermRepo) Delete(_ context.Context, _ string) error                        { return nil }
+func (m *mockPermRepo) Create(_ context.Context, _ *entity.Permission) error { return nil }
+func (m *mockPermRepo) Update(_ context.Context, _ *entity.Permission) error { return nil }
+func (m *mockPermRepo) Delete(_ context.Context, _ string) error             { return nil }
 
 // ---- mock RBAC for role tests ----
 

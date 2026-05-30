@@ -22,10 +22,10 @@ func NewRoleHandler(roleUC usecase.RoleUsecase) *RoleHandler {
 }
 
 type createRoleRequest struct {
-	Code        string             `json:"code" binding:"required"`
-	Name        string             `json:"name" binding:"required"`
-	Description *string            `json:"description"`
-	ScopeType   entity.ScopeType   `json:"scope_type"`
+	Code        string           `json:"code" binding:"required"`
+	Name        string           `json:"name" binding:"required"`
+	Description *string          `json:"description"`
+	ScopeType   entity.ScopeType `json:"scope_type"`
 }
 
 type updateRoleRequest struct {

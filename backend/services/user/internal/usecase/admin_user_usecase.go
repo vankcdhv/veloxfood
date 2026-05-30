@@ -22,8 +22,6 @@ type AdminUserUsecase interface {
 	ListUsers(ctx context.Context, filter ListUsersFilter) ([]*entity.User, int64, error)
 	AssignRole(ctx context.Context, adminID, userID, roleID string, scopeType entity.ScopeType, scopeID *string, expiresAt *time.Time) error
 	RemoveRole(ctx context.Context, adminID, userID, roleID string, scopeType entity.ScopeType, scopeID *string) error
-	UpdateStudentByAdmin(ctx context.Context, adminID, userID string, input UpdateStudentAdminInput) error
-	UpdateFacultyByAdmin(ctx context.Context, adminID, userID string, input UpdateFacultyAdminInput) error
 }
 
 // ListUsersFilter contains optional filter parameters for admin user listing.
@@ -36,29 +34,9 @@ type ListUsersFilter struct {
 	PageSize int
 }
 
-// UpdateStudentAdminInput fields admin is allowed to set on a student profile.
-type UpdateStudentAdminInput struct {
-	StudentCode   string
-	Faculty       *string
-	Class         *string
-	CohortYear    *int
-	DormitoryRoom *string
-	Allergies     *json.RawMessage
-}
-
-// UpdateFacultyAdminInput fields admin is allowed to set on a faculty profile.
-type UpdateFacultyAdminInput struct {
-	StaffCode             string
-	Department            *string
-	Position              *string
-	AllowPayrollDeduction *bool
-}
-
 type adminUserUsecase struct {
 	db          *gorm.DB
 	userRepo    repository.UserRepository
-	studentRepo repository.StudentProfileRepository
-	facultyRepo repository.FacultyProfileRepository
 	outboxRepo  repository.OutboxRepository
 	rbacUC      RBACUsecase
 	authStore   store.AuthStore
@@ -69,8 +47,6 @@ type adminUserUsecase struct {
 func NewAdminUserUsecase(
 	db *gorm.DB,
 	userRepo repository.UserRepository,
-	studentRepo repository.StudentProfileRepository,
-	facultyRepo repository.FacultyProfileRepository,
 	outboxRepo repository.OutboxRepository,
 	rbacUC RBACUsecase,
 	authStore store.AuthStore,
@@ -79,8 +55,6 @@ func NewAdminUserUsecase(
 	return &adminUserUsecase{
 		db:          db,
 		userRepo:    userRepo,
-		studentRepo: studentRepo,
-		facultyRepo: facultyRepo,
 		outboxRepo:  outboxRepo,
 		rbacUC:      rbacUC,
 		authStore:   authStore,

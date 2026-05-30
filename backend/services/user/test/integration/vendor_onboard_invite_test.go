@@ -71,7 +71,7 @@ func TestVendorInvite_HappyPath(t *testing.T) {
 	}
 
 	// Invite staff
-	inviteBody := `{"email":"staff@example.com","role_in_vendor":"KITCHEN","vendor_name":"Invite Canteen"}`
+	inviteBody := `{"email":"staff@example.com","role_in_vendor":"STAFF","vendor_name":"Invite Canteen"}`
 	w = req(t, app.engine, "POST", "/api/v1/vendors/"+vendorID+"/invitations",
 		[]byte(inviteBody), bearer(ownerToken))
 	if w.Code != http.StatusOK && w.Code != http.StatusCreated {

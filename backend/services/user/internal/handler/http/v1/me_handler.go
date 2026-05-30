@@ -70,77 +70,19 @@ func (h *MeHandler) UpdateMe(c *gin.Context) {
 	response.Success(c, toUserResponse(user))
 }
 
-// updateStudentProfileRequest — self-service student fields.
-type updateStudentProfileRequest struct {
-	Allergies     *[]string `json:"allergies"`
-	DormitoryRoom *string   `json:"dormitory_room"`
-}
-
-// UpdateStudentProfile handles PATCH /api/v1/me/student-profile.
-func (h *MeHandler) UpdateStudentProfile(c *gin.Context) {
-	var req updateStudentProfileRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-
-	profile, err := h.profileUC.UpdateStudentProfile(
-		c.Request.Context(),
-		authmw.UserIDFromContext(c.Request.Context()),
-		usecase.UpdateStudentProfileInput{
-			Allergies:     req.Allergies,
-			DormitoryRoom: req.DormitoryRoom,
-		},
-	)
-	if err != nil {
-		response.HandleError(c, err)
-		return
-	}
-	response.Success(c, profile)
-}
-
-// updateFacultyProfileRequest — self-service faculty fields.
-type updateFacultyProfileRequest struct {
-	AllowPayrollDeduction *bool `json:"allow_payroll_deduction"`
-}
-
-// UpdateFacultyProfile handles PATCH /api/v1/me/faculty-profile.
-func (h *MeHandler) UpdateFacultyProfile(c *gin.Context) {
-	var req updateFacultyProfileRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-
-	profile, err := h.profileUC.UpdateFacultyProfile(
-		c.Request.Context(),
-		authmw.UserIDFromContext(c.Request.Context()),
-		usecase.UpdateFacultyProfileInput{
-			AllowPayrollDeduction: req.AllowPayrollDeduction,
-		},
-	)
-	if err != nil {
-		response.HandleError(c, err)
-		return
-	}
-	response.Success(c, profile)
-}
-
 // ---- response helpers ----
 
 type profileBundleResponse struct {
 	User              *userResponse              `json:"user"`
 	Roles             []*userRoleResponse        `json:"roles"`
-	StudentProfile    *entity.StudentProfile     `json:"student_profile"`
-	FacultyProfile    *entity.FacultyProfile     `json:"faculty_profile"`
 	VendorMemberships []*entity.VendorMembership `json:"vendor_memberships"`
 }
 
 type userRoleResponse struct {
-	RoleID    string            `json:"role_id"`
-	ScopeType entity.ScopeType  `json:"scope_type"`
-	ScopeID   *string           `json:"scope_id"`
-	RoleCode  *string           `json:"role_code"`
+	RoleID    string           `json:"role_id"`
+	ScopeType entity.ScopeType `json:"scope_type"`
+	ScopeID   *string          `json:"scope_id"`
+	RoleCode  *string          `json:"role_code"`
 }
 
 func toProfileBundleResponse(b *usecase.ProfileBundle) profileBundleResponse {
@@ -160,8 +102,6 @@ func toProfileBundleResponse(b *usecase.ProfileBundle) profileBundleResponse {
 	return profileBundleResponse{
 		User:              &u,
 		Roles:             roles,
-		StudentProfile:    b.StudentProfile,
-		FacultyProfile:    b.FacultyProfile,
 		VendorMemberships: b.VendorMemberships,
 	}
 }

@@ -66,6 +66,8 @@ func TopicFor(aggregateType string) string {
 	switch aggregateType {
 	case "vendor":
 		return "vendor.events"
+	case "store":
+		return "store.events"
 	default:
 		return "user.events"
 	}

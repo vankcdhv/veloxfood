@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	rbacCacheTTL    = 5 * time.Minute
-	rbacGlobalKey   = "rbac:user:%s:perms"
-	rbacVendorKey   = "rbac:user:%s:vendor:%s:perms"
-	rbacVendorGlob  = "rbac:user:%s:vendor:*"
+	rbacCacheTTL   = 5 * time.Minute
+	rbacGlobalKey  = "rbac:user:%s:perms"
+	rbacVendorKey  = "rbac:user:%s:vendor:%s:perms"
+	rbacVendorGlob = "rbac:user:%s:vendor:*"
 )
 
 // RBACUsecase handles permission checks and role assignment with cache-aside.

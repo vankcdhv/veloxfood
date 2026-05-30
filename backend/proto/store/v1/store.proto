@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package store.v1;
+
+option go_package = "project/proto/store/v1;storev1";
+
+// OrderItem is a single sellable item returned for order validation.
+message OrderItem {
+  string item_id = 1;
+  string name    = 2;
+  int64  price   = 3;
+}
+
+// GetStoreForOrderRequest is called by the order service before placing an order.
+message GetStoreForOrderRequest {
+  string store_id = 1;
+  string room_id  = 2;
+}
+
+message GetStoreForOrderResponse {
+  bool             found            = 1;
+  string           sale_status      = 2;
+  int64            unit_ship_fee    = 3;
+  bool             served           = 4;  // true when the room is covered by a ship fee rule
+  repeated OrderItem items          = 5;
+  string           order_deadline   = 6;  // ISO-8601 datetime string (earliest cutoff - lead)
+}
+
+// DecrementSlotQuotaRequest is called when an order is placed.
+message DecrementSlotQuotaRequest {
+  string item_id   = 1;
+  string cutoff_id = 2;
+  string date      = 3; // YYYY-MM-DD
+  int32  qty       = 4;
+}
+
+message DecrementSlotQuotaResponse {
+  bool  ok        = 1;
+  int32 remaining = 2;
+}
+
+service StoreService {
+  // GetStoreForOrder assembles store availability, ship fee, and menu snapshot
+  // for the order service before order placement.
+  rpc GetStoreForOrder(GetStoreForOrderRequest) returns (GetStoreForOrderResponse);
+
+  // DecrementSlotQuota atomically reduces sold count for a quota slot.
+  // Returns ok=false if quota is exhausted.
+  rpc DecrementSlotQuota(DecrementSlotQuotaRequest) returns (DecrementSlotQuotaResponse);
+}

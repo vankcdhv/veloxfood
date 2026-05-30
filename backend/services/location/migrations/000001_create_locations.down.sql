@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS customer_locations;
+DROP TABLE IF EXISTS rooms;
+DROP TABLE IF EXISTS floors;
+DROP TABLE IF EXISTS buildings;

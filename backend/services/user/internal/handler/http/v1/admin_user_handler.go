@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -117,72 +116,6 @@ func (h *AdminUserHandler) RemoveRole(c *gin.Context) {
 	}
 
 	if err := h.adminUserUC.RemoveRole(ctx, adminID, userID, roleID, scopeType, scopeID); err != nil {
-		response.HandleError(c, err)
-		return
-	}
-	response.Success(c, nil)
-}
-
-// UpdateStudentProfile PATCH /admin/users/:user_id/student-profile
-func (h *AdminUserHandler) UpdateStudentProfile(c *gin.Context) {
-	ctx := c.Request.Context()
-	adminID := authmw.UserIDFromContext(ctx)
-	userID := c.Param("user_id")
-
-	var req struct {
-		StudentCode   string           `json:"student_code" binding:"required"`
-		Faculty       *string          `json:"faculty"`
-		Class         *string          `json:"class"`
-		CohortYear    *int             `json:"cohort_year"`
-		DormitoryRoom *string          `json:"dormitory_room"`
-		Allergies     *json.RawMessage `json:"allergies"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-
-	input := usecase.UpdateStudentAdminInput{
-		StudentCode:   req.StudentCode,
-		Faculty:       req.Faculty,
-		Class:         req.Class,
-		CohortYear:    req.CohortYear,
-		DormitoryRoom: req.DormitoryRoom,
-		Allergies:     req.Allergies,
-	}
-
-	if err := h.adminUserUC.UpdateStudentByAdmin(ctx, adminID, userID, input); err != nil {
-		response.HandleError(c, err)
-		return
-	}
-	response.Success(c, nil)
-}
-
-// UpdateFacultyProfile PATCH /admin/users/:user_id/faculty-profile
-func (h *AdminUserHandler) UpdateFacultyProfile(c *gin.Context) {
-	ctx := c.Request.Context()
-	adminID := authmw.UserIDFromContext(ctx)
-	userID := c.Param("user_id")
-
-	var req struct {
-		StaffCode             string  `json:"staff_code" binding:"required"`
-		Department            *string `json:"department"`
-		Position              *string `json:"position"`
-		AllowPayrollDeduction *bool   `json:"allow_payroll_deduction"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-
-	input := usecase.UpdateFacultyAdminInput{
-		StaffCode:             req.StaffCode,
-		Department:            req.Department,
-		Position:              req.Position,
-		AllowPayrollDeduction: req.AllowPayrollDeduction,
-	}
-
-	if err := h.adminUserUC.UpdateFacultyByAdmin(ctx, adminID, userID, input); err != nil {
 		response.HandleError(c, err)
 		return
 	}

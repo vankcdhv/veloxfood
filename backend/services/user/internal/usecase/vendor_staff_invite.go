@@ -124,13 +124,7 @@ func (uc *vendorStaffUsecase) Invite(ctx context.Context, ownerUserID, vendorID 
 	}, nil
 }
 
-// isValidInviteRole checks that only staff roles (not OWNER) can be invited.
+// isValidInviteRole checks that only STAFF (not OWNER) can be invited.
 func isValidInviteRole(r entity.RoleInVendor) bool {
-	switch r {
-	case entity.RoleInVendorManager,
-		entity.RoleInVendorKitchen,
-		entity.RoleInVendorCashier:
-		return true
-	}
-	return false
+	return r == entity.RoleInVendorStaff
 }
