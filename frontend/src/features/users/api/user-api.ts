@@ -1,18 +1,21 @@
 import { http } from '@/shared/lib/http-client';
 import { API_PREFIX } from '@/shared/config/constants';
 import type { ApiResponse, PaginatedData } from '@/shared/api/api-response';
-import type { User } from '../types/user';
+import type { AdminUser, User } from '../types/user';
 import type { CreateUserInput, UpdateUserInput } from '../schemas/user-schema';
 
-const USERS_PATH = `${API_PREFIX}/users`;
+const USERS_PATH = `${API_PREFIX}/admin/users`;
 
 export interface ListUsersParams {
+  search?: string;
+  status?: string;
+  role_id?: string;
   page?: number;
   page_size?: number;
 }
 
-export async function listUsers(params: ListUsersParams = {}): Promise<PaginatedData<User>> {
-  const res = await http.get<ApiResponse<PaginatedData<User>>>(USERS_PATH, { params });
+export async function listUsers(params: ListUsersParams = {}): Promise<PaginatedData<AdminUser>> {
+  const res = await http.get<ApiResponse<PaginatedData<AdminUser>>>(USERS_PATH, { params });
   if (!res.data.data) {
     throw new Error(res.data.error ?? 'Empty response');
   }

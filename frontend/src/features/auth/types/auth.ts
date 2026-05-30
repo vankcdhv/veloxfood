@@ -3,7 +3,7 @@
 
 export type UserStatus = 'pending' | 'active' | 'suspended' | 'deactivated';
 export type ScopeType = 'global' | 'vendor';
-export type RoleInVendor = 'OWNER' | 'MANAGER' | 'KITCHEN' | 'CASHIER';
+export type RoleInVendor = 'OWNER' | 'STAFF';
 export type MembershipStatus = 'invited' | 'active' | 'left';
 
 export interface SessionUser {
@@ -23,26 +23,6 @@ export interface Role {
   role_code: string;
 }
 
-export interface StudentProfile {
-  user_id: string;
-  student_code: string;
-  faculty: string;
-  class: string;
-  cohort_year: number;
-  allergies: string[] | null;
-  dormitory_room: string;
-  synced_at: string;
-}
-
-export interface FacultyProfile {
-  user_id: string;
-  staff_code: string;
-  department: string;
-  position: string;
-  allow_payroll_deduction: boolean;
-  synced_at: string;
-}
-
 export interface VendorMembership {
   id: string;
   user_id: string;
@@ -57,8 +37,6 @@ export interface VendorMembership {
 export interface MeResponse {
   user: SessionUser;
   roles: Role[];
-  student_profile: StudentProfile | null;
-  faculty_profile: FacultyProfile | null;
   vendor_memberships: VendorMembership[];
 }
 

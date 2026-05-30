@@ -3,11 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/sha
 import { Badge } from '@/shared/ui/badge';
 import { AdminTopbar } from '@/widgets/admin-topbar/admin-topbar';
 
+// Số liệu tổng hợp chưa có API — hiển thị trung thực thay vì số giả gây hiểu nhầm.
 const METRICS = [
-  { label: 'Đơn hôm nay', value: '128', delta: '+12%', icon: ShoppingCart, tone: 'success' },
-  { label: 'Doanh thu', value: '24.8M', delta: '+8.4%', icon: DollarSign, tone: 'accent' },
-  { label: 'Người dùng mới', value: '42', delta: '+5', icon: Users, tone: 'warning' },
-  { label: 'Sản phẩm hết', value: '3', delta: 'cần nhập', icon: Package, tone: 'destructive' },
+  { label: 'Đơn hôm nay', value: '—', delta: 'Chưa có dữ liệu', icon: ShoppingCart, tone: 'outline' },
+  { label: 'Doanh thu', value: '—', delta: 'Chưa có dữ liệu', icon: DollarSign, tone: 'outline' },
+  { label: 'Người dùng mới', value: '—', delta: 'Chưa có dữ liệu', icon: Users, tone: 'outline' },
+  { label: 'Sản phẩm hết', value: '—', delta: 'Chưa có dữ liệu', icon: Package, tone: 'outline' },
 ] as const;
 
 export default function AdminDashboardPage() {
@@ -46,30 +47,30 @@ export default function AdminDashboardPage() {
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>Đơn hàng gần đây</CardTitle>
-              <CardDescription>10 đơn hàng mới nhất sẽ hiển thị tại đây.</CardDescription>
+              <CardDescription>Sẽ hiển thị khi dịch vụ Đơn hàng được triển khai.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="border-border bg-muted/40 text-muted-foreground flex h-48 items-center justify-center rounded-lg border border-dashed text-sm">
-                [Bảng đơn hàng — placeholder, dựng ở phase sau]
+                Tính năng đang phát triển
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Hoạt động hệ thống</CardTitle>
-              <CardDescription>Trạng thái microservices.</CardDescription>
+              <CardTitle>Dịch vụ đã triển khai</CardTitle>
+              <CardDescription>Các microservice hiện có của hệ thống.</CardDescription>
             </CardHeader>
             <CardContent>
               <ul className="space-y-3 text-sm">
                 {[
-                  { name: 'user-service', status: 'healthy', tone: 'success' as const },
-                  { name: 'order-service', status: 'pending', tone: 'warning' as const },
-                  { name: 'payment-service', status: 'down', tone: 'destructive' as const },
+                  { name: 'Tài khoản & phân quyền', svc: 'user-service' },
+                  { name: 'Vị trí giao', svc: 'location-service' },
+                  { name: 'Cửa hàng & thực đơn', svc: 'store-service' },
                 ].map((s) => (
-                  <li key={s.name} className="flex items-center justify-between">
-                    <span className="font-mono">{s.name}</span>
-                    <Badge variant={s.tone}>{s.status}</Badge>
+                  <li key={s.svc} className="flex items-center justify-between gap-2">
+                    <span>{s.name}</span>
+                    <Badge variant="success">Đang chạy</Badge>
                   </li>
                 ))}
               </ul>

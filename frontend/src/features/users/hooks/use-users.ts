@@ -18,6 +18,7 @@ export const userKeys = {
 export function useUsers(params: ListUsersParams = { page: 1, page_size: 20 }) {
   return useQuery({
     queryKey: userKeys.list(params),
+    // Pass all params (search, status, page, page_size) to the admin list endpoint.
     queryFn: () => listUsers(params),
   });
 }

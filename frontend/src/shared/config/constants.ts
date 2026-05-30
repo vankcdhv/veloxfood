@@ -12,6 +12,17 @@ export const ROUTES = {
     users: '/admin/users',
     orders: '/admin/orders',
     products: '/admin/products',
+    shippers: '/admin/shippers',
+    locations: '/admin/locations',
+    stores: '/admin/stores',
+  },
+  account: {
+    locations: '/account/locations',
+    store: '/account/store',
+  },
+  stores: {
+    root: '/stores',
+    detail: (id: string) => `/stores/${id}`,
   },
   auth: {
     login: '/login',
@@ -19,4 +30,5 @@ export const ROUTES = {
     forgotPassword: '/forgot-password',
     resetPassword: '/reset-password',
   },
+  registerShipper: '/register-shipper',
 } as const;

@@ -47,3 +47,10 @@ export async function getMe(): Promise<MeResponse> {
   if (!res.data.data) throw new Error(res.data.error ?? 'Không tải được phiên');
   return res.data.data;
 }
+
+// loginWithGoogle performs a full-page redirect to the backend OAuth entrypoint.
+// The backend redirects to Google, then to its callback which sets the auth
+// cookies and returns the browser to the web app.
+export function loginWithGoogle(): void {
+  window.location.href = `${AUTH_PATH}/google/login`;
+}
