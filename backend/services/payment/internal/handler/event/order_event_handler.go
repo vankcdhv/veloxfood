@@ -67,12 +67,12 @@ func (h *OrderEventHandler) HandleKafkaMessage(ctx context.Context, msg kafka.Me
 	return nil
 }
 
-// orderPlacedData matches the payload published by the Order service.
+// orderPlacedData matches the frozen order.placed payload (02-domain-events §2bis).
 type orderPlacedData struct {
 	OrderID    string `json:"order_id"`
 	CustomerID string `json:"customer_id"`
-	Method     string `json:"method"` // COD | MOMO | WALLET
-	Amount     int64  `json:"amount"`
+	Method     string `json:"payment_method"` // COD | MOMO | WALLET
+	Amount     int64  `json:"grand_total"`
 }
 
 // handleOrderPlaced records a payment intent for the order.

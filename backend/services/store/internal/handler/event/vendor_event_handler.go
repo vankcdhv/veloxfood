@@ -109,19 +109,24 @@ func (h *VendorEventHandler) handleVendorRejected(ctx context.Context, env outbo
 	return nil
 }
 
-// ─── Order events (stubs — Order service topic absent in current sprint) ──────
+// ─── Order events ─────────────────────────────────────────────────────────────
 
-type orderPlacedData struct {
-	StoreID    string `json:"store_id"`
+// orderItemData is one line item in the frozen order.placed / order.cancelled payload.
+type orderItemData struct {
 	MenuItemID string `json:"menu_item_id"`
 	CutoffID   string `json:"cutoff_id"`
 	Date       string `json:"date"` // YYYY-MM-DD
 	Qty        int    `json:"qty"`
 }
 
-// handleOrderPlaced decrements the slot quota for each ordered item.
-// Wired but the order.events topic has no producer yet — handler is correct
-// and will activate automatically once the Order service starts publishing.
+type orderPlacedData struct {
+	StoreID string          `json:"store_id"`
+	Items   []orderItemData `json:"items"`
+}
+
+// handleOrderPlaced decrements the slot quota for each item in the frozen items[] array.
+// The frozen contract (§2bis) publishes items as an array; single-item decoding was
+// the previous stub shape.
 func (h *VendorEventHandler) handleOrderPlaced(ctx context.Context, env outbox.Envelope) error {
 	var data orderPlacedData
 	if err := json.Unmarshal(env.Data, &data); err != nil {
@@ -129,28 +134,27 @@ func (h *VendorEventHandler) handleOrderPlaced(ctx context.Context, env outbox.E
 		return nil
 	}
 
-	date, err := time.Parse("2006-01-02", data.Date)
-	if err != nil {
-		slog.ErrorContext(ctx, "order.placed: invalid date", "date", data.Date)
-		return nil
-	}
-
-	if err := h.quotaUC.DecrementSlot(ctx, data.MenuItemID, date, data.CutoffID, data.Qty); err != nil {
-		slog.ErrorContext(ctx, "order.placed: decrement slot failed",
-			"menu_item_id", data.MenuItemID, "err", err)
-		return err
+	for _, item := range data.Items {
+		date, err := time.Parse("2006-01-02", item.Date)
+		if err != nil {
+			slog.ErrorContext(ctx, "order.placed: invalid date", "date", item.Date)
+			return nil
+		}
+		if err := h.quotaUC.DecrementSlot(ctx, item.MenuItemID, date, item.CutoffID, item.Qty); err != nil {
+			slog.ErrorContext(ctx, "order.placed: decrement slot failed",
+				"menu_item_id", item.MenuItemID, "err", err)
+			return err
+		}
 	}
 	return nil
 }
 
 type orderCancelledData struct {
-	MenuItemID string `json:"menu_item_id"`
-	CutoffID   string `json:"cutoff_id"`
-	Date       string `json:"date"`
-	Qty        int    `json:"qty"`
+	Items []orderItemData `json:"items"`
 }
 
-// handleOrderCancelled restores the slot quota for a cancelled order.
+// handleOrderCancelled restores the slot quota for each item in a cancelled order.
+// Uses the frozen items[] array (§2bis).
 func (h *VendorEventHandler) handleOrderCancelled(ctx context.Context, env outbox.Envelope) error {
 	var data orderCancelledData
 	if err := json.Unmarshal(env.Data, &data); err != nil {
@@ -158,16 +162,17 @@ func (h *VendorEventHandler) handleOrderCancelled(ctx context.Context, env outbo
 		return nil
 	}
 
-	date, err := time.Parse("2006-01-02", data.Date)
-	if err != nil {
-		slog.ErrorContext(ctx, "order.cancelled: invalid date", "date", data.Date)
-		return nil
-	}
-
-	if err := h.quotaUC.RestoreSlot(ctx, data.MenuItemID, date, data.CutoffID, data.Qty); err != nil {
-		slog.ErrorContext(ctx, "order.cancelled: restore slot failed",
-			"menu_item_id", data.MenuItemID, "err", err)
-		return err
+	for _, item := range data.Items {
+		date, err := time.Parse("2006-01-02", item.Date)
+		if err != nil {
+			slog.ErrorContext(ctx, "order.cancelled: invalid date", "date", item.Date)
+			return nil
+		}
+		if err := h.quotaUC.RestoreSlot(ctx, item.MenuItemID, date, item.CutoffID, item.Qty); err != nil {
+			slog.ErrorContext(ctx, "order.cancelled: restore slot failed",
+				"menu_item_id", item.MenuItemID, "err", err)
+			return err
+		}
 	}
 	return nil
 }

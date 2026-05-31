@@ -24,21 +24,40 @@ func startVendorEventConsumer(
 		return
 	}
 
-	consumer := kafka.NewConsumer(brokers, "store-service", "vendor.events")
 	handler := storevent.NewVendorEventHandler(storeUC, quotaUC)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	// Subscribe to vendor.events (vendor lifecycle) using the "store-service" group.
+	vendorConsumer := kafka.NewConsumer(brokers, "store-service", "vendor.events")
+	vendorCtx, vendorCancel := context.WithCancel(context.Background())
 
 	go func() {
-		if err := consumer.Listen(ctx, handler.HandleKafkaMessage); err != nil {
+		if err := vendorConsumer.Listen(vendorCtx, handler.HandleKafkaMessage); err != nil {
 			slog.Error("store: vendor event consumer stopped", "err", err)
 		}
 	}()
 
 	a.OnShutdown(func() {
-		cancel()
-		if err := consumer.Close(); err != nil {
+		vendorCancel()
+		if err := vendorConsumer.Close(); err != nil {
 			slog.Error("store: vendor event consumer close error", "err", err)
+		}
+	})
+
+	// Subscribe to order.events (order placed/cancelled → slot quota management)
+	// using the same "store-service" group so both topics share a consumer group.
+	orderConsumer := kafka.NewConsumer(brokers, "store-service", "order.events")
+	orderCtx, orderCancel := context.WithCancel(context.Background())
+
+	go func() {
+		if err := orderConsumer.Listen(orderCtx, handler.HandleKafkaMessage); err != nil {
+			slog.Error("store: order event consumer stopped", "err", err)
+		}
+	}()
+
+	a.OnShutdown(func() {
+		orderCancel()
+		if err := orderConsumer.Close(); err != nil {
+			slog.Error("store: order event consumer close error", "err", err)
 		}
 	})
 }

@@ -12,16 +12,19 @@ import { ROUTES } from '@/shared/config/constants';
 import { cn } from '@/shared/lib/utils';
 import { useAuth } from '@/features/auth/context/auth-provider';
 import { UserMenu } from '@/features/auth/components/user-menu';
+import { useMyCart } from '@/features/cart/hooks/use-cart';
 
 const NAV_ITEMS = [
   { label: 'Trang chủ', href: ROUTES.shop.root },
   { label: 'Thực đơn', href: ROUTES.shop.menu },
-  { label: 'Giỏ hàng', href: ROUTES.shop.cart },
+  { label: 'Giỏ hàng', href: ROUTES.cart },
 ];
 
 export function ShopHeader() {
   const pathname = usePathname();
   const { isAuthenticated, isLoading } = useAuth();
+  const { data: cart } = useMyCart();
+  const cartCount = cart?.Items?.reduce((s, it) => s + it.Qty, 0) ?? 0;
 
   return (
     <header className="border-border bg-background/80 sticky top-0 z-40 border-b backdrop-blur-md">
@@ -60,14 +63,16 @@ export function ShopHeader() {
           </Button>
 
           <Button variant="ghost" size="icon" aria-label="Giỏ hàng" className="relative" asChild>
-            <Link href={ROUTES.shop.cart}>
+            <Link href={ROUTES.cart}>
               <ShoppingBag className="h-4 w-4" />
-              <Badge
-                variant="accent"
-                className="absolute -top-1 -right-1 h-5 min-w-5 justify-center px-1 text-[10px]"
-              >
-                0
-              </Badge>
+              {cartCount > 0 && (
+                <Badge
+                  variant="accent"
+                  className="absolute -top-1 -right-1 h-5 min-w-5 justify-center px-1 text-[10px]"
+                >
+                  {cartCount}
+                </Badge>
+              )}
             </Link>
           </Button>
 

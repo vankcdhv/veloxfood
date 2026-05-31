@@ -10,6 +10,7 @@ import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useMyLocations } from '@/features/locations/hooks/use-locations';
 import { formatRoomPath } from '@/features/locations/lib/format-room-path';
 import { LocationPicker } from '@/features/locations/components/location-picker';
+import { AddToCartButton } from '@/features/cart/components/add-to-cart-button';
 import { browseStoreApi } from '../api/store-api';
 import { useStore, useStoreMenu } from '../hooks/use-stores';
 import { SaleStatusBadge } from './sale-status-badge';
@@ -249,9 +250,12 @@ function MenuCategorySection({ cat }: { cat: MenuCategory }) {
                     ))}
                   </div>
                 )}
-                <p className="text-primary font-semibold text-sm">
-                  {item.Price.toLocaleString('vi-VN')}đ
-                </p>
+                <div className="flex items-center justify-between gap-2 pt-0.5">
+                  <p className="text-primary font-semibold text-sm">
+                    {item.Price.toLocaleString('vi-VN')}đ
+                  </p>
+                  <AddToCartButton item={item} />
+                </div>
               </div>
               {item.Status === 'off' && (
                 <Badge variant="outline" className="shrink-0 text-xs">Hết hàng</Badge>

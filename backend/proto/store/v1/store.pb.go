@@ -340,6 +340,119 @@ func (x *DecrementSlotQuotaResponse) GetRemaining() int32 {
 	return 0
 }
 
+// RestoreSlotQuotaRequest is called on saga compensation or order cancellation.
+type RestoreSlotQuotaRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ItemId        string                 `protobuf:"bytes,1,opt,name=item_id,json=itemId,proto3" json:"item_id,omitempty"`
+	CutoffId      string                 `protobuf:"bytes,2,opt,name=cutoff_id,json=cutoffId,proto3" json:"cutoff_id,omitempty"`
+	Date          string                 `protobuf:"bytes,3,opt,name=date,proto3" json:"date,omitempty"` // YYYY-MM-DD
+	Qty           int32                  `protobuf:"varint,4,opt,name=qty,proto3" json:"qty,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestoreSlotQuotaRequest) Reset() {
+	*x = RestoreSlotQuotaRequest{}
+	mi := &file_proto_store_v1_store_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreSlotQuotaRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreSlotQuotaRequest) ProtoMessage() {}
+
+func (x *RestoreSlotQuotaRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_store_v1_store_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreSlotQuotaRequest.ProtoReflect.Descriptor instead.
+func (*RestoreSlotQuotaRequest) Descriptor() ([]byte, []int) {
+	return file_proto_store_v1_store_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *RestoreSlotQuotaRequest) GetItemId() string {
+	if x != nil {
+		return x.ItemId
+	}
+	return ""
+}
+
+func (x *RestoreSlotQuotaRequest) GetCutoffId() string {
+	if x != nil {
+		return x.CutoffId
+	}
+	return ""
+}
+
+func (x *RestoreSlotQuotaRequest) GetDate() string {
+	if x != nil {
+		return x.Date
+	}
+	return ""
+}
+
+func (x *RestoreSlotQuotaRequest) GetQty() int32 {
+	if x != nil {
+		return x.Qty
+	}
+	return 0
+}
+
+type RestoreSlotQuotaResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestoreSlotQuotaResponse) Reset() {
+	*x = RestoreSlotQuotaResponse{}
+	mi := &file_proto_store_v1_store_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreSlotQuotaResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreSlotQuotaResponse) ProtoMessage() {}
+
+func (x *RestoreSlotQuotaResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_store_v1_store_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreSlotQuotaResponse.ProtoReflect.Descriptor instead.
+func (*RestoreSlotQuotaResponse) Descriptor() ([]byte, []int) {
+	return file_proto_store_v1_store_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *RestoreSlotQuotaResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
 // GetStoreOwnershipRequest looks up the ownership record for a store so that
 // callers can verify vendor_id without holding store data themselves.
 type GetStoreOwnershipRequest struct {
@@ -351,7 +464,7 @@ type GetStoreOwnershipRequest struct {
 
 func (x *GetStoreOwnershipRequest) Reset() {
 	*x = GetStoreOwnershipRequest{}
-	mi := &file_proto_store_v1_store_proto_msgTypes[5]
+	mi := &file_proto_store_v1_store_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -363,7 +476,7 @@ func (x *GetStoreOwnershipRequest) String() string {
 func (*GetStoreOwnershipRequest) ProtoMessage() {}
 
 func (x *GetStoreOwnershipRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_store_v1_store_proto_msgTypes[5]
+	mi := &file_proto_store_v1_store_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -376,7 +489,7 @@ func (x *GetStoreOwnershipRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStoreOwnershipRequest.ProtoReflect.Descriptor instead.
 func (*GetStoreOwnershipRequest) Descriptor() ([]byte, []int) {
-	return file_proto_store_v1_store_proto_rawDescGZIP(), []int{5}
+	return file_proto_store_v1_store_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GetStoreOwnershipRequest) GetStoreId() string {
@@ -398,7 +511,7 @@ type GetStoreOwnershipResponse struct {
 
 func (x *GetStoreOwnershipResponse) Reset() {
 	*x = GetStoreOwnershipResponse{}
-	mi := &file_proto_store_v1_store_proto_msgTypes[6]
+	mi := &file_proto_store_v1_store_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -410,7 +523,7 @@ func (x *GetStoreOwnershipResponse) String() string {
 func (*GetStoreOwnershipResponse) ProtoMessage() {}
 
 func (x *GetStoreOwnershipResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_store_v1_store_proto_msgTypes[6]
+	mi := &file_proto_store_v1_store_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -423,7 +536,7 @@ func (x *GetStoreOwnershipResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStoreOwnershipResponse.ProtoReflect.Descriptor instead.
 func (*GetStoreOwnershipResponse) Descriptor() ([]byte, []int) {
-	return file_proto_store_v1_store_proto_rawDescGZIP(), []int{6}
+	return file_proto_store_v1_store_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetStoreOwnershipResponse) GetFound() bool {
@@ -481,17 +594,25 @@ const file_proto_store_v1_store_proto_rawDesc = "" +
 	"\x03qty\x18\x04 \x01(\x05R\x03qty\"J\n" +
 	"\x1aDecrementSlotQuotaResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x1c\n" +
-	"\tremaining\x18\x02 \x01(\x05R\tremaining\"5\n" +
+	"\tremaining\x18\x02 \x01(\x05R\tremaining\"u\n" +
+	"\x17RestoreSlotQuotaRequest\x12\x17\n" +
+	"\aitem_id\x18\x01 \x01(\tR\x06itemId\x12\x1b\n" +
+	"\tcutoff_id\x18\x02 \x01(\tR\bcutoffId\x12\x12\n" +
+	"\x04date\x18\x03 \x01(\tR\x04date\x12\x10\n" +
+	"\x03qty\x18\x04 \x01(\x05R\x03qty\"*\n" +
+	"\x18RestoreSlotQuotaResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"5\n" +
 	"\x18GetStoreOwnershipRequest\x12\x19\n" +
 	"\bstore_id\x18\x01 \x01(\tR\astoreId\"\x86\x01\n" +
 	"\x19GetStoreOwnershipResponse\x12\x14\n" +
 	"\x05found\x18\x01 \x01(\bR\x05found\x12\x1b\n" +
 	"\tvendor_id\x18\x02 \x01(\tR\bvendorId\x12\"\n" +
 	"\rowner_user_id\x18\x03 \x01(\tR\vownerUserId\x12\x12\n" +
-	"\x04name\x18\x04 \x01(\tR\x04name2\xa8\x02\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name2\x83\x03\n" +
 	"\fStoreService\x12Y\n" +
 	"\x10GetStoreForOrder\x12!.store.v1.GetStoreForOrderRequest\x1a\".store.v1.GetStoreForOrderResponse\x12_\n" +
-	"\x12DecrementSlotQuota\x12#.store.v1.DecrementSlotQuotaRequest\x1a$.store.v1.DecrementSlotQuotaResponse\x12\\\n" +
+	"\x12DecrementSlotQuota\x12#.store.v1.DecrementSlotQuotaRequest\x1a$.store.v1.DecrementSlotQuotaResponse\x12Y\n" +
+	"\x10RestoreSlotQuota\x12!.store.v1.RestoreSlotQuotaRequest\x1a\".store.v1.RestoreSlotQuotaResponse\x12\\\n" +
 	"\x11GetStoreOwnership\x12\".store.v1.GetStoreOwnershipRequest\x1a#.store.v1.GetStoreOwnershipResponseB Z\x1eproject/proto/store/v1;storev1b\x06proto3"
 
 var (
@@ -506,26 +627,30 @@ func file_proto_store_v1_store_proto_rawDescGZIP() []byte {
 	return file_proto_store_v1_store_proto_rawDescData
 }
 
-var file_proto_store_v1_store_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_proto_store_v1_store_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_proto_store_v1_store_proto_goTypes = []any{
 	(*OrderItem)(nil),                  // 0: store.v1.OrderItem
 	(*GetStoreForOrderRequest)(nil),    // 1: store.v1.GetStoreForOrderRequest
 	(*GetStoreForOrderResponse)(nil),   // 2: store.v1.GetStoreForOrderResponse
 	(*DecrementSlotQuotaRequest)(nil),  // 3: store.v1.DecrementSlotQuotaRequest
 	(*DecrementSlotQuotaResponse)(nil), // 4: store.v1.DecrementSlotQuotaResponse
-	(*GetStoreOwnershipRequest)(nil),   // 5: store.v1.GetStoreOwnershipRequest
-	(*GetStoreOwnershipResponse)(nil),  // 6: store.v1.GetStoreOwnershipResponse
+	(*RestoreSlotQuotaRequest)(nil),    // 5: store.v1.RestoreSlotQuotaRequest
+	(*RestoreSlotQuotaResponse)(nil),   // 6: store.v1.RestoreSlotQuotaResponse
+	(*GetStoreOwnershipRequest)(nil),   // 7: store.v1.GetStoreOwnershipRequest
+	(*GetStoreOwnershipResponse)(nil),  // 8: store.v1.GetStoreOwnershipResponse
 }
 var file_proto_store_v1_store_proto_depIdxs = []int32{
 	0, // 0: store.v1.GetStoreForOrderResponse.items:type_name -> store.v1.OrderItem
 	1, // 1: store.v1.StoreService.GetStoreForOrder:input_type -> store.v1.GetStoreForOrderRequest
 	3, // 2: store.v1.StoreService.DecrementSlotQuota:input_type -> store.v1.DecrementSlotQuotaRequest
-	5, // 3: store.v1.StoreService.GetStoreOwnership:input_type -> store.v1.GetStoreOwnershipRequest
-	2, // 4: store.v1.StoreService.GetStoreForOrder:output_type -> store.v1.GetStoreForOrderResponse
-	4, // 5: store.v1.StoreService.DecrementSlotQuota:output_type -> store.v1.DecrementSlotQuotaResponse
-	6, // 6: store.v1.StoreService.GetStoreOwnership:output_type -> store.v1.GetStoreOwnershipResponse
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
+	5, // 3: store.v1.StoreService.RestoreSlotQuota:input_type -> store.v1.RestoreSlotQuotaRequest
+	7, // 4: store.v1.StoreService.GetStoreOwnership:input_type -> store.v1.GetStoreOwnershipRequest
+	2, // 5: store.v1.StoreService.GetStoreForOrder:output_type -> store.v1.GetStoreForOrderResponse
+	4, // 6: store.v1.StoreService.DecrementSlotQuota:output_type -> store.v1.DecrementSlotQuotaResponse
+	6, // 7: store.v1.StoreService.RestoreSlotQuota:output_type -> store.v1.RestoreSlotQuotaResponse
+	8, // 8: store.v1.StoreService.GetStoreOwnership:output_type -> store.v1.GetStoreOwnershipResponse
+	5, // [5:9] is the sub-list for method output_type
+	1, // [1:5] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -542,7 +667,7 @@ func file_proto_store_v1_store_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_store_v1_store_proto_rawDesc), len(file_proto_store_v1_store_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

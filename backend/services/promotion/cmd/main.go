@@ -46,6 +46,13 @@ func main() {
 		}
 
 		handlerhttp.RegisterRoutes(r, cfg)
+
+		// ── Event consumers ───────────────────────────────────────────────────
+		// applyUC must be built here (same scope as HTTP wiring) so the consumer
+		// has access to it; build its deps independently to avoid RegisterHTTP
+		// ordering requirements on RegisterGRPC.
+		applyUCForConsumer := usecase.NewApplyUsecase(deps.DB, promoRepo, usageRepo)
+		startOrderEventConsumer(a, deps, applyUCForConsumer)
 	})
 
 	a.RegisterGRPC(func(s *grpc.Server, deps app.Dependencies) {

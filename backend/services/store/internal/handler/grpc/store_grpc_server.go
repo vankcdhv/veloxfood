@@ -105,3 +105,18 @@ func (s *StoreServiceServer) DecrementSlotQuota(ctx context.Context, req *storev
 
 	return &storev1.DecrementSlotQuotaResponse{Ok: true}, nil
 }
+
+// RestoreSlotQuota reverses a DecrementSlotQuota — called on saga compensation
+// or when an order is cancelled before fulfilment.
+func (s *StoreServiceServer) RestoreSlotQuota(ctx context.Context, req *storev1.RestoreSlotQuotaRequest) (*storev1.RestoreSlotQuotaResponse, error) {
+	date, err := time.Parse("2006-01-02", req.GetDate())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid date format (expected YYYY-MM-DD): %v", err)
+	}
+
+	if err := s.quotaUC.RestoreSlot(ctx, req.GetItemId(), date, req.GetCutoffId(), int(req.GetQty())); err != nil {
+		return nil, status.Error(codes.Internal, "restore slot quota failed")
+	}
+
+	return &storev1.RestoreSlotQuotaResponse{Ok: true}, nil
+}

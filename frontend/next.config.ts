@@ -6,6 +6,7 @@ import type { NextConfig } from 'next';
 const USER_API_URL = process.env.USER_API_URL ?? 'http://localhost:8080';
 const LOCATION_API_URL = process.env.LOCATION_API_URL ?? 'http://localhost:8081';
 const STORE_API_URL = process.env.STORE_API_URL ?? 'http://localhost:8082';
+const ORDER_API_URL = process.env.ORDER_API_URL ?? 'http://localhost:8083';
 const PROMOTION_API_URL = process.env.PROMOTION_API_URL ?? 'http://localhost:8084';
 const PAYMENT_API_URL = process.env.PAYMENT_API_URL ?? 'http://localhost:8085';
 
@@ -22,6 +23,14 @@ const nextConfig: NextConfig = {
       { source: '/api/v1/me/wallet', destination: `${PAYMENT_API_URL}/api/v1/me/wallet` },
       { source: '/api/v1/wallet/:path*', destination: `${PAYMENT_API_URL}/api/v1/wallet/:path*` },
       { source: '/api/v1/payments/:path*', destination: `${PAYMENT_API_URL}/api/v1/payments/:path*` },
+      // Order service — cart and order routes (more specific store-scoped order
+      // routes must precede the generic /stores/:path* → STORE rule).
+      { source: '/api/v1/orders/:path*', destination: `${ORDER_API_URL}/api/v1/orders/:path*` },
+      { source: '/api/v1/orders', destination: `${ORDER_API_URL}/api/v1/orders` },
+      { source: '/api/v1/me/cart/:path*', destination: `${ORDER_API_URL}/api/v1/me/cart/:path*` },
+      { source: '/api/v1/me/cart', destination: `${ORDER_API_URL}/api/v1/me/cart` },
+      { source: '/api/v1/stores/:storeId/orders/:path*', destination: `${ORDER_API_URL}/api/v1/stores/:storeId/orders/:path*` },
+      { source: '/api/v1/stores/:storeId/orders', destination: `${ORDER_API_URL}/api/v1/stores/:storeId/orders` },
       // Promotion service — more specific store-scoped and top-level routes must
       // precede the generic /stores/:path* → STORE rule to avoid mis-routing.
       { source: '/api/v1/stores/:storeId/promotions/:path*', destination: `${PROMOTION_API_URL}/api/v1/stores/:storeId/promotions/:path*` },

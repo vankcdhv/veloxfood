@@ -1,0 +1,52 @@
+app:
+  env: production
+  port: 8083
+  grpc_port: 50054
+  base_url: http://order-service:8083
+  cookie_secure: true
+  cookie_domain: ""
+
+database:
+  host: postgres
+  port: 5432
+  user: dev_user
+  password: dev_password
+  name: order_db
+  ssl_mode: disable
+
+redis:
+  addr: redis:6379
+  password: ""
+  db: 0
+
+kafka:
+  brokers:
+    - kafka:9092
+
+rabbitmq:
+  url: amqp://dev_user:dev_password@rabbitmq:5672/
+
+dtm:
+  addr: dtm:36790
+
+jwt:
+  private_key_path: ""
+  public_key_path: secrets/jwt_public.pem
+  private_key_pem: ""
+  public_key_pem: ""
+  access_ttl: 15m
+  refresh_ttl: 168h
+
+outbox:
+  tick_every: 2s
+  batch_size: 50
+  max_attempts: 5
+
+user_service:
+  grpc_addr: user-service:50051
+store_service:
+  grpc_addr: store-service:50053
+promotion_service:
+  grpc_addr: promotion-service:50055
+payment_service:
+  grpc_addr: payment-service:50056

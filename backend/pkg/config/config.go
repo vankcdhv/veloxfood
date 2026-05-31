@@ -27,6 +27,12 @@ type Config struct {
 	// StoreService addresses the store-service for cross-service gRPC
 	// (e.g. promotion verifies store ownership before mutating vouchers).
 	StoreService ServiceEndpoint `mapstructure:"store_service"`
+	// PromotionService addresses the promotion-service for cross-service gRPC
+	// (e.g. order saga applies/releases voucher discounts).
+	PromotionService ServiceEndpoint `mapstructure:"promotion_service"`
+	// PaymentService addresses the payment-service for cross-service gRPC
+	// (e.g. order saga captures or refunds payments).
+	PaymentService ServiceEndpoint `mapstructure:"payment_service"`
 	// MoMo holds credentials and endpoint for MoMo payment gateway.
 	// Default values point to the public MoMo sandbox for development.
 	MoMo MoMoConfig `mapstructure:"momo"`

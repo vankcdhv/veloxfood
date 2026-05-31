@@ -39,6 +39,18 @@ message DecrementSlotQuotaResponse {
   int32 remaining = 2;
 }
 
+// RestoreSlotQuotaRequest is called on saga compensation or order cancellation.
+message RestoreSlotQuotaRequest {
+  string item_id   = 1;
+  string cutoff_id = 2;
+  string date      = 3; // YYYY-MM-DD
+  int32  qty       = 4;
+}
+
+message RestoreSlotQuotaResponse {
+  bool ok = 1;
+}
+
 // GetStoreOwnershipRequest looks up the ownership record for a store so that
 // callers can verify vendor_id without holding store data themselves.
 message GetStoreOwnershipRequest {
@@ -60,6 +72,10 @@ service StoreService {
   // DecrementSlotQuota atomically reduces sold count for a quota slot.
   // Returns ok=false if quota is exhausted.
   rpc DecrementSlotQuota(DecrementSlotQuotaRequest) returns (DecrementSlotQuotaResponse);
+
+  // RestoreSlotQuota increments available quota (inverse of Decrement).
+  // Called on order cancellation or saga compensation.
+  rpc RestoreSlotQuota(RestoreSlotQuotaRequest) returns (RestoreSlotQuotaResponse);
 
   // GetStoreOwnership returns the vendor_id and owner_user_id for a store so
   // peer services (e.g. promotion) can authorise store-scoped mutations without

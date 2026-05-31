@@ -20,7 +20,11 @@ export const ROUTES = {
     locations: '/account/locations',
     store: '/account/store',
     wallet: '/account/wallet',
+    orders: '/account/orders',
+    orderDetail: (id: string) => `/account/orders/${id}`,
   },
+  cart: '/cart',
+  checkout: '/checkout',
   stores: {
     root: '/stores',
     detail: (id: string) => `/stores/${id}`,

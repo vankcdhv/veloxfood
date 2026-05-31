@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package order.v1;
+
+option go_package = "project/proto/order/v1;orderv1";
+
+// OrderItemProto carries a line item for GetOrder callers.
+message OrderItemProto {
+  string menu_item_id    = 1;
+  string name_snapshot   = 2;
+  int64  price_snapshot  = 3;
+  int32  qty             = 4;
+  string cutoff_id       = 5;
+  string date            = 6; // YYYY-MM-DD
+}
+
+// GetOrderRequest looks up a full order by ID.
+// Called by Payment, Delivery, Review services.
+message GetOrderRequest {
+  string order_id = 1;
+}
+
+message GetOrderResponse {
+  bool   found           = 1;
+  string order_id        = 2;
+  string code            = 3;
+  string customer_id     = 4;
+  string store_id        = 5;
+  string location_id     = 6; // empty for PICKUP
+  string fulfillment     = 7; // DELIVERY | PICKUP
+  string status          = 8;
+  string payment_method  = 9;  // COD | MOMO | WALLET
+  string payment_status  = 10; // UNPAID | PAID
+  int64  items_total     = 11;
+  int64  ship_fee        = 12;
+  int64  discount        = 13;
+  int64  grand_total     = 14;
+  string pickup_pin      = 15; // non-empty for PICKUP orders
+  string placed_at       = 16; // RFC3339
+  repeated OrderItemProto items = 17;
+}
+
+service OrderService {
+  // GetOrder returns full order details for internal services (Payment, Delivery, Review).
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+}

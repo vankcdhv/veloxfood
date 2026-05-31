@@ -1,0 +1,133 @@
+package persistence
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"project/services/order/internal/entity"
+	"project/services/order/internal/repository"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
+
+type orderGormRepository struct {
+	db *gorm.DB
+}
+
+// NewOrderGormRepository returns an OrderRepository backed by GORM/Postgres.
+func NewOrderGormRepository(db *gorm.DB) repository.OrderRepository {
+	return &orderGormRepository{db: db}
+}
+
+func (r *orderGormRepository) Create(ctx context.Context, tx *gorm.DB, order *entity.Order, items []*entity.OrderItem) error {
+	if err := tx.WithContext(ctx).Create(order).Error; err != nil {
+		return fmt.Errorf("create order: %w", err)
+	}
+	for _, item := range items {
+		item.OrderID = order.ID
+		if err := tx.WithContext(ctx).Create(item).Error; err != nil {
+			return fmt.Errorf("create order item: %w", err)
+		}
+	}
+	return nil
+}
+
+func (r *orderGormRepository) GetByID(ctx context.Context, id string) (*entity.Order, error) {
+	var order entity.Order
+	err := r.db.WithContext(ctx).Preload("Items").Where("id = ?", id).First(&order).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, repository.ErrNotFound
+		}
+		return nil, fmt.Errorf("get order by id: %w", err)
+	}
+	return &order, nil
+}
+
+func (r *orderGormRepository) GetByIDForUpdate(ctx context.Context, tx *gorm.DB, id string) (*entity.Order, error) {
+	var order entity.Order
+	err := tx.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ?", id).First(&order).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, repository.ErrNotFound
+		}
+		return nil, fmt.Errorf("get order for update: %w", err)
+	}
+	// Load items separately (preload + FOR UPDATE doesn't compose cleanly).
+	if err := tx.WithContext(ctx).Where("order_id = ?", id).Find(&order.Items).Error; err != nil {
+		return nil, fmt.Errorf("load order items: %w", err)
+	}
+	return &order, nil
+}
+
+func (r *orderGormRepository) ListByCustomer(ctx context.Context, customerID string, page, pageSize int) ([]*entity.Order, int64, error) {
+	var orders []*entity.Order
+	var total int64
+	offset := (page - 1) * pageSize
+	if err := r.db.WithContext(ctx).Model(&entity.Order{}).Where("customer_id = ?", customerID).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := r.db.WithContext(ctx).
+		Preload("Items").
+		Where("customer_id = ?", customerID).
+		Order("placed_at DESC").
+		Limit(pageSize).Offset(offset).
+		Find(&orders).Error
+	return orders, total, err
+}
+
+func (r *orderGormRepository) ListByStore(ctx context.Context, storeID string, status entity.OrderStatus, page, pageSize int) ([]*entity.Order, int64, error) {
+	var orders []*entity.Order
+	var total int64
+	offset := (page - 1) * pageSize
+	q := r.db.WithContext(ctx).Where("store_id = ?", storeID)
+	if status != "" {
+		q = q.Where("status = ?", status)
+	}
+	if err := q.Model(&entity.Order{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := q.Preload("Items").Order("placed_at DESC").Limit(pageSize).Offset(offset).Find(&orders).Error
+	return orders, total, err
+}
+
+func (r *orderGormRepository) UpdateStatus(ctx context.Context, tx *gorm.DB, orderID string, status entity.OrderStatus, changedBy *string, note *string) error {
+	if err := tx.WithContext(ctx).Model(&entity.Order{}).Where("id = ?", orderID).
+		Updates(map[string]any{"status": status, "updated_at": time.Now()}).Error; err != nil {
+		return fmt.Errorf("update order status: %w", err)
+	}
+	hist := &entity.OrderStatusHistory{
+		OrderID:   orderID,
+		Status:    status,
+		ChangedBy: changedBy,
+		Note:      note,
+	}
+	return tx.WithContext(ctx).Create(hist).Error
+}
+
+func (r *orderGormRepository) UpdatePaymentStatus(ctx context.Context, tx *gorm.DB, orderID string, status entity.PaymentStatus) error {
+	return tx.WithContext(ctx).Model(&entity.Order{}).Where("id = ?", orderID).
+		Updates(map[string]any{"payment_status": status, "updated_at": time.Now()}).Error
+}
+
+// FindReadyPastCutoff returns READY orders with at least one item whose cutoff
+// date is today or earlier AND the order has not yet been assigned a shipper.
+// The cutoff_id represents a specific time slot; we use the item's date field
+// to detect when the service date has passed.
+func (r *orderGormRepository) FindReadyPastCutoff(ctx context.Context) ([]*entity.Order, error) {
+	today := time.Now().UTC().Format("2006-01-02")
+	var orders []*entity.Order
+	err := r.db.WithContext(ctx).
+		Joins("JOIN order_items oi ON oi.order_id = orders.id").
+		Where("orders.status = ? AND oi.date IS NOT NULL AND oi.date <= ?",
+			entity.StatusReady, today).
+		Distinct("orders.*").
+		Preload("Items").
+		Find(&orders).Error
+	return orders, err
+}

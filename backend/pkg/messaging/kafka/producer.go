@@ -18,6 +18,9 @@ func NewProducer(brokers []string) *Producer {
 		Addr:         kafka.TCP(brokers...),
 		Balancer:     &kafka.LeastBytes{},
 		RequiredAcks: kafka.RequireOne,
+		// Create the domain topic on first publish — services come up in any order
+		// and topics (order.events, payment.events, …) are not pre-provisioned.
+		AllowAutoTopicCreation: true,
 	}
 	slog.Info("kafka producer initialized", "brokers", brokers)
 	return &Producer{writer: w}

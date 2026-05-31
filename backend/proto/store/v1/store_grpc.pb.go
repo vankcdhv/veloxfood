@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	StoreService_GetStoreForOrder_FullMethodName   = "/store.v1.StoreService/GetStoreForOrder"
 	StoreService_DecrementSlotQuota_FullMethodName = "/store.v1.StoreService/DecrementSlotQuota"
+	StoreService_RestoreSlotQuota_FullMethodName   = "/store.v1.StoreService/RestoreSlotQuota"
 	StoreService_GetStoreOwnership_FullMethodName  = "/store.v1.StoreService/GetStoreOwnership"
 )
 
@@ -34,6 +35,9 @@ type StoreServiceClient interface {
 	// DecrementSlotQuota atomically reduces sold count for a quota slot.
 	// Returns ok=false if quota is exhausted.
 	DecrementSlotQuota(ctx context.Context, in *DecrementSlotQuotaRequest, opts ...grpc.CallOption) (*DecrementSlotQuotaResponse, error)
+	// RestoreSlotQuota increments available quota (inverse of Decrement).
+	// Called on order cancellation or saga compensation.
+	RestoreSlotQuota(ctx context.Context, in *RestoreSlotQuotaRequest, opts ...grpc.CallOption) (*RestoreSlotQuotaResponse, error)
 	// GetStoreOwnership returns the vendor_id and owner_user_id for a store so
 	// peer services (e.g. promotion) can authorise store-scoped mutations without
 	// holding a local copy of store data.
@@ -68,6 +72,16 @@ func (c *storeServiceClient) DecrementSlotQuota(ctx context.Context, in *Decreme
 	return out, nil
 }
 
+func (c *storeServiceClient) RestoreSlotQuota(ctx context.Context, in *RestoreSlotQuotaRequest, opts ...grpc.CallOption) (*RestoreSlotQuotaResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RestoreSlotQuotaResponse)
+	err := c.cc.Invoke(ctx, StoreService_RestoreSlotQuota_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *storeServiceClient) GetStoreOwnership(ctx context.Context, in *GetStoreOwnershipRequest, opts ...grpc.CallOption) (*GetStoreOwnershipResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetStoreOwnershipResponse)
@@ -88,6 +102,9 @@ type StoreServiceServer interface {
 	// DecrementSlotQuota atomically reduces sold count for a quota slot.
 	// Returns ok=false if quota is exhausted.
 	DecrementSlotQuota(context.Context, *DecrementSlotQuotaRequest) (*DecrementSlotQuotaResponse, error)
+	// RestoreSlotQuota increments available quota (inverse of Decrement).
+	// Called on order cancellation or saga compensation.
+	RestoreSlotQuota(context.Context, *RestoreSlotQuotaRequest) (*RestoreSlotQuotaResponse, error)
 	// GetStoreOwnership returns the vendor_id and owner_user_id for a store so
 	// peer services (e.g. promotion) can authorise store-scoped mutations without
 	// holding a local copy of store data.
@@ -107,6 +124,9 @@ func (UnimplementedStoreServiceServer) GetStoreForOrder(context.Context, *GetSto
 }
 func (UnimplementedStoreServiceServer) DecrementSlotQuota(context.Context, *DecrementSlotQuotaRequest) (*DecrementSlotQuotaResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DecrementSlotQuota not implemented")
+}
+func (UnimplementedStoreServiceServer) RestoreSlotQuota(context.Context, *RestoreSlotQuotaRequest) (*RestoreSlotQuotaResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RestoreSlotQuota not implemented")
 }
 func (UnimplementedStoreServiceServer) GetStoreOwnership(context.Context, *GetStoreOwnershipRequest) (*GetStoreOwnershipResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetStoreOwnership not implemented")
@@ -168,6 +188,24 @@ func _StoreService_DecrementSlotQuota_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _StoreService_RestoreSlotQuota_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RestoreSlotQuotaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreServiceServer).RestoreSlotQuota(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StoreService_RestoreSlotQuota_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreServiceServer).RestoreSlotQuota(ctx, req.(*RestoreSlotQuotaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _StoreService_GetStoreOwnership_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetStoreOwnershipRequest)
 	if err := dec(in); err != nil {
@@ -200,6 +238,10 @@ var StoreService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DecrementSlotQuota",
 			Handler:    _StoreService_DecrementSlotQuota_Handler,
+		},
+		{
+			MethodName: "RestoreSlotQuota",
+			Handler:    _StoreService_RestoreSlotQuota_Handler,
 		},
 		{
 			MethodName: "GetStoreOwnership",
