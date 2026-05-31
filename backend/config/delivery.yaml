@@ -1,0 +1,51 @@
+app:
+  env: development
+  port: 8086
+  grpc_port: 0
+  base_url: http://localhost:8086
+  cookie_secure: false
+  cookie_domain: ""
+
+database:
+  host: localhost
+  port: 5433
+  user: dev_user
+  password: dev_password
+  name: delivery_db
+  ssl_mode: disable
+
+redis:
+  addr: localhost:6380
+  password: ""
+  db: 0
+
+kafka:
+  brokers:
+    - localhost:19092
+
+rabbitmq:
+  url: amqp://dev_user:dev_password@localhost:5672/
+
+dtm:
+  addr: localhost:36790
+
+# Delivery only VERIFIES tokens — public key suffices (no private key, no issuing).
+jwt:
+  private_key_path: ""
+  public_key_path: secrets/jwt_public.pem
+  private_key_pem: ""
+  public_key_pem: ""
+  access_ttl: 15m
+  refresh_ttl: 168h
+
+# Transactional outbox dispatcher (delivery publishes delivery.* events to Kafka).
+outbox:
+  tick_every: 2s
+  batch_size: 50
+  max_attempts: 5
+
+# Cross-service gRPC endpoints.
+user_service:
+  grpc_addr: localhost:50051
+location_service:
+  grpc_addr: localhost:50052

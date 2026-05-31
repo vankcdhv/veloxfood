@@ -235,6 +235,32 @@ services:
         fluentd-max-retries: "30"
         tag: "service.payment"
 
+  delivery-service:
+    build:
+      context: .
+      dockerfile: docker/services/Dockerfile
+      args:
+        SERVICE_NAME: delivery
+    volumes:
+      - ./config/delivery.docker.yaml:/config/delivery.yaml:ro
+    ports:
+      - "8086:8086"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "localhost:24224"
+        fluentd-async: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: "service.delivery"
+
 volumes:
   postgres_data:
   redis_data:

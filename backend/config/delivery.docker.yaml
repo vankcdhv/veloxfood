@@ -1,0 +1,48 @@
+app:
+  env: production
+  port: 8086
+  grpc_port: 0
+  base_url: http://delivery-service:8086
+  cookie_secure: true
+  cookie_domain: ""
+
+database:
+  host: postgres
+  port: 5432
+  user: dev_user
+  password: dev_password
+  name: delivery_db
+  ssl_mode: disable
+
+redis:
+  addr: redis:6379
+  password: ""
+  db: 0
+
+kafka:
+  brokers:
+    - kafka:9092
+
+rabbitmq:
+  url: amqp://dev_user:dev_password@rabbitmq:5672/
+
+dtm:
+  addr: dtm:36790
+
+jwt:
+  private_key_path: ""
+  public_key_path: secrets/jwt_public.pem
+  private_key_pem: ""
+  public_key_pem: ""
+  access_ttl: 15m
+  refresh_ttl: 168h
+
+outbox:
+  tick_every: 2s
+  batch_size: 50
+  max_attempts: 5
+
+user_service:
+  grpc_addr: user-service:50051
+location_service:
+  grpc_addr: location-service:50052

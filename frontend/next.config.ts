@@ -9,6 +9,7 @@ const STORE_API_URL = process.env.STORE_API_URL ?? 'http://localhost:8082';
 const ORDER_API_URL = process.env.ORDER_API_URL ?? 'http://localhost:8083';
 const PROMOTION_API_URL = process.env.PROMOTION_API_URL ?? 'http://localhost:8084';
 const PAYMENT_API_URL = process.env.PAYMENT_API_URL ?? 'http://localhost:8085';
+const DELIVERY_API_URL = process.env.DELIVERY_API_URL ?? 'http://localhost:8086';
 
 const nextConfig: NextConfig = {
   async rewrites() {
@@ -23,6 +24,13 @@ const nextConfig: NextConfig = {
       { source: '/api/v1/me/wallet', destination: `${PAYMENT_API_URL}/api/v1/me/wallet` },
       { source: '/api/v1/wallet/:path*', destination: `${PAYMENT_API_URL}/api/v1/wallet/:path*` },
       { source: '/api/v1/payments/:path*', destination: `${PAYMENT_API_URL}/api/v1/payments/:path*` },
+      // Delivery service — /me/deliveries is distinct from /me/cart and /me/wallet.
+      // Both /deliveries/* and /me/deliveries route to the delivery service.
+      { source: '/api/v1/me/deliveries', destination: `${DELIVERY_API_URL}/api/v1/me/deliveries` },
+      { source: '/api/v1/deliveries/:path*', destination: `${DELIVERY_API_URL}/api/v1/deliveries/:path*` },
+      { source: '/api/v1/deliveries', destination: `${DELIVERY_API_URL}/api/v1/deliveries` },
+      { source: '/api/v1/admin/deliveries', destination: `${DELIVERY_API_URL}/api/v1/admin/deliveries` },
+      { source: '/api/v1/admin/incidents', destination: `${DELIVERY_API_URL}/api/v1/admin/incidents` },
       // Order service — cart and order routes (more specific store-scoped order
       // routes must precede the generic /stores/:path* → STORE rule).
       { source: '/api/v1/orders/:path*', destination: `${ORDER_API_URL}/api/v1/orders/:path*` },

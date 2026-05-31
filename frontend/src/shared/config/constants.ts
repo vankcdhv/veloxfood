@@ -22,6 +22,7 @@ export const ROUTES = {
     wallet: '/account/wallet',
     orders: '/account/orders',
     orderDetail: (id: string) => `/account/orders/${id}`,
+    deliveries: '/account/deliveries',
   },
   cart: '/cart',
   checkout: '/checkout',

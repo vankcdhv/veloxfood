@@ -100,7 +100,7 @@ func (uc *orderLifecycleUsecase) AdvanceStatus(ctx context.Context, orderID stri
 			return err
 		}
 
-		evt := statusEvent(order.ID, to, order.PickupPin, order.StoreID, order.GrandTotal, order.PaymentMethod, traceID)
+		evt := statusEvent(order, to, traceID)
 		if evt != nil {
 			return uc.outboxRepo.Append(ctx, tx, evt)
 		}
@@ -246,20 +246,39 @@ func (uc *orderLifecycleUsecase) Reorder(ctx context.Context, orderID, customerI
 
 // statusEvent builds the outbox event for a standard lifecycle transition.
 // Returns nil for transitions that don't need an external event.
-func statusEvent(orderID string, to entity.OrderStatus, pickupPin *string, storeID string, amount int64, method entity.PaymentMethod, traceID string) *entity.OutboxEvent {
+func statusEvent(order *entity.Order, to entity.OrderStatus, traceID string) *entity.OutboxEvent {
+	orderID := order.ID
 	var eventType string
 	var payload []byte
 
 	switch to {
-	case entity.StatusConfirmed, entity.StatusPreparing, entity.StatusReady:
+	case entity.StatusConfirmed, entity.StatusPreparing:
 		eventType = "order." + statusEventSuffix(to)
 		payload, _ = json.Marshal(map[string]any{"order_id": orderID, "status": string(to)})
+
+	case entity.StatusReady:
+		// Enriched so the Delivery service can create the delivery record straight
+		// from the event (store + destination + fee) without a follow-up gRPC call.
+		eventType = "order.ready"
+		locationID := ""
+		if order.LocationID != nil {
+			locationID = *order.LocationID
+		}
+		payload, _ = json.Marshal(map[string]any{
+			"order_id":    orderID,
+			"status":      string(entity.StatusReady),
+			"store_id":    order.StoreID,
+			"location_id": locationID,
+			"ship_fee":    order.ShipFee,
+			"fulfillment": string(order.Fulfillment),
+			"customer_id": order.CustomerID,
+		})
 
 	case entity.StatusReadyPickup:
 		eventType = "order.ready_pickup"
 		pin := ""
-		if pickupPin != nil {
-			pin = *pickupPin
+		if order.PickupPin != nil {
+			pin = *order.PickupPin
 		}
 		payload, _ = json.Marshal(map[string]any{"order_id": orderID, "pickup_pin": pin})
 
@@ -267,9 +286,9 @@ func statusEvent(orderID string, to entity.OrderStatus, pickupPin *string, store
 		eventType = "order.delivered"
 		payload, _ = json.Marshal(map[string]any{
 			"order_id":       orderID,
-			"store_id":       storeID,
-			"amount":         amount,
-			"payment_method": string(method),
+			"store_id":       order.StoreID,
+			"amount":         order.GrandTotal,
+			"payment_method": string(order.PaymentMethod),
 		})
 
 	case entity.StatusCompleted:

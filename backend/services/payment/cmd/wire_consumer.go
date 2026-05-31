@@ -45,7 +45,10 @@ func startDeliveryEventConsumer(a *app.App, deps app.Dependencies, handler *paye
 		return
 	}
 
-	consumer := kafka.NewConsumer(brokers, "payment-service", "delivery.events")
+	// order.delivered is an order.* event (published to order.events). Use a
+	// SEPARATE consumer group so this COD-settlement handler receives every
+	// order.events message independently of the placed/cancelled consumer above.
+	consumer := kafka.NewConsumer(brokers, "payment-cod-delivered", "order.events")
 
 	ctx, cancel := context.WithCancel(context.Background())
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { LogOut, LayoutDashboard, User as UserIcon, Wallet, Package } from 'lucide-react';
+import { LogOut, LayoutDashboard, User as UserIcon, Wallet, Package, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar';
 import {
@@ -35,7 +35,7 @@ interface UserMenuProps {
 // optional admin entry, logout). Shared by the shop header and admin topbar.
 export function UserMenu({ showAdminLink = false, align = 'end' }: UserMenuProps) {
   const router = useRouter();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isShipper } = useAuth();
   const logoutMutation = useLogout();
 
   const handleLogout = async () => {
@@ -86,6 +86,15 @@ export function UserMenu({ showAdminLink = false, align = 'end' }: UserMenuProps
           <Package className="mr-2 h-4 w-4" />
           Đơn hàng của tôi
         </DropdownMenuItem>
+        {isShipper && (
+          <DropdownMenuItem
+            onClick={() => router.push(ROUTES.account.deliveries)}
+            className="cursor-pointer"
+          >
+            <Truck className="mr-2 h-4 w-4" />
+            Giao hàng
+          </DropdownMenuItem>
+        )}
         {showAdminLink && isAdmin && (
           <DropdownMenuItem
             onClick={() => router.push(ROUTES.admin.root)}
