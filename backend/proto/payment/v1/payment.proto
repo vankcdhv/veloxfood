@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package payment.v1;
+
+option go_package = "project/proto/payment/v1;paymentv1";
+
+// CaptureRequest is sent by the order saga to authorise payment.
+// WALLET  → sync debit; MOMO → create intent, returns pay_url; COD → no-op.
+message CaptureRequest {
+  string order_id    = 1;
+  string customer_id = 2;
+  int64  amount      = 3; // VND
+  string method      = 4; // COD | MOMO | WALLET
+}
+
+// CaptureResponse reports the outcome.
+// WALLET: status=CAPTURED; MOMO: status=PENDING + pay_url set; COD: status=PENDING.
+message CaptureResponse {
+  string payment_id = 1;
+  string status     = 2; // CAPTURED | PENDING | FAILED
+  string pay_url    = 3; // non-empty for MOMO
+  string error      = 4; // non-empty on failure
+}
+
+// RefundRequest triggers a 100% refund to the customer wallet.
+// Idempotent by order_id.
+message RefundRequest {
+  string order_id = 1;
+  int64  amount   = 2; // VND (must match original captured amount)
+}
+
+message RefundResponse {
+  bool   success   = 1;
+  string refund_id = 2;
+}
+
+// GetPaymentStatusRequest looks up payment status by order_id.
+message GetPaymentStatusRequest {
+  string order_id = 1;
+}
+
+message GetPaymentStatusResponse {
+  string status = 1; // UNPAID | PAID | REFUNDED
+  string method = 2; // COD | MOMO | WALLET
+  int64  amount = 3; // VND
+}
+
+service PaymentService {
+  // Capture authorises or initiates payment for an order.
+  rpc Capture(CaptureRequest) returns (CaptureResponse);
+
+  // Refund credits the customer wallet (100%) for a completed order.
+  rpc Refund(RefundRequest) returns (RefundResponse);
+
+  // GetPaymentStatus queries payment state by order_id.
+  rpc GetPaymentStatus(GetPaymentStatusRequest) returns (GetPaymentStatusResponse);
+}

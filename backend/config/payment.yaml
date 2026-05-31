@@ -1,0 +1,59 @@
+app:
+  env: development
+  port: 8085
+  grpc_port: 50056
+  base_url: http://localhost:8085
+  cookie_secure: false
+  cookie_domain: ""
+
+database:
+  host: localhost
+  port: 5433
+  user: dev_user
+  password: dev_password
+  name: payment_db
+  ssl_mode: disable
+
+redis:
+  addr: localhost:6380
+  password: ""
+  db: 0
+
+kafka:
+  brokers:
+    - localhost:19092
+
+rabbitmq:
+  url: amqp://dev_user:dev_password@localhost:5672/
+
+dtm:
+  addr: localhost:36790
+
+# Payment only VERIFIES tokens — public key suffices (no private key, no issuing).
+jwt:
+  private_key_path: ""
+  public_key_path: secrets/jwt_public.pem
+  private_key_pem: ""
+  public_key_pem: ""
+  access_ttl: 15m
+  refresh_ttl: 168h
+
+outbox:
+  tick_every: 2s
+  batch_size: 50
+  max_attempts: 5
+
+# MoMo sandbox credentials (public test credentials from MoMo developer portal).
+# Switch to prod by replacing these values — no code change required.
+momo:
+  endpoint: https://test-payment.momo.vn/v2/gateway/api/create
+  partner_code: MOMO
+  access_key: F8BBA842ECF85
+  secret_key: K951B6PE1waDMi640xX08PD3vg6EkVlz
+  redirect_url: http://localhost:8085/api/v1/payments/momo/return
+  ipn_url: http://localhost:8085/api/v1/payments/momo/ipn
+  env: demo
+
+# Cross-service gRPC endpoints.
+user_service:
+  grpc_addr: localhost:50051

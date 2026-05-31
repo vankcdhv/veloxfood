@@ -19,6 +19,7 @@ export const ROUTES = {
   account: {
     locations: '/account/locations',
     store: '/account/store',
+    wallet: '/account/wallet',
   },
   stores: {
     root: '/stores',

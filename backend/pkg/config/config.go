@@ -27,6 +27,21 @@ type Config struct {
 	// StoreService addresses the store-service for cross-service gRPC
 	// (e.g. promotion verifies store ownership before mutating vouchers).
 	StoreService ServiceEndpoint `mapstructure:"store_service"`
+	// MoMo holds credentials and endpoint for MoMo payment gateway.
+	// Default values point to the public MoMo sandbox for development.
+	MoMo MoMoConfig `mapstructure:"momo"`
+}
+
+// MoMoConfig holds MoMo v2 payment gateway credentials.
+// Switching demo↔prod requires only config changes (no code change).
+type MoMoConfig struct {
+	Endpoint    string `mapstructure:"endpoint"`
+	PartnerCode string `mapstructure:"partner_code"`
+	AccessKey   string `mapstructure:"access_key"`
+	SecretKey   string `mapstructure:"secret_key"`
+	RedirectURL string `mapstructure:"redirect_url"`
+	IpnURL      string `mapstructure:"ipn_url"`
+	Env         string `mapstructure:"env"` // "demo" | "prod"
 }
 
 // UserServiceConfig points other services at the user-service for cross-service

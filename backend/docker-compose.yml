@@ -207,6 +207,33 @@ services:
         fluentd-max-retries: "30"
         tag: "service.promotion"
 
+  payment-service:
+    build:
+      context: .
+      dockerfile: docker/services/Dockerfile
+      args:
+        SERVICE_NAME: payment
+    volumes:
+      - ./config/payment.docker.yaml:/config/payment.yaml:ro
+    ports:
+      - "8085:8085"
+      - "50056:50056"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "localhost:24224"
+        fluentd-async: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: "service.payment"
+
 volumes:
   postgres_data:
   redis_data:

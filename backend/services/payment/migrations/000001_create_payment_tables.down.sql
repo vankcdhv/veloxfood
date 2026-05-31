@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS payout_batches;
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS ledger_entries;
+DROP TABLE IF EXISTS wallets;
