@@ -105,7 +105,7 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
         </div>
       </td>
       <td className={`py-3 pr-3 text-right font-semibold tabular-nums ${credit ? 'text-green-600' : 'text-orange-600'}`}>
-        {credit ? '+' : '−'}{formatVnd(entry.Amount)}
+        {credit ? '+' : '−'}{formatVnd(Math.abs(entry.Amount))}
       </td>
       <td className="py-3 pr-3 text-right text-muted-foreground tabular-nums">
         {formatVnd(entry.BalanceAfter)}

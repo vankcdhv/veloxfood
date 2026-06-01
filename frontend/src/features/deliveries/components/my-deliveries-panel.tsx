@@ -157,7 +157,7 @@ function ActiveDeliveryCard({
       <CardHeader className="pb-2 pt-3 px-3">
         <CardTitle className="text-sm flex items-center justify-between gap-2">
           <span className="font-mono truncate text-xs text-muted-foreground">
-            #{delivery.OrderID.slice(0, 8)}…
+            {delivery.OrderCode || `#${delivery.OrderID.slice(0, 8)}…`}
           </span>
           <DeliveryStatusBadge status={delivery.Status} />
         </CardTitle>
@@ -200,7 +200,7 @@ function HistoryDeliveryRow({ delivery }: { delivery: MyDelivery }) {
     <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
       <div className="min-w-0">
         <p className="font-mono text-xs text-muted-foreground truncate">
-          #{delivery.OrderID.slice(0, 8)}…
+          {delivery.OrderCode || `#${delivery.OrderID.slice(0, 8)}…`}
         </p>
         <p className="font-medium">{formatVnd(delivery.ShipFee)}</p>
       </div>

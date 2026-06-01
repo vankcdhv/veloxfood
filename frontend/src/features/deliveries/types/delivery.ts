@@ -13,6 +13,7 @@ export type DeliveryStatus =
 // GET /api/v1/deliveries/available — one item in the pool
 export interface AvailableDelivery {
   order_id: string;
+  order_code?: string;
   store_id: string;
   location_id: string;
   room_path: string; // resolved by grpcclient/location; fallback = raw UUID
@@ -24,6 +25,7 @@ export interface AvailableDelivery {
 export interface MyDelivery {
   ID: string;
   OrderID: string;
+  OrderCode?: string;
   StoreID: string;
   LocationID: string;
   ShipFee: number;

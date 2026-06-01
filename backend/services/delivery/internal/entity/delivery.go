@@ -20,6 +20,7 @@ const (
 type Delivery struct {
 	ID          string         `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	OrderID     string         `gorm:"type:uuid;not null;uniqueIndex"`
+	OrderCode   string         `gorm:"type:varchar(20)"`
 	StoreID     string         `gorm:"type:uuid;not null;index"`
 	LocationID  string         `gorm:"type:uuid;not null"`
 	CustomerID  string         `gorm:"type:uuid;not null"`

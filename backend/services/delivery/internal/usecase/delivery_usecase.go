@@ -17,6 +17,7 @@ import (
 // AvailableDeliveryItem is the response shape for the available-deliveries list.
 type AvailableDeliveryItem struct {
 	OrderID      string `json:"order_id"`
+	OrderCode    string `json:"order_code"`
 	StoreID      string `json:"store_id"`
 	LocationID   string `json:"location_id"`
 	RoomPath     string `json:"room_path"`
@@ -82,6 +83,7 @@ func (uc *deliveryUsecase) ListAvailable(ctx context.Context) ([]*AvailableDeliv
 		}
 		items[i] = &AvailableDeliveryItem{
 			OrderID:    d.OrderID,
+			OrderCode:  d.OrderCode,
 			StoreID:    d.StoreID,
 			LocationID: d.LocationID,
 			RoomPath:   display,

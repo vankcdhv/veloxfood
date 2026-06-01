@@ -61,6 +61,7 @@ func (h *OrderEventHandler) HandleKafkaMessage(ctx context.Context, msg kafka.Me
 // orderReadyData is the enriched order.ready payload (§2bis frozen contract).
 type orderReadyData struct {
 	OrderID     string `json:"order_id"`
+	Code        string `json:"code"`
 	Status      string `json:"status"`
 	StoreID     string `json:"store_id"`
 	LocationID  string `json:"location_id"`
@@ -98,6 +99,7 @@ func (h *OrderEventHandler) handleOrderReady(ctx context.Context, env outbox.Env
 
 		d := &entity.Delivery{
 			OrderID:    data.OrderID,
+			OrderCode:  data.Code,
 			StoreID:    data.StoreID,
 			LocationID: data.LocationID,
 			CustomerID: data.CustomerID,

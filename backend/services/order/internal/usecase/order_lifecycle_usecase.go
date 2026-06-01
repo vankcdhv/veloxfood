@@ -266,6 +266,7 @@ func statusEvent(order *entity.Order, to entity.OrderStatus, traceID string) *en
 		}
 		payload, _ = json.Marshal(map[string]any{
 			"order_id":    orderID,
+			"code":        order.Code,
 			"status":      string(entity.StatusReady),
 			"store_id":    order.StoreID,
 			"location_id": locationID,
