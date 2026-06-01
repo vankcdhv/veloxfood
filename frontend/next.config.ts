@@ -10,10 +10,39 @@ const ORDER_API_URL = process.env.ORDER_API_URL ?? 'http://localhost:8083';
 const PROMOTION_API_URL = process.env.PROMOTION_API_URL ?? 'http://localhost:8084';
 const PAYMENT_API_URL = process.env.PAYMENT_API_URL ?? 'http://localhost:8085';
 const DELIVERY_API_URL = process.env.DELIVERY_API_URL ?? 'http://localhost:8086';
+const REVIEW_API_URL = process.env.REVIEW_API_URL ?? 'http://localhost:8087';
+const REPORTING_API_URL = process.env.REPORTING_API_URL ?? 'http://localhost:8088';
+const NOTIFICATION_API_URL = process.env.NOTIFICATION_API_URL ?? 'http://localhost:8089';
 
 const nextConfig: NextConfig = {
   async rewrites() {
     return [
+      // ── Phase D services ─────────────────────────────────────────────────────
+      // These rules must precede any generic /api/v1/orders, /api/v1/stores,
+      // and /api/v1/admin catch-alls to avoid mis-routing.
+
+      // Reporting service — admin analytics and recent-orders summary.
+      { source: '/api/v1/admin/analytics', destination: `${REPORTING_API_URL}/api/v1/admin/analytics` },
+      { source: '/api/v1/admin/orders/recent', destination: `${REPORTING_API_URL}/api/v1/admin/orders/recent` },
+
+      // Review service — order reviews, store reviews, admin review moderation.
+      // /api/v1/orders/:id/reviews must precede the generic /api/v1/orders/:path* rule.
+      // /api/v1/stores/:id/reviews must precede the generic /api/v1/stores/:path* rule.
+      // /api/v1/admin/reviews must precede any generic /api/v1/admin/:path* rule.
+      { source: '/api/v1/orders/:orderId/reviews', destination: `${REVIEW_API_URL}/api/v1/orders/:orderId/reviews` },
+      { source: '/api/v1/stores/:storeId/reviews', destination: `${REVIEW_API_URL}/api/v1/stores/:storeId/reviews` },
+      { source: '/api/v1/reviews/:path*', destination: `${REVIEW_API_URL}/api/v1/reviews/:path*` },
+      { source: '/api/v1/admin/reviews/:path*', destination: `${REVIEW_API_URL}/api/v1/admin/reviews/:path*` },
+
+      // Notification service — /me/notifications and /me/device-tokens.
+      // Must precede the generic /api/* → user-service catch-all.
+      { source: '/api/v1/me/notifications/unread-count', destination: `${NOTIFICATION_API_URL}/api/v1/me/notifications/unread-count` },
+      { source: '/api/v1/me/notifications/:path*', destination: `${NOTIFICATION_API_URL}/api/v1/me/notifications/:path*` },
+      { source: '/api/v1/me/notifications', destination: `${NOTIFICATION_API_URL}/api/v1/me/notifications` },
+      { source: '/api/v1/me/device-tokens/:path*', destination: `${NOTIFICATION_API_URL}/api/v1/me/device-tokens/:path*` },
+      { source: '/api/v1/me/device-tokens', destination: `${NOTIFICATION_API_URL}/api/v1/me/device-tokens` },
+
+      // ── Existing services ─────────────────────────────────────────────────
       // Location service (must precede the catch-all).
       { source: '/api/v1/locations/:path*', destination: `${LOCATION_API_URL}/api/v1/locations/:path*` },
       { source: '/api/v1/me/locations/:path*', destination: `${LOCATION_API_URL}/api/v1/me/locations/:path*` },

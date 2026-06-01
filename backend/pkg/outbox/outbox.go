@@ -78,6 +78,8 @@ func TopicFor(aggregateType string) string {
 		return "wallet.events"
 	case "payout":
 		return "payout.events"
+	case "review":
+		return "review.events"
 	default:
 		return "user.events"
 	}

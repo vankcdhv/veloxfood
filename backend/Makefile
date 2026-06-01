@@ -4,7 +4,7 @@
 proto:
 	protoc --go_out=. --go_opt=paths=source_relative \
 		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
-		proto/user/v1/*.proto proto/location/v1/*.proto proto/store/v1/*.proto proto/promotion/v1/*.proto proto/payment/v1/*.proto proto/order/v1/*.proto
+		proto/user/v1/*.proto proto/location/v1/*.proto proto/store/v1/*.proto proto/promotion/v1/*.proto proto/payment/v1/*.proto proto/order/v1/*.proto proto/review/v1/*.proto
 
 # Build
 build:

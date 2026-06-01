@@ -12,6 +12,7 @@ import { ROUTES } from '@/shared/config/constants';
 import { cn } from '@/shared/lib/utils';
 import { useAuth } from '@/features/auth/context/auth-provider';
 import { UserMenu } from '@/features/auth/components/user-menu';
+import { NotificationBell } from '@/features/notifications/components/notification-bell';
 import { useMyCart } from '@/features/cart/hooks/use-cart';
 
 const NAV_ITEMS = [
@@ -75,6 +76,8 @@ export function ShopHeader() {
               )}
             </Link>
           </Button>
+
+          {isAuthenticated && <NotificationBell />}
 
           {!isLoading &&
             (isAuthenticated ? (

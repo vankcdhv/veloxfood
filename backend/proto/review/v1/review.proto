@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package review.v1;
+
+option go_package = "project/proto/review/v1;reviewv1";
+
+// GetStoreRatingSummaryRequest carries the store_id to summarise.
+message GetStoreRatingSummaryRequest {
+  string store_id = 1;
+}
+
+// GetStoreRatingSummaryResponse returns the average rating and visible review count.
+message GetStoreRatingSummaryResponse {
+  double avg   = 1; // average rating of VISIBLE reviews; 0 when count=0
+  int32  count = 2; // total number of VISIBLE reviews for the store
+}
+
+service ReviewService {
+  // GetStoreRatingSummary returns the average star rating and review count for
+  // a store. Only VISIBLE reviews are included. Used by Store/Reporting services.
+  rpc GetStoreRatingSummary(GetStoreRatingSummaryRequest) returns (GetStoreRatingSummaryResponse);
+}

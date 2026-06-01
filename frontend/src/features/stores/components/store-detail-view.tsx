@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MapPin, Phone, Truck } from 'lucide-react';
+import { MapPin, Phone, Truck, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
@@ -11,16 +11,20 @@ import { useMyLocations } from '@/features/locations/hooks/use-locations';
 import { formatRoomPath } from '@/features/locations/lib/format-room-path';
 import { LocationPicker } from '@/features/locations/components/location-picker';
 import { AddToCartButton } from '@/features/cart/components/add-to-cart-button';
+import { StoreReviewsList } from '@/features/reviews/components/store-reviews-list';
 import { browseStoreApi } from '../api/store-api';
 import { useStore, useStoreMenu } from '../hooks/use-stores';
 import { SaleStatusBadge } from './sale-status-badge';
 import type { MenuCategory } from '../types/store';
+
+type StoreTab = 'menu' | 'reviews';
 
 interface StoreDetailViewProps {
   storeId: string;
 }
 
 export function StoreDetailView({ storeId }: StoreDetailViewProps) {
+  const [tab, setTab] = useState<StoreTab>('menu');
   const { data: store, isLoading: storeLoading, isError: storeError } = useStore(storeId);
   const { data: menu, isLoading: menuLoading } = useStoreMenu(storeId);
 
@@ -74,22 +78,56 @@ export function StoreDetailView({ storeId }: StoreDetailViewProps) {
       {/* Ship fee lookup */}
       <ShipFeeLookup storeId={storeId} />
 
-      {/* Menu */}
-      <div className="space-y-6">
-        <h2 className="font-serif text-xl font-semibold">Thực đơn</h2>
-        {menuLoading && (
-          <div className="space-y-4">
-            <Skeleton className="h-8 w-40" />
-            <Skeleton className="h-48 rounded-xl" />
-          </div>
-        )}
-        {!menuLoading && (!menu || menu.length === 0) && (
-          <p className="text-muted-foreground text-sm">Chưa có món nào.</p>
-        )}
-        {menu?.map((cat) => (
-          <MenuCategorySection key={cat.Category.ID} cat={cat} />
-        ))}
+      {/* Tab bar: Menu | Đánh giá */}
+      <div className="bg-muted inline-flex rounded-lg p-1 gap-1" role="tablist">
+        <button
+          role="tab"
+          aria-selected={tab === 'menu'}
+          onClick={() => setTab('menu')}
+          className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            tab === 'menu'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Thực đơn
+        </button>
+        <button
+          role="tab"
+          aria-selected={tab === 'reviews'}
+          onClick={() => setTab('reviews')}
+          className={`flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            tab === 'reviews'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Star className="h-3.5 w-3.5" />
+          Đánh giá
+        </button>
       </div>
+
+      {/* Tab panels */}
+      {tab === 'menu' && (
+        <div className="space-y-6">
+          {menuLoading && (
+            <div className="space-y-4">
+              <Skeleton className="h-8 w-40" />
+              <Skeleton className="h-48 rounded-xl" />
+            </div>
+          )}
+          {!menuLoading && (!menu || menu.length === 0) && (
+            <p className="text-muted-foreground text-sm">Chưa có món nào.</p>
+          )}
+          {menu?.map((cat) => (
+            <MenuCategorySection key={cat.Category.ID} cat={cat} />
+          ))}
+        </div>
+      )}
+
+      {tab === 'reviews' && (
+        <StoreReviewsList storeId={storeId} />
+      )}
     </div>
   );
 }

@@ -159,15 +159,20 @@ func (h *DeliveryEventHandler) handleDeliveryStatusChanged(ctx context.Context, 
 				return err
 			}
 
-			// MVP: publish order.completed immediately after delivered.
+			// MVP: auto-complete immediately after delivered so the order reaches
+			// its terminal COMPLETED state (unlocks Review eligibility).
 			completedPayload, _ := json.Marshal(map[string]any{"order_id": order.ID})
-			return h.outboxRepo.Append(ctx, tx, &entity.OutboxEvent{
+			if err := h.outboxRepo.Append(ctx, tx, &entity.OutboxEvent{
 				AggregateType: "order",
 				AggregateID:   order.ID,
 				EventType:     "order.completed",
 				Payload:       completedPayload,
 				TraceID:       strPtr(env.TraceID),
-			})
+			}); err != nil {
+				return err
+			}
+			return h.orderRepo.UpdateStatus(ctx, tx, order.ID, entity.StatusCompleted,
+				nil, strPtr("auto-completed on delivery"))
 		}
 		return nil
 	})

@@ -1,0 +1,52 @@
+app:
+  env: development
+  port: 8089
+  grpc_port: 0
+  base_url: http://localhost:8089
+  cookie_secure: false
+  cookie_domain: ""
+
+database:
+  host: localhost
+  port: 5433
+  user: dev_user
+  password: dev_password
+  name: notification_db
+  ssl_mode: disable
+
+redis:
+  addr: localhost:6380
+  password: ""
+  db: 0
+
+kafka:
+  brokers:
+    - localhost:19092
+
+# Notification only VERIFIES tokens — public key suffices.
+jwt:
+  private_key_path: ""
+  public_key_path: secrets/jwt_public.pem
+  private_key_pem: ""
+  public_key_pem: ""
+  access_ttl: 15m
+  refresh_ttl: 168h
+
+# Cross-service gRPC endpoints.
+user_service:
+  grpc_addr: localhost:50051
+
+# Firebase Admin SDK — path to service-account JSON.
+# Leave empty to run without Firestore/FCM (graceful degradation).
+firebase:
+  service_account_path: ../docs/secrets/firebase-service-account.json
+  project_id: veloxfoodinternal-44280
+
+# SMTP — empty = no-op mailer (emails logged as warnings).
+smtp:
+  host: ""
+  port: 587
+  username: ""
+  password: ""
+  from: ""
+  tls_enabled: false

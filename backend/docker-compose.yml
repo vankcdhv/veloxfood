@@ -261,6 +261,87 @@ services:
         fluentd-max-retries: "30"
         tag: "service.delivery"
 
+  review-service:
+    build:
+      context: .
+      dockerfile: docker/services/Dockerfile
+      args:
+        SERVICE_NAME: review
+    volumes:
+      - ./config/review.docker.yaml:/config/review.yaml:ro
+      - ./docs/secrets:/docs/secrets:ro
+    ports:
+      - "8087:8087"
+      - "50058:50058"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "localhost:24224"
+        fluentd-async: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: "service.review"
+
+  reporting-service:
+    build:
+      context: .
+      dockerfile: docker/services/Dockerfile
+      args:
+        SERVICE_NAME: reporting
+    volumes:
+      - ./config/reporting.docker.yaml:/config/reporting.yaml:ro
+    ports:
+      - "8088:8088"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "localhost:24224"
+        fluentd-async: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: "service.reporting"
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: docker/services/Dockerfile
+      args:
+        SERVICE_NAME: notification
+    volumes:
+      - ./config/notification.docker.yaml:/config/notification.yaml:ro
+      - ./docs/secrets:/docs/secrets:ro
+    ports:
+      - "8089:8089"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "localhost:24224"
+        fluentd-async: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: "service.notification"
+
 volumes:
   postgres_data:
   redis_data:

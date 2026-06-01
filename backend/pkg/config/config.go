@@ -33,9 +33,22 @@ type Config struct {
 	// PaymentService addresses the payment-service for cross-service gRPC
 	// (e.g. order saga captures or refunds payments).
 	PaymentService ServiceEndpoint `mapstructure:"payment_service"`
+	// OrderService addresses the order-service for cross-service gRPC
+	// (e.g. review validates order completion/ownership via GetOrder).
+	OrderService ServiceEndpoint `mapstructure:"order_service"`
 	// MoMo holds credentials and endpoint for MoMo payment gateway.
 	// Default values point to the public MoMo sandbox for development.
 	MoMo MoMoConfig `mapstructure:"momo"`
+	// Firebase holds the Admin SDK service-account path + project for the
+	// notification service (realtime order status to Firestore + FCM push).
+	Firebase FirebaseConfig `mapstructure:"firebase"`
+}
+
+// FirebaseConfig points the notification service at Firebase Admin SDK creds.
+// If ServiceAccountPath is empty the realtime/FCM features degrade to no-op.
+type FirebaseConfig struct {
+	ServiceAccountPath string `mapstructure:"service_account_path"`
+	ProjectID          string `mapstructure:"project_id"`
 }
 
 // MoMoConfig holds MoMo v2 payment gateway credentials.
