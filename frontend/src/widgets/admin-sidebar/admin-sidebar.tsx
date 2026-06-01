@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, ShoppingCart, Package, Bike, MapPin, Store, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingCart, Package, Bike, MapPin, Store, Banknote, Settings } from 'lucide-react';
 import { BrandMark } from '@/widgets/brand-mark/brand-mark';
 import { ROUTES } from '@/shared/config/constants';
 import { cn } from '@/shared/lib/utils';
@@ -21,6 +21,7 @@ const PRIMARY_NAV: NavItem[] = [
   { label: 'Shipper', href: ROUTES.admin.shippers, icon: Bike },
   { label: 'Vị trí', href: ROUTES.admin.locations, icon: MapPin },
   { label: 'Cửa hàng', href: ROUTES.admin.stores, icon: Store },
+  { label: 'Chi trả', href: ROUTES.admin.payouts, icon: Banknote },
 ];
 
 const SECONDARY_NAV: NavItem[] = [{ label: 'Cài đặt', href: '#', icon: Settings }];

@@ -15,6 +15,7 @@ export const ROUTES = {
     shippers: '/admin/shippers',
     locations: '/admin/locations',
     stores: '/admin/stores',
+    payouts: '/admin/payouts',
   },
   account: {
     locations: '/account/locations',

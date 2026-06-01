@@ -673,3 +673,134 @@ func TestPayout_ExecuteAtomic_IdempotentSkipSettled(t *testing.T) {
 		t.Errorf("idempotent: STORE_PAYABLE balance should remain 0, got %d", storeBal)
 	}
 }
+
+// TestGetSettlements_ReturnsSettleableOrders seeds a STORE_PAYABLE wallet and two
+// direct ledger credit entries (simulating deliver→credit flow without the full
+// kafka path), calls GET /api/v1/admin/settlements, and verifies the response
+// shape: PayableBalance, both orders in Orders, and correct Total.
+func TestGetSettlements_ReturnsSettleableOrders(t *testing.T) {
+	env := setupEnv(t)
+
+	storeID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+	orderID1 := "11112222-0001-0001-0001-000000000001"
+	orderID2 := "11112222-0002-0002-0002-000000000002"
+
+	// Seed the STORE_PAYABLE wallet with a balance of 120000.
+	env.db.Exec(
+		"INSERT INTO wallets (id,owner_type,owner_id,balance) VALUES (gen_random_uuid(),'STORE_PAYABLE',$1,120000)",
+		storeID,
+	)
+	// Fetch the wallet ID so we can insert ledger entries referencing it.
+	var walletID string
+	env.db.Raw("SELECT id FROM wallets WHERE owner_type='STORE_PAYABLE' AND owner_id=$1", storeID).Scan(&walletID)
+	if walletID == "" {
+		t.Fatal("STORE_PAYABLE wallet not found after seeding")
+	}
+
+	// Seed two PAYMENT credit ledger entries (one per order).
+	env.db.Exec(
+		"INSERT INTO ledger_entries (id,wallet_id,entry_type,amount,ref_type,ref_id,balance_after) VALUES (gen_random_uuid(),$1,'PAYMENT',60000,'order',$2,60000)",
+		walletID, orderID1,
+	)
+	env.db.Exec(
+		"INSERT INTO ledger_entries (id,wallet_id,entry_type,amount,ref_type,ref_id,balance_after) VALUES (gen_random_uuid(),$1,'PAYMENT',60000,'order',$2,120000)",
+		walletID, orderID2,
+	)
+
+	w := env.do(t, "GET", "/api/v1/admin/settlements?store_id="+storeID, "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d — %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Data struct {
+			StoreID        string `json:"StoreID"`
+			PayableBalance int64  `json:"PayableBalance"`
+			Orders         []struct {
+				OrderID string `json:"OrderID"`
+				Amount  int64  `json:"Amount"`
+			} `json:"Orders"`
+			Total int64 `json:"Total"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse response: %v — body: %s", err, w.Body.String())
+	}
+
+	if resp.Data.StoreID != storeID {
+		t.Errorf("StoreID: expected %s, got %s", storeID, resp.Data.StoreID)
+	}
+	if resp.Data.PayableBalance != 120000 {
+		t.Errorf("PayableBalance: expected 120000, got %d", resp.Data.PayableBalance)
+	}
+	if len(resp.Data.Orders) != 2 {
+		t.Errorf("Orders: expected 2, got %d — body: %s", len(resp.Data.Orders), w.Body.String())
+	}
+	if resp.Data.Total != 120000 {
+		t.Errorf("Total: expected 120000, got %d", resp.Data.Total)
+	}
+}
+
+// TestGetSettlements_ExcludesSettledOrders verifies that orders already in a
+// SETTLED payout batch are excluded from the settlements response.
+func TestGetSettlements_ExcludesSettledOrders(t *testing.T) {
+	env := setupEnv(t)
+
+	storeID := "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+	orderID1 := "22223333-0001-0001-0001-000000000001"
+	orderID2 := "22223333-0002-0002-0002-000000000002"
+
+	env.db.Exec(
+		"INSERT INTO wallets (id,owner_type,owner_id,balance) VALUES (gen_random_uuid(),'STORE_PAYABLE',$1,60000)",
+		storeID,
+	)
+	var walletID string
+	env.db.Raw("SELECT id FROM wallets WHERE owner_type='STORE_PAYABLE' AND owner_id=$1", storeID).Scan(&walletID)
+
+	// Two credit entries.
+	env.db.Exec(
+		"INSERT INTO ledger_entries (id,wallet_id,entry_type,amount,ref_type,ref_id,balance_after) VALUES (gen_random_uuid(),$1,'PAYMENT',60000,'order',$2,60000)",
+		walletID, orderID1,
+	)
+	env.db.Exec(
+		"INSERT INTO ledger_entries (id,wallet_id,entry_type,amount,ref_type,ref_id,balance_after) VALUES (gen_random_uuid(),$1,'PAYMENT',60000,'order',$2,120000)",
+		walletID, orderID2,
+	)
+
+	// Create a SETTLED batch that includes orderID1.
+	settledOrderIDs, _ := json.Marshal([]string{orderID1})
+	env.db.Exec(
+		`INSERT INTO payout_batches (id,store_id,period_from,period_to,order_ids,total_amount,status,settled_by,settled_at)
+		 VALUES (gen_random_uuid(),$1,'2024-01-01','2024-01-31',$2,60000,'SETTLED','88888888-8888-8888-8888-888888888888',now())`,
+		storeID, string(settledOrderIDs),
+	)
+
+	w := env.do(t, "GET", "/api/v1/admin/settlements?store_id="+storeID, "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d — %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Data struct {
+			Orders []struct {
+				OrderID string `json:"OrderID"`
+				Amount  int64  `json:"Amount"`
+			} `json:"Orders"`
+			Total int64 `json:"Total"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse: %v — body: %s", err, w.Body.String())
+	}
+
+	// Only orderID2 must appear (orderID1 was in the SETTLED batch).
+	if len(resp.Data.Orders) != 1 {
+		t.Errorf("expected 1 unsettled order, got %d — body: %s", len(resp.Data.Orders), w.Body.String())
+	}
+	if len(resp.Data.Orders) == 1 && resp.Data.Orders[0].OrderID != orderID2 {
+		t.Errorf("expected orderID2 (%s), got %s", orderID2, resp.Data.Orders[0].OrderID)
+	}
+	if resp.Data.Total != 60000 {
+		t.Errorf("Total: expected 60000, got %d", resp.Data.Total)
+	}
+}

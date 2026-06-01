@@ -22,11 +22,30 @@ type CreatePayoutRequest struct {
 	TotalAmount int64
 }
 
+// SettleableSummary is the response model for the admin settlements endpoint.
+type SettleableSummary struct {
+	StoreID        string
+	PayableBalance int64
+	Orders         []SettleableOrderItem
+	Total          int64
+}
+
+// SettleableOrderItem is one order contributing to the unsettled balance.
+type SettleableOrderItem struct {
+	OrderID   string
+	Amount    int64
+	CreatedAt string // RFC3339
+}
+
 // PayoutUsecase manages payout batch lifecycle.
 type PayoutUsecase interface {
 	CreateBatch(ctx context.Context, req CreatePayoutRequest) (*entity.PayoutBatch, error)
 	ExecuteBatch(ctx context.Context, batchID, adminUserID string) error
 	ListByStore(ctx context.Context, storeID string, limit, offset int) ([]*entity.PayoutBatch, error)
+
+	// GetSettleableSummary returns the payable wallet balance and the
+	// individual orders behind it for the given store.
+	GetSettleableSummary(ctx context.Context, storeID string) (*SettleableSummary, error)
 }
 
 type payoutUsecase struct {
@@ -137,4 +156,40 @@ func (uc *payoutUsecase) ExecuteBatch(ctx context.Context, batchID, adminUserID 
 
 func (uc *payoutUsecase) ListByStore(ctx context.Context, storeID string, limit, offset int) ([]*entity.PayoutBatch, error) {
 	return uc.payoutRepo.ListByStore(ctx, storeID, limit, offset)
+}
+
+func (uc *payoutUsecase) GetSettleableSummary(ctx context.Context, storeID string) (*SettleableSummary, error) {
+	// Wallet balance — zero if wallet does not exist yet.
+	wallet, err := uc.walletRepo.GetByOwner(ctx, entity.WalletOwnerStorePayable, storeID)
+	if err != nil {
+		return nil, err
+	}
+	var balance int64
+	if wallet != nil {
+		balance = wallet.Balance
+	}
+
+	// Orders behind the unsettled balance.
+	orders, err := uc.ledgerRepo.SettleableOrdersForStore(ctx, storeID)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]SettleableOrderItem, 0, len(orders))
+	var total int64
+	for _, o := range orders {
+		items = append(items, SettleableOrderItem{
+			OrderID:   o.OrderID,
+			Amount:    o.Amount,
+			CreatedAt: o.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		})
+		total += o.Amount
+	}
+
+	return &SettleableSummary{
+		StoreID:        storeID,
+		PayableBalance: balance,
+		Orders:         items,
+		Total:          total,
+	}, nil
 }

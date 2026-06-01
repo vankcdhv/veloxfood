@@ -69,6 +69,24 @@ func (h *AdminPayoutHandler) CreatePayout(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"status": 201, "message": "created", "data": batch})
 }
 
+// GetSettlements returns the settleable balance and order breakdown for a store.
+// GET /api/v1/admin/settlements?store_id=<uuid>
+func (h *AdminPayoutHandler) GetSettlements(c *gin.Context) {
+	ctx := c.Request.Context()
+	storeID := c.Query("store_id")
+	if storeID == "" {
+		response.BadRequest(c, "store_id required")
+		return
+	}
+
+	summary, err := h.payoutUC.GetSettleableSummary(ctx, storeID)
+	if err != nil {
+		response.InternalError(c)
+		return
+	}
+	response.Success(c, summary)
+}
+
 // ExecutePayout atomically settles a payout batch.
 // POST /api/v1/admin/payouts/:id/execute
 func (h *AdminPayoutHandler) ExecutePayout(c *gin.Context) {

@@ -1,0 +1,380 @@
+_format_version: "3.0"
+
+# ─── Global plugins ───────────────────────────────────────────────────────────
+
+plugins:
+  - name: correlation-id
+    config:
+      header_name: X-Trace-Id
+      generator: uuid
+      echo_downstream: true
+
+  - name: cors
+    config:
+      origins:
+        - "http://localhost:3000"
+        - "http://localhost:3001"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+        - HEAD
+      headers:
+        - Authorization
+        - Content-Type
+        - X-Trace-Id
+        - Accept
+      credentials: true
+      max_age: 3600
+      preflight_continue: false
+
+# ─── Upstream services ────────────────────────────────────────────────────────
+
+services:
+
+  # ── User Service (8080) ─────────────────────────────────────────────────────
+  - name: user-service
+    url: http://host.docker.internal:8080
+    routes:
+      # /api/v1/auth/*
+      - name: user-auth
+        paths:
+          - ~/api/v1/auth(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
+      # /api/v1/roles/*
+      - name: user-roles
+        paths:
+          - ~/api/v1/roles(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
+      # /api/v1/vendors/*
+      - name: user-vendors
+        paths:
+          - ~/api/v1/vendors(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
+      # /api/v1/invitations/*
+      - name: user-invitations
+        paths:
+          - ~/api/v1/invitations(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
+      # /api/v1/admin/users/*  (must come before generic /admin catch-all)
+      - name: user-admin-users
+        paths:
+          - ~/api/v1/admin/users(/.*)?$
+        strip_path: false
+        regex_priority: 120
+
+      # /api/v1/admin/vendors/*
+      - name: user-admin-vendors
+        paths:
+          - ~/api/v1/admin/vendors(/.*)?$
+        strip_path: false
+        regex_priority: 120
+
+      # /api/v1/admin/shippers/*
+      - name: user-admin-shippers
+        paths:
+          - ~/api/v1/admin/shippers(/.*)?$
+        strip_path: false
+        regex_priority: 120
+
+      # /api/v1/shipper/register
+      - name: user-shipper-register
+        paths:
+          - ~/api/v1/shipper(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
+      # /api/v1/me/* — catch-all for /me routes NOT claimed by specific services.
+      # Lower priority than all specific /me/* routes below.
+      - name: user-me
+        paths:
+          - ~/api/v1/me(/.*)?$
+        strip_path: false
+        regex_priority: 10
+
+      # Catch-all: everything else under /api/ → user service
+      - name: user-catchall
+        paths:
+          - ~/api(/.*)?$
+        strip_path: false
+        regex_priority: 0
+
+  # ── Location Service (8081) ─────────────────────────────────────────────────
+  - name: location-service
+    url: http://host.docker.internal:8081
+    routes:
+      # /api/v1/locations/*
+      - name: location-locations
+        paths:
+          - ~/api/v1/locations(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
+      # /api/v1/me/locations/* (must beat user-me at priority 10)
+      - name: location-me-locations
+        paths:
+          - ~/api/v1/me/locations(/.*)?$
+        strip_path: false
+        regex_priority: 80
+
+      # /api/v1/admin/buildings/*
+      - name: location-admin-buildings
+        paths:
+          - ~/api/v1/admin/buildings(/.*)?$
+        strip_path: false
+        regex_priority: 120
+
+      # /api/v1/admin/floors/*
+      - name: location-admin-floors
+        paths:
+          - ~/api/v1/admin/floors(/.*)?$
+        strip_path: false
+        regex_priority: 120
+
+      # /api/v1/admin/rooms/*
+      - name: location-admin-rooms
+        paths:
+          - ~/api/v1/admin/rooms(/.*)?$
+        strip_path: false
+        regex_priority: 120
+
+  # ── Store Service (8082) ────────────────────────────────────────────────────
+  - name: store-service
+    url: http://host.docker.internal:8082
+    routes:
+      # /api/v1/categories/*
+      - name: store-categories
+        paths:
+          - ~/api/v1/categories(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
+      # /api/v1/options/*
+      - name: store-options
+        paths:
+          - ~/api/v1/options(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
+      # /api/v1/combos/*
+      - name: store-combos
+        paths:
+          - ~/api/v1/combos(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
+      # /api/v1/admin/stores/*
+      - name: store-admin-stores
+        paths:
+          - ~/api/v1/admin/stores(/.*)?$
+        strip_path: false
+        regex_priority: 120
+
+      # /api/v1/stores/* — generic store route. Lower priority than store-scoped
+      # sub-resource routes (orders, promotions, reviews) which are at 200+.
+      - name: store-stores
+        paths:
+          - ~/api/v1/stores(/.*)?$
+        strip_path: false
+        regex_priority: 50
+
+  # ── Order Service (8083) ────────────────────────────────────────────────────
+  - name: order-service
+    url: http://host.docker.internal:8083
+    routes:
+      # /api/v1/stores/:id/orders/* — must beat generic /stores/* at 50
+      - name: order-store-orders
+        paths:
+          - ~/api/v1/stores/[^/]+/orders(/.*)?$
+        strip_path: false
+        regex_priority: 200
+
+      # /api/v1/orders/*
+      - name: order-orders
+        paths:
+          - ~/api/v1/orders(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
+      # /api/v1/me/cart/* (must beat user-me at 10)
+      - name: order-me-cart
+        paths:
+          - ~/api/v1/me/cart(/.*)?$
+        strip_path: false
+        regex_priority: 80
+
+  # ── Promotion Service (8084) ────────────────────────────────────────────────
+  - name: promotion-service
+    url: http://host.docker.internal:8084
+    routes:
+      # /api/v1/stores/:id/promotions/* — must beat generic /stores/* at 50
+      - name: promotion-store-promotions
+        paths:
+          - ~/api/v1/stores/[^/]+/promotions(/.*)?$
+        strip_path: false
+        regex_priority: 200
+
+      # /api/v1/promotions/validate (and other /promotions/* top-level)
+      - name: promotion-promotions
+        paths:
+          - ~/api/v1/promotions(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
+  # ── Payment Service (8085) ──────────────────────────────────────────────────
+  - name: payment-service
+    url: http://host.docker.internal:8085
+    routes:
+      # /api/v1/payments/*
+      - name: payment-payments
+        paths:
+          - ~/api/v1/payments(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
+      # /api/v1/wallet/*
+      - name: payment-wallet
+        paths:
+          - ~/api/v1/wallet(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
+      # /api/v1/me/wallet (must beat user-me at 10)
+      - name: payment-me-wallet
+        paths:
+          - ~/api/v1/me/wallet(/.*)?$
+        strip_path: false
+        regex_priority: 80
+
+      # /api/v1/admin/settlements/*
+      - name: payment-admin-settlements
+        paths:
+          - ~/api/v1/admin/settlements(/.*)?$
+        strip_path: false
+        regex_priority: 120
+
+      # /api/v1/admin/payouts/*
+      - name: payment-admin-payouts
+        paths:
+          - ~/api/v1/admin/payouts(/.*)?$
+        strip_path: false
+        regex_priority: 120
+
+  # ── Delivery Service (8086) ─────────────────────────────────────────────────
+  - name: delivery-service
+    url: http://host.docker.internal:8086
+    routes:
+      # /api/v1/deliveries/*
+      - name: delivery-deliveries
+        paths:
+          - ~/api/v1/deliveries(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
+      # /api/v1/me/deliveries (must beat user-me at 10)
+      - name: delivery-me-deliveries
+        paths:
+          - ~/api/v1/me/deliveries(/.*)?$
+        strip_path: false
+        regex_priority: 80
+
+      # /api/v1/admin/deliveries
+      - name: delivery-admin-deliveries
+        paths:
+          - ~/api/v1/admin/deliveries(/.*)?$
+        strip_path: false
+        regex_priority: 120
+
+      # /api/v1/admin/incidents
+      - name: delivery-admin-incidents
+        paths:
+          - ~/api/v1/admin/incidents(/.*)?$
+        strip_path: false
+        regex_priority: 120
+
+  # ── Review Service (8087) ───────────────────────────────────────────────────
+  - name: review-service
+    url: http://host.docker.internal:8087
+    routes:
+      # /api/v1/orders/:id/reviews — must beat generic /orders/* at 100
+      - name: review-order-reviews
+        paths:
+          - ~/api/v1/orders/[^/]+/reviews(/.*)?$
+        strip_path: false
+        regex_priority: 200
+
+      # /api/v1/stores/:id/reviews — must beat generic /stores/* at 50
+      - name: review-store-reviews
+        paths:
+          - ~/api/v1/stores/[^/]+/reviews(/.*)?$
+        strip_path: false
+        regex_priority: 200
+
+      # /api/v1/reviews/*
+      - name: review-reviews
+        paths:
+          - ~/api/v1/reviews(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
+      # /api/v1/admin/reviews/*
+      - name: review-admin-reviews
+        paths:
+          - ~/api/v1/admin/reviews(/.*)?$
+        strip_path: false
+        regex_priority: 120
+
+  # ── Reporting Service (8088) ────────────────────────────────────────────────
+  - name: reporting-service
+    url: http://host.docker.internal:8088
+    routes:
+      # /api/v1/admin/analytics — must beat any generic /admin catch-all
+      - name: reporting-admin-analytics
+        paths:
+          - ~/api/v1/admin/analytics(/.*)?$
+        strip_path: false
+        regex_priority: 150
+
+      # /api/v1/admin/orders/recent — must beat order-service /orders/* at 100
+      # and any generic /admin routes
+      - name: reporting-admin-orders-recent
+        paths:
+          - ~/api/v1/admin/orders/recent(/.*)?$
+        strip_path: false
+        regex_priority: 250
+
+  # ── Notification Service (8089) ─────────────────────────────────────────────
+  - name: notification-service
+    url: http://host.docker.internal:8089
+    routes:
+      # /api/v1/me/notifications/unread-count — most specific, highest priority
+      - name: notification-me-notifications-unread
+        paths:
+          - ~/api/v1/me/notifications/unread-count(/.*)?$
+        strip_path: false
+        regex_priority: 300
+
+      # /api/v1/me/notifications/* (must beat user-me at 10)
+      - name: notification-me-notifications
+        paths:
+          - ~/api/v1/me/notifications(/.*)?$
+        strip_path: false
+        regex_priority: 90
+
+      # /api/v1/me/device-tokens/* (must beat user-me at 10)
+      - name: notification-me-device-tokens
+        paths:
+          - ~/api/v1/me/device-tokens(/.*)?$
+        strip_path: false
+        regex_priority: 80

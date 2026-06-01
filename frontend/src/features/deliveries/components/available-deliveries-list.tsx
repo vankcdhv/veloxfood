@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { formatVnd } from '@/features/wallet/lib/format-vnd';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
+import { useStore } from '@/features/stores/hooks/use-stores';
 import { useAvailableDeliveries, useClaimDelivery } from '../hooks/use-deliveries';
 import type { AvailableDelivery } from '../types/delivery';
 
@@ -79,6 +80,14 @@ export function AvailableDeliveriesList() {
   );
 }
 
+// Resolves a store ID to its human-readable name via the public store API.
+// Falls back to a neutral label on error — never exposes the raw UUID.
+function StoreNameLabel({ storeId }: { storeId: string }) {
+  const { data: store, isLoading } = useStore(storeId);
+  if (isLoading) return <span>Đang tải…</span>;
+  return <span className="truncate">Cửa hàng: {store?.Name ?? 'Không xác định'}</span>;
+}
+
 function AvailableDeliveryCard({
   delivery,
   onClaim,
@@ -99,7 +108,7 @@ function AvailableDeliveryCard({
             </div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Package className="h-3 w-3 shrink-0" />
-              <span className="truncate">Cửa hàng: {delivery.store_id.slice(0, 8)}…</span>
+              <StoreNameLabel storeId={delivery.store_id} />
             </div>
             <p className="text-sm font-semibold text-primary">
               Phí ship: {formatVnd(delivery.ship_fee)}

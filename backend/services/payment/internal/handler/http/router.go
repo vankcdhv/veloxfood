@@ -45,5 +45,6 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 		admin.GET("/payouts", cfg.AdminHandler.ListPayouts)
 		admin.POST("/payouts", cfg.AdminHandler.CreatePayout)
 		admin.POST("/payouts/:id/execute", cfg.AdminHandler.ExecutePayout)
+		admin.GET("/settlements", cfg.AdminHandler.GetSettlements)
 	}
 }
