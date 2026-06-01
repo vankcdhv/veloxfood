@@ -9,6 +9,7 @@ export const storeKeys = {
   browseDetail: (id: string) => [...storeKeys.all, 'browse', 'detail', id] as const,
   browseMenu: (id: string) => [...storeKeys.all, 'browse', 'menu', id] as const,
   storeHours: (id: string) => [...storeKeys.all, 'hours', id] as const,
+  storeSlots: (id: string, date: string) => [...storeKeys.all, 'slots', id, date] as const,
   shipFees: (storeId: string) => [...storeKeys.all, 'ship-fees', storeId] as const,
   adminList: () => [...storeKeys.all, 'admin', 'list'] as const,
   hoursChange: (storeId: string) => [...storeKeys.all, 'hours-change', storeId] as const,
@@ -152,6 +153,14 @@ export const useStoreHours = (storeId: string) =>
     queryKey: storeKeys.storeHours(storeId),
     queryFn: () => browseStoreApi.hours(storeId),
     enabled: !!storeId,
+  });
+
+// Cutoffs (ca giao) + remaining slot quota per item for a date (storefront picker).
+export const useStoreSlots = (storeId: string, date: string) =>
+  useQuery({
+    queryKey: storeKeys.storeSlots(storeId, date),
+    queryFn: () => browseStoreApi.slots(storeId, date),
+    enabled: !!storeId && !!date,
   });
 
 // Vendor's own hours-change requests.

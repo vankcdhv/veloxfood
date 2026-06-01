@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { MapPin, Phone, Truck, Star } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { MapPin, Phone, Truck, Star, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
@@ -13,7 +13,7 @@ import { LocationPicker } from '@/features/locations/components/location-picker'
 import { AddToCartButton } from '@/features/cart/components/add-to-cart-button';
 import { StoreReviewsList } from '@/features/reviews/components/store-reviews-list';
 import { browseStoreApi } from '../api/store-api';
-import { useStore, useStoreMenu } from '../hooks/use-stores';
+import { useStore, useStoreMenu, useStoreSlots } from '../hooks/use-stores';
 import { SaleStatusBadge } from './sale-status-badge';
 import type { MenuCategory } from '../types/store';
 
@@ -23,10 +23,55 @@ interface StoreDetailViewProps {
   storeId: string;
 }
 
+// Local YYYY-MM-DD for a Date.
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Next 8 days as {value, label} for the session date picker.
+function dateOptions(): { value: string; label: string }[] {
+  const base = new Date();
+  return Array.from({ length: 8 }, (_, i) => {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    const label = i === 0 ? 'Hôm nay' : i === 1 ? 'Ngày mai'
+      : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return { value: isoDate(d), label };
+  });
+}
+
 export function StoreDetailView({ storeId }: StoreDetailViewProps) {
   const [tab, setTab] = useState<StoreTab>('menu');
+  const [dates] = useState(dateOptions);
+  const [selectedDate, setSelectedDate] = useState(() => isoDate(new Date()));
+  const [selectedCutoff, setSelectedCutoff] = useState('');
+
   const { data: store, isLoading: storeLoading, isError: storeError } = useStore(storeId);
   const { data: menu, isLoading: menuLoading } = useStoreMenu(storeId);
+  const { data: slots } = useStoreSlots(storeId, selectedDate);
+
+  // Sort cutoffs by time so the session buttons read 11:00 → 17:30 → 22:00.
+  const cutoffs = useMemo(
+    () => [...(slots?.cutoffs ?? [])].sort((a, b) => a.CutoffTime.localeCompare(b.CutoffTime)),
+    [slots],
+  );
+  const hasSlots = cutoffs.length > 0;
+
+  // Derive the effective session (no effect needed): the user's pick if still
+  // valid, otherwise the first available cutoff.
+  const activeCutoff = useMemo(
+    () => (cutoffs.some((c) => c.ID === selectedCutoff) ? selectedCutoff : (cutoffs[0]?.ID ?? '')),
+    [cutoffs, selectedCutoff],
+  );
+
+  // menu_item_id → remaining quota for the selected session/date.
+  const remainingByItem = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const q of slots?.quotas ?? []) {
+      if (q.CutoffID === activeCutoff) m.set(q.MenuItemID, q.Remaining);
+    }
+    return m;
+  }, [slots, activeCutoff]);
 
   if (storeLoading) {
     return (
@@ -110,6 +155,49 @@ export function StoreDetailView({ storeId }: StoreDetailViewProps) {
       {/* Tab panels */}
       {tab === 'menu' && (
         <div className="space-y-6">
+          {hasSlots && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Clock className="h-4 w-4 text-primary" />
+                  Chọn ca giao
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <label className="text-foreground mb-1.5 block text-sm font-medium">Ngày</label>
+                  <select
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="border-input bg-background focus-visible:ring-ring h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none"
+                  >
+                    {dates.map((d) => (
+                      <option key={d.value} value={d.value}>{d.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-foreground mb-1.5 block text-sm font-medium">Ca</label>
+                  <div className="flex flex-wrap gap-2">
+                    {cutoffs.map((c) => (
+                      <button
+                        key={c.ID}
+                        type="button"
+                        onClick={() => setSelectedCutoff(c.ID)}
+                        className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                          activeCutoff === c.ID
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border text-muted-foreground hover:border-primary/50'
+                        }`}
+                      >
+                        Ca {c.CutoffTime}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           {menuLoading && (
             <div className="space-y-4">
               <Skeleton className="h-8 w-40" />
@@ -120,7 +208,14 @@ export function StoreDetailView({ storeId }: StoreDetailViewProps) {
             <p className="text-muted-foreground text-sm">Chưa có món nào.</p>
           )}
           {menu?.map((cat) => (
-            <MenuCategorySection key={cat.Category.ID} cat={cat} />
+            <MenuCategorySection
+              key={cat.Category.ID}
+              cat={cat}
+              slotMode={hasSlots}
+              cutoffId={activeCutoff}
+              date={selectedDate}
+              remainingByItem={remainingByItem}
+            />
           ))}
         </div>
       )}
@@ -249,7 +344,15 @@ function ShipFeeLookup({ storeId }: { storeId: string }) {
   );
 }
 
-function MenuCategorySection({ cat }: { cat: MenuCategory }) {
+interface MenuCategorySectionProps {
+  cat: MenuCategory;
+  slotMode: boolean;
+  cutoffId: string;
+  date: string;
+  remainingByItem: Map<string, number>;
+}
+
+function MenuCategorySection({ cat, slotMode, cutoffId, date, remainingByItem }: MenuCategorySectionProps) {
   return (
     <div className="space-y-3">
       <h3 className="font-semibold text-base border-b border-border pb-1">{cat.Category.Name}</h3>
@@ -261,6 +364,8 @@ function MenuCategorySection({ cat }: { cat: MenuCategory }) {
           const tags = item.Tags
             ? item.Tags.split(',').map((t) => t.trim()).filter(Boolean)
             : [];
+          // In slot mode a missing quota row means the item isn't offered this session.
+          const remaining = slotMode ? (remainingByItem.get(item.ID) ?? 0) : undefined;
           return (
             <div
               key={item.ID}
@@ -289,10 +394,22 @@ function MenuCategorySection({ cat }: { cat: MenuCategory }) {
                   </div>
                 )}
                 <div className="flex items-center justify-between gap-2 pt-0.5">
-                  <p className="text-primary font-semibold text-sm">
-                    {item.Price.toLocaleString('vi-VN')}đ
-                  </p>
-                  <AddToCartButton item={item} />
+                  <div className="min-w-0">
+                    <p className="text-primary font-semibold text-sm">
+                      {item.Price.toLocaleString('vi-VN')}đ
+                    </p>
+                    {slotMode && (
+                      <p className={`text-xs ${remaining! > 0 ? 'text-muted-foreground' : 'text-destructive'}`}>
+                        {remaining! > 0 ? `Còn ${remaining} suất` : 'Hết suất'}
+                      </p>
+                    )}
+                  </div>
+                  <AddToCartButton
+                    item={item}
+                    cutoffId={slotMode ? cutoffId : undefined}
+                    date={slotMode ? date : undefined}
+                    remaining={remaining}
+                  />
                 </div>
               </div>
               {item.Status === 'off' && (

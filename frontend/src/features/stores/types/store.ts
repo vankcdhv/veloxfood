@@ -81,6 +81,21 @@ export interface StoreHoursResponse {
   ship_cutoffs: ShipCutoff[];
 }
 
+// Remaining slot quota for one (menu item, cutoff) on a given date.
+export interface StoreSlotQuota {
+  MenuItemID: string;
+  CutoffID: string;
+  Quota: number;
+  SoldCount: number;
+  Remaining: number;
+}
+
+// GET /stores/:id/slots?date= — cutoffs + per-item remaining quota for the date.
+export interface StoreSlotsResponse {
+  cutoffs: ShipCutoff[];
+  quotas: StoreSlotQuota[];
+}
+
 // Structured payload inside an hours-change request.
 export interface HoursChangePayload {
   operating_hours: Array<{ weekday: number; open_time: string; close_time: string }>;

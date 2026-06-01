@@ -14,6 +14,7 @@ import type {
   SlotQuota,
   Store,
   StoreHoursResponse,
+  StoreSlotsResponse,
 } from '../types/store';
 
 const STORES = `${API_PREFIX}/stores`;
@@ -40,6 +41,8 @@ export const browseStoreApi = {
     unwrap(await http.get<ApiResponse<ShipFeeResult>>(`${STORES}/${id}/ship-fee`, { params: { room_id: roomId } })),
   hours: async (id: string) =>
     unwrap(await http.get<ApiResponse<StoreHoursResponse>>(`${STORES}/${id}/hours`)),
+  slots: async (id: string, date: string) =>
+    unwrap(await http.get<ApiResponse<StoreSlotsResponse>>(`${STORES}/${id}/slots`, { params: { date } })),
 };
 
 // ---- Vendor (store owner) ----

@@ -142,7 +142,7 @@ function CartItemRow({ item, storeId, onRemove }: { item: CartItem; storeId: str
         price_snapshot: item.PriceSnapshot,
         qty: next,
         cutoff_id: item.CutoffID,
-        date: item.Date,
+        date: item.Date ? item.Date.slice(0, 10) : undefined,
       });
     } catch (e) {
       setQty(item.Qty);

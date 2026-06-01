@@ -118,7 +118,9 @@ function CheckoutContent() {
         menu_item_id: it.MenuItemID,
         qty: it.Qty,
         cutoff_id: it.CutoffID,
-        date: it.Date,
+        // Backend slot APIs expect YYYY-MM-DD; the cart may round-trip a full
+        // RFC3339 timestamp, so normalise to the date part.
+        date: it.Date ? it.Date.slice(0, 10) : undefined,
       })),
     };
 

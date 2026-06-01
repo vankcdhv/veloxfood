@@ -11,16 +11,19 @@ import type { MenuItem } from '@/features/stores/types/store';
 
 interface AddToCartButtonProps {
   item: MenuItem;
-  // Optional slot fields for pre-order stores; if omitted, item is added without slot.
+  // Optional slot fields for slot-based stores; if omitted, item is added without slot.
   cutoffId?: string;
   date?: string;
+  // Remaining quota for the chosen (item, cutoff, date). Undefined = no slot limit.
+  remaining?: number;
   className?: string;
 }
 
-export function AddToCartButton({ item, cutoffId, date, className }: AddToCartButtonProps) {
+export function AddToCartButton({ item, cutoffId, date, remaining, className }: AddToCartButtonProps) {
   const { data: cart } = useMyCart();
   const { updateItem, clear } = useCartMutations();
   const [busy, setBusy] = useState(false);
+  const soldOut = remaining !== undefined && remaining <= 0;
 
   // Current quantity already in cart for this item.
   const existingQty = cart?.Items?.find((it) => it.MenuItemID === item.ID)?.Qty ?? 0;
@@ -71,10 +74,12 @@ export function AddToCartButton({ item, cutoffId, date, className }: AddToCartBu
       variant={existingQty > 0 ? 'default' : 'outline'}
       className={className}
       onClick={handleAdd}
-      disabled={busy || item.Status === 'off'}
+      disabled={busy || item.Status === 'off' || soldOut}
       aria-label={`Thêm ${item.Name} vào giỏ hàng`}
     >
-      {existingQty > 0 ? (
+      {soldOut ? (
+        'Hết suất'
+      ) : existingQty > 0 ? (
         <>
           <ShoppingCart className="h-3.5 w-3.5 mr-1" />
           {existingQty} trong giỏ
