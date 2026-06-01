@@ -2,6 +2,7 @@ package v1
 
 import (
 	"net/http"
+	"time"
 
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/response"
@@ -109,6 +110,54 @@ func (h *StoreBrowseHandler) GetStoreHours(c *gin.Context) {
 		"operating_hours": oh,
 		"ship_cutoffs":    sc,
 	})
+}
+
+// GetStoreSlots GET /api/v1/stores/:id/slots?date=YYYY-MM-DD
+// Returns the store's ship cutoffs (ca giao) plus the remaining slot quota per
+// (menu item, cutoff) for the given date (default today). Powers the customer
+// session picker + "còn N suất" badges.
+func (h *StoreBrowseHandler) GetStoreSlots(c *gin.Context) {
+	ctx := c.Request.Context()
+	storeID := c.Param("id")
+
+	date := time.Now().UTC().Truncate(24 * time.Hour)
+	if ds := c.Query("date"); ds != "" {
+		d, err := time.Parse("2006-01-02", ds)
+		if err != nil {
+			response.BadRequest(c, "invalid date (want YYYY-MM-DD)")
+			return
+		}
+		date = d
+	}
+
+	cutoffs, err := h.hoursUC.ListShipCutoffs(ctx, storeID)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	quotas, err := h.catalogUC.ListStoreSlotQuotas(ctx, storeID, date)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+
+	type slotQuota struct {
+		MenuItemID string `json:"MenuItemID"`
+		CutoffID   string `json:"CutoffID"`
+		Quota      int    `json:"Quota"`
+		SoldCount  int    `json:"SoldCount"`
+		Remaining  int    `json:"Remaining"`
+	}
+	out := make([]slotQuota, 0, len(quotas))
+	for _, q := range quotas {
+		rem := q.Quota - q.SoldCount
+		if rem < 0 {
+			rem = 0
+		}
+		out = append(out, slotQuota{q.MenuItemID, q.CutoffID, q.Quota, q.SoldCount, rem})
+	}
+
+	response.Success(c, gin.H{"cutoffs": cutoffs, "quotas": out})
 }
 
 // ListMyStores GET /api/v1/stores/mine

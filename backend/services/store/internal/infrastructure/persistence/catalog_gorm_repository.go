@@ -159,6 +159,14 @@ func (r *catalogGormRepository) ListSlotQuotas(ctx context.Context, menuItemID s
 		Find(&rows).Error
 }
 
+func (r *catalogGormRepository) ListSlotQuotasForStore(ctx context.Context, storeID string, date time.Time) ([]*entity.MenuItemSlotQuota, error) {
+	var rows []*entity.MenuItemSlotQuota
+	return rows, r.db.WithContext(ctx).
+		Joins("JOIN menu_items m ON m.id = menu_item_slot_quotas.menu_item_id").
+		Where("m.store_id = ? AND menu_item_slot_quotas.date = ?", storeID, date).
+		Find(&rows).Error
+}
+
 // ---- OptionGroups ----
 
 func (r *catalogGormRepository) CreateOptionGroup(ctx context.Context, og *entity.OptionGroup) error {

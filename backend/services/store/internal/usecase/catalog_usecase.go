@@ -59,6 +59,7 @@ type CatalogUsecase interface {
 	// Quota
 	SetSlotQuota(ctx context.Context, menuItemID string, date time.Time, cutoffID string, quota int) error
 	ListSlotQuotas(ctx context.Context, menuItemID string, date time.Time) ([]*entity.MenuItemSlotQuota, error)
+	ListStoreSlotQuotas(ctx context.Context, storeID string, date time.Time) ([]*entity.MenuItemSlotQuota, error)
 }
 
 type catalogUsecase struct {
@@ -325,4 +326,8 @@ func (uc *catalogUsecase) SetSlotQuota(ctx context.Context, menuItemID string, d
 
 func (uc *catalogUsecase) ListSlotQuotas(ctx context.Context, menuItemID string, date time.Time) ([]*entity.MenuItemSlotQuota, error) {
 	return uc.catalogRepo.ListSlotQuotas(ctx, menuItemID, date)
+}
+
+func (uc *catalogUsecase) ListStoreSlotQuotas(ctx context.Context, storeID string, date time.Time) ([]*entity.MenuItemSlotQuota, error) {
+	return uc.catalogRepo.ListSlotQuotasForStore(ctx, storeID, date)
 }

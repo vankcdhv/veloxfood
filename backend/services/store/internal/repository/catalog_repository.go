@@ -54,6 +54,10 @@ type CatalogRepository interface {
 	// ListSlotQuotas returns all quota rows for an item on a given date.
 	ListSlotQuotas(ctx context.Context, menuItemID string, date time.Time) ([]*entity.MenuItemSlotQuota, error)
 
+	// ListSlotQuotasForStore returns all quota rows for every item of a store on a
+	// given date (customer storefront uses this to show remaining slots per ca).
+	ListSlotQuotasForStore(ctx context.Context, storeID string, date time.Time) ([]*entity.MenuItemSlotQuota, error)
+
 	// ---- OptionGroups ----
 
 	CreateOptionGroup(ctx context.Context, og *entity.OptionGroup) error

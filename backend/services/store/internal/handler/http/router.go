@@ -40,6 +40,7 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 		stores.GET("/mine", h.ListMyStores)
 		stores.GET("/:id", h.GetStore)
 		stores.GET("/:id/hours", h.GetStoreHours)
+		stores.GET("/:id/slots", h.GetStoreSlots)
 		stores.GET("/:id/menu", h.GetMenu)
 		stores.GET("/:id/categories", h.ListCategories)
 		stores.GET("/:id/ship-fee", h.GetShipFee)

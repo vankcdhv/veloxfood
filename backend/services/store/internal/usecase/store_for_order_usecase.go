@@ -102,8 +102,12 @@ func (uc *storeForOrderUsecase) GetStoreForOrder(ctx context.Context, storeID, r
 	return result, nil
 }
 
-// resolveOrderDeadline computes the earliest order deadline across all cutoffs for
-// the store today. Returns empty string when no cutoffs are configured.
+// resolveOrderDeadline computes the LATEST order deadline across all of today's
+// cutoffs — i.e. the last moment a same-day order can still make some batch.
+// With multiple sessions (e.g. 11:00 / 17:30 / 22:00) a customer may keep
+// ordering until the final session's deadline; using the earliest cutoff here
+// would wrongly close ordering right after the first morning batch.
+// Returns empty string when no cutoffs are configured.
 func resolveOrderDeadline(ctx context.Context, repo repository.ShippingRepository, storeID string) string {
 	cutoffs, err := repo.ListShipCutoffs(ctx, storeID)
 	if err != nil || len(cutoffs) == 0 {
@@ -112,22 +116,22 @@ func resolveOrderDeadline(ctx context.Context, repo repository.ShippingRepositor
 
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	var earliest *time.Time
+	var latest *time.Time
 
 	for _, c := range cutoffs {
 		dl := parseCutoffDeadline(today, c)
 		if dl == nil {
 			continue
 		}
-		if earliest == nil || dl.Before(*earliest) {
-			earliest = dl
+		if latest == nil || dl.After(*latest) {
+			latest = dl
 		}
 	}
 
-	if earliest == nil {
+	if latest == nil {
 		return ""
 	}
-	return earliest.Format(time.RFC3339)
+	return latest.Format(time.RFC3339)
 }
 
 // parseCutoffDeadline parses "HH:MM" cutoff time and subtracts lead minutes.

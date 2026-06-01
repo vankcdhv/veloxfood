@@ -66,6 +66,10 @@ func (m *mockCatalogRepo) ListSlotQuotas(ctx context.Context, menuItemID string,
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockCatalogRepo) ListSlotQuotasForStore(ctx context.Context, storeID string, date time.Time) ([]*entity.MenuItemSlotQuota, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (m *mockCatalogRepo) CreateCategory(ctx context.Context, c *entity.Category) error {
 	if m.createCategoryFn != nil {
 		return m.createCategoryFn(ctx, c)
