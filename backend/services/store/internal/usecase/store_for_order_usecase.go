@@ -70,16 +70,19 @@ func (uc *storeForOrderUsecase) GetStoreForOrder(ctx context.Context, storeID, r
 		SaleStatus: store.SaleStatus,
 	}
 
-	// Resolve ship fee — not found means store doesn't serve this room.
-	buildingID, found, err := uc.roomResolver.GetRoom(ctx, roomID)
-	if err != nil {
-		return nil, fmt.Errorf("resolve room: %w", err)
-	}
-	if found {
-		rule, err := uc.shippingRepo.ResolveShipFee(ctx, storeID, buildingID, roomID)
-		if err == nil && rule != nil {
-			result.Served = true
-			result.UnitShipFee = rule.UnitFee
+	// Resolve ship fee for delivery. PICKUP orders carry no room, so skip
+	// resolution entirely (an empty room id is not an error).
+	if roomID != "" {
+		buildingID, found, err := uc.roomResolver.GetRoom(ctx, roomID)
+		if err != nil {
+			return nil, fmt.Errorf("resolve room: %w", err)
+		}
+		if found {
+			rule, err := uc.shippingRepo.ResolveShipFee(ctx, storeID, buildingID, roomID)
+			if err == nil && rule != nil {
+				result.Served = true
+				result.UnitShipFee = rule.UnitFee
+			}
 		}
 	}
 
