@@ -1,15 +1,21 @@
 package v1
 
 import (
-	"net/http"
 	"strconv"
 
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/response"
+	"project/services/review/internal/entity"
 	"project/services/review/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )
+
+// reviewListResponse is the storefront-facing shape for a page of reviews.
+type reviewListResponse struct {
+	Items []*entity.Review `json:"Items"`
+	Total int64            `json:"Total"`
+}
 
 // CustomerReviewHandler handles customer-facing review operations.
 type CustomerReviewHandler struct {
@@ -65,13 +71,43 @@ func (h *CustomerReviewHandler) ListStoreReviews(c *gin.Context) {
 		response.HandleError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"status":  http.StatusOK,
-		"message": "success",
-		"data":    reviews,
-		"total":   total,
-		"page":    page,
-	})
+	response.Success(c, reviewListResponse{Items: reviews, Total: total})
+}
+
+// StoreRatingSummary GET /api/v1/stores/:id/reviews/summary
+// Returns the store's average rating + review count (STORE-targeted reviews).
+func (h *CustomerReviewHandler) StoreRatingSummary(c *gin.Context) {
+	avg, count, err := h.reviewUC.GetStoreRatingSummary(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"Avg": avg, "Count": count})
+}
+
+// ItemRatingSummaries GET /api/v1/stores/:id/reviews/item-summaries
+// Returns per-menu-item avg+count for all ITEM reviews of the store.
+func (h *CustomerReviewHandler) ItemRatingSummaries(c *gin.Context) {
+	summaries, err := h.reviewUC.GetItemRatingSummaries(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.Success(c, summaries)
+}
+
+// ListItemReviews GET /api/v1/stores/:id/reviews/items/:itemId?page=1&page_size=20
+func (h *CustomerReviewHandler) ListItemReviews(c *gin.Context) {
+	itemID := c.Param("itemId")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	reviews, total, err := h.reviewUC.ListItemReviews(c.Request.Context(), itemID, page, pageSize)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.Success(c, reviewListResponse{Items: reviews, Total: total})
 }
 
 // ReportReview POST /api/v1/reviews/:id/report

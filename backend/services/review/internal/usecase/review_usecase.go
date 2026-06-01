@@ -19,6 +19,8 @@ import (
 type ReviewUsecase interface {
 	CreateReview(ctx context.Context, req CreateReviewRequest) (*entity.Review, error)
 	ListStoreReviews(ctx context.Context, storeID string, page, pageSize int) ([]*entity.Review, int64, error)
+	ListItemReviews(ctx context.Context, itemID string, page, pageSize int) ([]*entity.Review, int64, error)
+	GetItemRatingSummaries(ctx context.Context, storeID string) ([]repository.ItemRatingSummary, error)
 	ReplyToReview(ctx context.Context, reviewID, content string) (*entity.ReviewReply, error)
 	ReportReview(ctx context.Context, reviewID, reason string) (*entity.ReviewReport, error)
 	HideReview(ctx context.Context, reviewID string) error
@@ -179,6 +181,20 @@ func (uc *reviewUsecase) ListStoreReviews(ctx context.Context, storeID string, p
 	return uc.reviewRepo.ListByStore(ctx, storeID, pageSize, (page-1)*pageSize)
 }
 
+func (uc *reviewUsecase) ListItemReviews(ctx context.Context, itemID string, page, pageSize int) ([]*entity.Review, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	return uc.reviewRepo.ListByTarget(ctx, "ITEM", itemID, pageSize, (page-1)*pageSize)
+}
+
+func (uc *reviewUsecase) GetItemRatingSummaries(ctx context.Context, storeID string) ([]repository.ItemRatingSummary, error) {
+	return uc.reviewRepo.ItemRatingSummaries(ctx, storeID)
+}
+
 // ReplyToReview lets a store owner respond to a review. Authorisation: the caller
 // must have store.manage permission scoped to the review's store vendor.
 func (uc *reviewUsecase) ReplyToReview(ctx context.Context, reviewID, content string) (*entity.ReviewReply, error) {
@@ -280,7 +296,9 @@ func (uc *reviewUsecase) ListReportedReviews(ctx context.Context, page, pageSize
 }
 
 func (uc *reviewUsecase) GetStoreRatingSummary(ctx context.Context, storeID string) (float64, int32, error) {
-	return uc.reviewRepo.RatingSummary(ctx, storeID)
+	// The store's rating reflects STORE-targeted reviews only (per-item reviews
+	// roll up to each menu item, not the store average).
+	return uc.reviewRepo.RatingSummaryByTarget(ctx, "STORE", storeID)
 }
 
 // isDuplicateError detects Postgres unique-violation errors (code 23505).

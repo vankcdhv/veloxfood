@@ -57,6 +57,43 @@ func (r *reviewGormRepository) ListByStore(ctx context.Context, storeID string, 
 	return rows, total, err
 }
 
+func (r *reviewGormRepository) ListByTarget(ctx context.Context, targetType, targetID string, limit, offset int) ([]*entity.Review, int64, error) {
+	var rows []*entity.Review
+	var total int64
+	base := r.db.WithContext(ctx).Model(&entity.Review{}).
+		Where("target_type = ? AND target_id = ? AND status = 'VISIBLE'", targetType, targetID)
+	if err := base.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := base.Order("created_at DESC").Limit(limit).Offset(offset).Find(&rows).Error
+	return rows, total, err
+}
+
+func (r *reviewGormRepository) RatingSummaryByTarget(ctx context.Context, targetType, targetID string) (float64, int32, error) {
+	var result struct {
+		Avg   float64
+		Count int32
+	}
+	err := r.db.WithContext(ctx).Raw(
+		`SELECT COALESCE(AVG(rating), 0) AS avg, COUNT(*) AS count
+		   FROM reviews WHERE target_type = ? AND target_id = ? AND status = 'VISIBLE'`,
+		targetType, targetID,
+	).Scan(&result).Error
+	return result.Avg, result.Count, err
+}
+
+func (r *reviewGormRepository) ItemRatingSummaries(ctx context.Context, storeID string) ([]repository.ItemRatingSummary, error) {
+	// Non-nil so an empty result marshals as [] (not null) for the storefront.
+	rows := make([]repository.ItemRatingSummary, 0)
+	err := r.db.WithContext(ctx).Raw(
+		`SELECT target_id AS target_id, COALESCE(AVG(rating), 0) AS avg, COUNT(*) AS count
+		   FROM reviews
+		  WHERE store_id = ? AND target_type = 'ITEM' AND status = 'VISIBLE'
+		  GROUP BY target_id`, storeID,
+	).Scan(&rows).Error
+	return rows, err
+}
+
 func (r *reviewGormRepository) UpdateStatus(ctx context.Context, id, status string) error {
 	return r.db.WithContext(ctx).
 		Model(&entity.Review{}).

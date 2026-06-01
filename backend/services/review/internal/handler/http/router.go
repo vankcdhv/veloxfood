@@ -28,8 +28,12 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 		h := cfg.CustomerHandler
 		// POST /api/v1/orders/:id/reviews
 		api.POST("/orders/:id/reviews", h.CreateReview)
-		// GET /api/v1/stores/:id/reviews
+		// GET /api/v1/stores/:id/reviews (+ rating summaries / per-item reviews).
+		// All nested under /stores/:id/reviews so the existing Kong route covers them.
 		api.GET("/stores/:id/reviews", h.ListStoreReviews)
+		api.GET("/stores/:id/reviews/summary", h.StoreRatingSummary)
+		api.GET("/stores/:id/reviews/item-summaries", h.ItemRatingSummaries)
+		api.GET("/stores/:id/reviews/items/:itemId", h.ListItemReviews)
 		// POST /api/v1/reviews/:id/report
 		api.POST("/reviews/:id/report", h.ReportReview)
 	}

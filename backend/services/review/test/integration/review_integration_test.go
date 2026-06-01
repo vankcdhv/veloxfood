@@ -361,13 +361,17 @@ func TestListStoreReviews(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("list reviews: %d — %s", w.Code, w.Body.String())
 	}
+	// Handler returns the list nested as data:{Items,Total} (matches the FE
+	// ReviewListResponse contract consumed by store-reviews-list.tsx).
 	var resp struct {
-		Data  []struct{ ID string }
-		Total int64
+		Data struct {
+			Items []struct{ ID string }
+			Total int64
+		}
 	}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
-	if len(resp.Data) < 1 {
-		t.Errorf("expected at least 1 review, got %d", len(resp.Data))
+	if len(resp.Data.Items) < 1 {
+		t.Errorf("expected at least 1 review, got %d", len(resp.Data.Items))
 	}
 }
 
