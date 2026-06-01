@@ -20,10 +20,13 @@ type UserDirectory interface {
 	GetUserNames(ctx context.Context, ids []string) (map[string]string, error)
 }
 
-// StoreView wraps a Store with the resolved owner display name.
+// StoreView wraps a Store with the resolved owner display name and (optionally)
+// the store's ship cutoffs (ca giao) so the storefront list can show sessions
+// without a follow-up request per store.
 type StoreView struct {
 	*entity.Store
-	OwnerUserName string `json:"OwnerUserName"`
+	OwnerUserName string               `json:"OwnerUserName"`
+	ShipCutoffs   []*entity.ShipCutoff `json:"ShipCutoffs,omitempty"`
 }
 
 // StoreUsecase handles store lifecycle operations.

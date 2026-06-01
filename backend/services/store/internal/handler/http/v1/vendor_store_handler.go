@@ -253,16 +253,17 @@ func (h *VendorStoreHandler) UpdateMenuItem(c *gin.Context) {
 		return
 	}
 	var body struct {
-		Name        string `json:"name" binding:"required"`
-		Description string `json:"description"`
-		Price       int64  `json:"price" binding:"required"`
-		Tags        string `json:"tags"`
+		Name        string  `json:"name" binding:"required"`
+		Description string  `json:"description"`
+		Price       int64   `json:"price" binding:"required"`
+		Tags        string  `json:"tags"`
+		ImageURL    *string `json:"image_url"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	item, err := h.catalogUC.UpdateMenuItem(c.Request.Context(), c.Param("itemId"), body.Name, body.Description, body.Price, body.Tags)
+	item, err := h.catalogUC.UpdateMenuItem(c.Request.Context(), c.Param("itemId"), body.Name, body.Description, body.Price, body.Tags, body.ImageURL)
 	if err != nil {
 		response.HandleError(c, err)
 		return

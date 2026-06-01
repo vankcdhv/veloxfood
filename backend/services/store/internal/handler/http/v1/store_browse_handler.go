@@ -35,20 +35,35 @@ func NewStoreBrowseHandler(
 
 // ListStores GET /api/v1/stores
 func (h *StoreBrowseHandler) ListStores(c *gin.Context) {
-	stores, err := h.storeUC.ListStoresEnriched(c.Request.Context(), c.Query("sale_status"))
+	ctx := c.Request.Context()
+	stores, err := h.storeUC.ListStoresEnriched(ctx, c.Query("sale_status"))
 	if err != nil {
 		response.HandleError(c, err)
 		return
+	}
+	// Attach ship cutoffs (ca giao) so the list can show sessions inline.
+	ids := make([]string, len(stores))
+	for i, s := range stores {
+		ids[i] = s.ID
+	}
+	if cutoffs, err := h.hoursUC.ListShipCutoffsForStores(ctx, ids); err == nil {
+		for _, s := range stores {
+			s.ShipCutoffs = cutoffs[s.ID]
+		}
 	}
 	response.Success(c, stores)
 }
 
 // GetStore GET /api/v1/stores/:id
 func (h *StoreBrowseHandler) GetStore(c *gin.Context) {
-	store, err := h.storeUC.GetStoreEnriched(c.Request.Context(), c.Param("id"))
+	ctx := c.Request.Context()
+	store, err := h.storeUC.GetStoreEnriched(ctx, c.Param("id"))
 	if err != nil {
 		response.HandleError(c, err)
 		return
+	}
+	if cutoffs, err := h.hoursUC.ListShipCutoffs(ctx, store.ID); err == nil {
+		store.ShipCutoffs = cutoffs
 	}
 	response.Success(c, store)
 }

@@ -133,6 +133,10 @@ func (m *mockShippingRepo) ListShipCutoffs(ctx context.Context, storeID string) 
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockShippingRepo) ListShipCutoffsForStores(ctx context.Context, storeIDs []string) (map[string][]*entity.ShipCutoff, error) {
+	return map[string][]*entity.ShipCutoff{}, nil
+}
+
 func (m *mockShippingRepo) UpdateShipCutoff(ctx context.Context, sc *entity.ShipCutoff) error {
 	if m.updateShipCutoffFn != nil {
 		return m.updateShipCutoffFn(ctx, sc)

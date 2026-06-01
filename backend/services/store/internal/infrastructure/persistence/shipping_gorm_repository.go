@@ -140,6 +140,24 @@ func (r *shippingGormRepository) ListShipCutoffs(ctx context.Context, storeID st
 		Find(&rows).Error
 }
 
+func (r *shippingGormRepository) ListShipCutoffsForStores(ctx context.Context, storeIDs []string) (map[string][]*entity.ShipCutoff, error) {
+	out := make(map[string][]*entity.ShipCutoff, len(storeIDs))
+	if len(storeIDs) == 0 {
+		return out, nil
+	}
+	var rows []*entity.ShipCutoff
+	if err := r.db.WithContext(ctx).
+		Where("store_id IN ?", storeIDs).
+		Order("cutoff_time ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, sc := range rows {
+		out[sc.StoreID] = append(out[sc.StoreID], sc)
+	}
+	return out, nil
+}
+
 func (r *shippingGormRepository) UpdateShipCutoff(ctx context.Context, sc *entity.ShipCutoff) error {
 	return r.db.WithContext(ctx).Model(sc).Updates(map[string]any{
 		"cutoff_time":  sc.CutoffTime,

@@ -72,6 +72,7 @@ type HoursUsecase interface {
 	// Ship cutoff CRUD
 	CreateShipCutoff(ctx context.Context, storeID, cutoffTime string, leadMinutes int) (*entity.ShipCutoff, error)
 	ListShipCutoffs(ctx context.Context, storeID string) ([]*entity.ShipCutoff, error)
+	ListShipCutoffsForStores(ctx context.Context, storeIDs []string) (map[string][]*entity.ShipCutoff, error)
 	UpdateShipCutoff(ctx context.Context, id, cutoffTime string, leadMinutes int) (*entity.ShipCutoff, error)
 	DeleteShipCutoff(ctx context.Context, id string) error
 
@@ -147,6 +148,10 @@ func (uc *hoursUsecase) CreateShipCutoff(ctx context.Context, storeID, cutoffTim
 
 func (uc *hoursUsecase) ListShipCutoffs(ctx context.Context, storeID string) ([]*entity.ShipCutoff, error) {
 	return uc.shippingRepo.ListShipCutoffs(ctx, storeID)
+}
+
+func (uc *hoursUsecase) ListShipCutoffsForStores(ctx context.Context, storeIDs []string) (map[string][]*entity.ShipCutoff, error) {
+	return uc.shippingRepo.ListShipCutoffsForStores(ctx, storeIDs)
 }
 
 func (uc *hoursUsecase) UpdateShipCutoff(ctx context.Context, id, cutoffTime string, leadMinutes int) (*entity.ShipCutoff, error) {

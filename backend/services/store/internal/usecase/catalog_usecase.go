@@ -25,7 +25,7 @@ type CatalogUsecase interface {
 	CreateMenuItem(ctx context.Context, storeID, categoryID, name, description string, price int64, tags string) (*entity.MenuItem, error)
 	GetMenuItem(ctx context.Context, id string) (*entity.MenuItem, error)
 	ListMenuItems(ctx context.Context, storeID, categoryID, status string) ([]*entity.MenuItem, error)
-	UpdateMenuItem(ctx context.Context, id, name, description string, price int64, tags string) (*entity.MenuItem, error)
+	UpdateMenuItem(ctx context.Context, id, name, description string, price int64, tags string, imageURL *string) (*entity.MenuItem, error)
 	ToggleMenuItemStatus(ctx context.Context, id, status string) error
 	SetMenuItemImage(ctx context.Context, id, imageURL string) error
 	DeleteMenuItem(ctx context.Context, id string) error
@@ -134,7 +134,7 @@ func (uc *catalogUsecase) ListMenuItems(ctx context.Context, storeID, categoryID
 	return uc.catalogRepo.ListMenuItems(ctx, storeID, categoryID, status)
 }
 
-func (uc *catalogUsecase) UpdateMenuItem(ctx context.Context, id, name, description string, price int64, tags string) (*entity.MenuItem, error) {
+func (uc *catalogUsecase) UpdateMenuItem(ctx context.Context, id, name, description string, price int64, tags string, imageURL *string) (*entity.MenuItem, error) {
 	m, err := uc.catalogRepo.GetMenuItem(ctx, id)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrMenuItemNotFound
@@ -146,6 +146,10 @@ func (uc *catalogUsecase) UpdateMenuItem(ctx context.Context, id, name, descript
 	m.Description = description
 	m.Price = price
 	m.Tags = tags
+	// Only touch the image when the caller explicitly sends image_url.
+	if imageURL != nil {
+		m.ImageURL = *imageURL
+	}
 	if err := uc.catalogRepo.UpdateMenuItem(ctx, m); err != nil {
 		return nil, fmt.Errorf("update menu item: %w", err)
 	}

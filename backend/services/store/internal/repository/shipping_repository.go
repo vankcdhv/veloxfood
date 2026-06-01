@@ -36,6 +36,9 @@ type ShippingRepository interface {
 	CreateShipCutoff(ctx context.Context, sc *entity.ShipCutoff) error
 	GetShipCutoff(ctx context.Context, id string) (*entity.ShipCutoff, error)
 	ListShipCutoffs(ctx context.Context, storeID string) ([]*entity.ShipCutoff, error)
+	// ListShipCutoffsForStores batch-loads cutoffs for many stores at once,
+	// keyed by store ID — used to enrich the store list without an N+1 query.
+	ListShipCutoffsForStores(ctx context.Context, storeIDs []string) (map[string][]*entity.ShipCutoff, error)
 	UpdateShipCutoff(ctx context.Context, sc *entity.ShipCutoff) error
 	DeleteShipCutoff(ctx context.Context, id string) error // soft-delete
 
