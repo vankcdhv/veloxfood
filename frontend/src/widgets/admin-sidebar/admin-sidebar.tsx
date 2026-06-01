@@ -1,8 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, ShoppingCart, Package, Bike, MapPin, Store, Banknote, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingCart, Package, Bike, MapPin, Store, Banknote, Settings, Menu } from 'lucide-react';
+import { Button } from '@/shared/ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/shared/ui/sheet';
 import { BrandMark } from '@/widgets/brand-mark/brand-mark';
 import { ROUTES } from '@/shared/config/constants';
 import { cn } from '@/shared/lib/utils';
@@ -26,18 +29,14 @@ const PRIMARY_NAV: NavItem[] = [
 
 const SECONDARY_NAV: NavItem[] = [{ label: 'Cài đặt', href: '#', icon: Settings }];
 
+// Desktop sidebar — hidden below lg (mobile uses AdminMobileTopbar's drawer).
 export function AdminSidebar() {
   return (
     <aside className="bg-card border-border hidden h-screen w-64 shrink-0 flex-col border-r lg:sticky lg:top-0 lg:flex">
       <div className="border-border flex h-16 items-center border-b px-6">
         <BrandMark href={ROUTES.admin.root} />
       </div>
-
-      <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-6">
-        <NavSection label="Quản lý" items={PRIMARY_NAV} />
-        <NavSection label="Hệ thống" items={SECONDARY_NAV} />
-      </nav>
-
+      <AdminNav />
       <div className="border-border text-muted-foreground border-t p-4 text-xs">
         <p>Distributed System Course</p>
         <p>v0.1.0 · base</p>
@@ -46,7 +45,40 @@ export function AdminSidebar() {
   );
 }
 
-function NavSection({ label, items }: { label: string; items: NavItem[] }) {
+// Mobile-only top bar with a hamburger that opens the nav in a left drawer.
+export function AdminMobileTopbar() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-border bg-card sticky top-0 z-30 flex h-14 items-center gap-2 border-b px-4 lg:hidden">
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger asChild>
+          <Button variant="ghost" size="icon" aria-label="Mở menu quản trị">
+            <Menu className="h-5 w-5" />
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="left" className="w-72 p-0">
+          <SheetHeader className="border-border h-16 justify-center border-b px-6">
+            <SheetTitle className="sr-only">Điều hướng quản trị</SheetTitle>
+            <BrandMark href={ROUTES.admin.root} />
+          </SheetHeader>
+          <AdminNav onNavigate={() => setOpen(false)} />
+        </SheetContent>
+      </Sheet>
+      <BrandMark href={ROUTES.admin.root} />
+    </div>
+  );
+}
+
+function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-6">
+      <NavSection label="Quản lý" items={PRIMARY_NAV} onNavigate={onNavigate} />
+      <NavSection label="Hệ thống" items={SECONDARY_NAV} onNavigate={onNavigate} />
+    </nav>
+  );
+}
+
+function NavSection({ label, items, onNavigate }: { label: string; items: NavItem[]; onNavigate?: () => void }) {
   const pathname = usePathname();
   return (
     <div>
@@ -65,6 +97,7 @@ function NavSection({ label, items }: { label: string; items: NavItem[] }) {
               <Link
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
+                onClick={onNavigate}
                 className={cn(
                   'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                   active

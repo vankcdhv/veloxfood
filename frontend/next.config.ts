@@ -8,6 +8,15 @@ import type { NextConfig } from 'next';
 const GATEWAY_URL = process.env.GATEWAY_URL ?? 'http://localhost:8000';
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      // Front door is the storefront, not the UI-kit scaffold at `/`.
+      { source: '/', destination: '/shop', permanent: false },
+      // Legacy links that pointed at non-existent pages.
+      { source: '/shop/menu', destination: '/stores', permanent: false },
+      { source: '/shop/cart', destination: '/cart', permanent: false },
+    ];
+  },
   async rewrites() {
     return [
       // Single catch-all: Next.js proxies /api/* same-origin to Kong.

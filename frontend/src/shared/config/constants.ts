@@ -4,8 +4,6 @@ export const ROUTES = {
   home: '/',
   shop: {
     root: '/shop',
-    menu: '/shop/menu',
-    cart: '/shop/cart',
   },
   admin: {
     root: '/admin',

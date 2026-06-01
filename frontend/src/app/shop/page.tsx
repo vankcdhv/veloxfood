@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Clock, Star, Truck } from 'lucide-react';
+import { ArrowRight, Clock, Star, Truck, UtensilsCrossed } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
 import { Badge } from '@/shared/ui/badge';
 import { Card, CardContent } from '@/shared/ui/card';
@@ -36,23 +36,32 @@ export default function ShopHomePage() {
               </p>
               <div className="flex flex-wrap gap-3">
                 <Button asChild size="lg">
-                  <Link href={ROUTES.shop.menu}>
+                  <Link href={ROUTES.stores.root}>
                     Xem thực đơn
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
                 <Button asChild size="lg" variant="outline">
-                  <Link href={ROUTES.shop.cart}>Giỏ hàng</Link>
+                  <Link href={ROUTES.cart}>Giỏ hàng</Link>
                 </Button>
               </div>
             </div>
 
             <div className="bg-card border-border relative aspect-[4/3] overflow-hidden rounded-2xl border shadow-lg">
-              <div className="from-primary/20 via-secondary/10 absolute inset-0 bg-gradient-to-br to-transparent" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <p className="text-muted-foreground font-serif text-2xl">
-                  [Food hero image placeholder]
-                </p>
+              <div className="from-primary/25 via-secondary/15 absolute inset-0 bg-gradient-to-br to-transparent" />
+              <div className="bg-primary/10 absolute -top-10 -right-10 h-48 w-48 rounded-full blur-2xl" />
+              <div className="bg-secondary/10 absolute -bottom-12 -left-8 h-40 w-40 rounded-full blur-2xl" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+                <div className="bg-primary/15 text-primary flex h-24 w-24 items-center justify-center rounded-full">
+                  <UtensilsCrossed className="h-12 w-12" />
+                </div>
+                <p className="text-foreground/80 font-serif text-xl">Bữa ngon đang chờ bạn</p>
+              </div>
+              <div className="bg-card/90 border-border absolute top-6 left-6 rounded-xl border px-3 py-2 text-sm font-medium shadow-sm backdrop-blur">
+                🍚 Cơm sườn · 45.000đ
+              </div>
+              <div className="bg-card/90 border-border absolute right-6 bottom-6 rounded-xl border px-3 py-2 text-sm font-medium shadow-sm backdrop-blur">
+                ⭐ 4.9 · Giao 30′
               </div>
             </div>
           </div>
@@ -87,7 +96,7 @@ export default function ShopHomePage() {
             </p>
           </div>
           <Button asChild variant="ghost">
-            <Link href={ROUTES.shop.menu}>
+            <Link href={ROUTES.stores.root}>
               Xem tất cả
               <ArrowRight className="h-4 w-4" />
             </Link>

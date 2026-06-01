@@ -17,7 +17,7 @@ import { useMyCart } from '@/features/cart/hooks/use-cart';
 
 const NAV_ITEMS = [
   { label: 'Trang chủ', href: ROUTES.shop.root },
-  { label: 'Thực đơn', href: ROUTES.shop.menu },
+  { label: 'Cửa hàng', href: ROUTES.stores.root },
   { label: 'Giỏ hàng', href: ROUTES.cart },
 ];
 

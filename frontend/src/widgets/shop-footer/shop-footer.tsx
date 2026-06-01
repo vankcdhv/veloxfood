@@ -1,8 +1,12 @@
+'use client';
+
 import Link from 'next/link';
 import { BrandMark } from '@/widgets/brand-mark/brand-mark';
 import { ROUTES } from '@/shared/config/constants';
+import { useAuth } from '@/features/auth/context/auth-provider';
 
 export function ShopFooter() {
+  const { isAdmin } = useAuth();
   return (
     <footer className="border-border bg-muted/30 mt-16 border-t">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -17,18 +21,20 @@ export function ShopFooter() {
           <FooterColumn
             title="Khám phá"
             links={[
-              { label: 'Thực đơn', href: ROUTES.shop.menu },
-              { label: 'Giỏ hàng', href: ROUTES.shop.cart },
+              { label: 'Cửa hàng', href: ROUTES.stores.root },
+              { label: 'Giỏ hàng', href: ROUTES.cart },
             ]}
           />
 
-          <FooterColumn
-            title="Quản trị"
-            links={[
-              { label: 'Dashboard', href: ROUTES.admin.root },
-              { label: 'Quản lý người dùng', href: ROUTES.admin.users },
-            ]}
-          />
+          {isAdmin && (
+            <FooterColumn
+              title="Quản trị"
+              links={[
+                { label: 'Dashboard', href: ROUTES.admin.root },
+                { label: 'Quản lý người dùng', href: ROUTES.admin.users },
+              ]}
+            />
+          )}
 
           <FooterColumn
             title="Hỗ trợ"
