@@ -16,7 +16,8 @@ import { publicPromotionApi } from '@/features/promotions/api/promotion-api';
 import { formatVnd } from '@/features/wallet/lib/format-vnd';
 import { useMyWallet } from '@/features/wallet/hooks/use-wallet';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
-import { useMyCart } from '@/features/cart/hooks/use-cart';
+import { useMyCart, useCartMutations } from '@/features/cart/hooks/use-cart';
+import { clearActiveStoreId } from '@/shared/lib/active-store';
 import { usePlaceOrder } from '../hooks/use-orders';
 import type { FulfillmentType, PaymentMethod } from '../types/order';
 import type { ValidatePromotionResult } from '@/features/promotions/types/promotion';
@@ -37,6 +38,7 @@ export function CheckoutView() {
 function CheckoutContent() {
   const router = useRouter();
   const { data: cart, isLoading: cartLoading } = useMyCart();
+  const { clear } = useCartMutations();
   const { data: wallet } = useMyWallet();
   const savedLocs = useMyLocations();
   const placeOrder = usePlaceOrder();
@@ -122,6 +124,9 @@ function CheckoutContent() {
 
     try {
       const result = await placeOrder.mutateAsync(body);
+      // Order captured the items — empty the cart so it doesn't linger.
+      await clear.mutateAsync(cart.StoreID).catch(() => {});
+      clearActiveStoreId();
       if (paymentMethod === 'MOMO' && result.pay_url) {
         window.location.href = result.pay_url;
       } else {

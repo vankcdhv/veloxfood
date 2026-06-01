@@ -18,9 +18,14 @@ export interface Cart {
   Items: CartItem[];
 }
 
-// PUT /api/v1/me/cart/items/:menuItemId
-export interface UpdateCartItemBody {
+// PUT /api/v1/me/cart/items — body carries store_id + the item snapshot.
+export interface AddOrUpdateCartItemBody {
+  store_id: string;
+  menu_item_id: string;
+  name_snapshot: string;
+  price_snapshot: number;
   qty: number;
   cutoff_id?: string;
   date?: string;
+  options_snapshot?: unknown;
 }

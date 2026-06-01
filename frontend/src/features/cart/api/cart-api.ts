@@ -1,7 +1,7 @@
 import { http } from '@/shared/lib/http-client';
 import { API_PREFIX } from '@/shared/config/constants';
 import type { ApiResponse } from '@/shared/api/api-response';
-import type { Cart, UpdateCartItemBody } from '../types/cart';
+import type { Cart, AddOrUpdateCartItemBody } from '../types/cart';
 
 const CART = `${API_PREFIX}/me/cart`;
 
@@ -12,18 +12,21 @@ function unwrap<T>(res: { data: ApiResponse<T> }): T {
   return res.data.data;
 }
 
+// Cart is per-store: every endpoint needs store_id (query param on GET/DELETE,
+// inside the body on the upsert PUT). The active store is tracked client-side
+// (see shared/lib/active-store).
 export const cartApi = {
-  get: async () =>
-    unwrap(await http.get<ApiResponse<Cart>>(CART)),
+  get: async (storeId: string) =>
+    unwrap(await http.get<ApiResponse<Cart>>(CART, { params: { store_id: storeId } })),
 
-  updateItem: async (menuItemId: string, body: UpdateCartItemBody) =>
-    unwrap(await http.put<ApiResponse<Cart>>(`${CART}/items/${menuItemId}`, body)),
+  updateItem: async (body: AddOrUpdateCartItemBody) =>
+    unwrap(await http.put<ApiResponse<Cart>>(`${CART}/items`, body)),
 
-  removeItem: async (menuItemId: string) => {
-    await http.delete<ApiResponse>(`${CART}/items/${menuItemId}`);
+  removeItem: async (menuItemId: string, storeId: string) => {
+    await http.delete<ApiResponse>(`${CART}/items/${menuItemId}`, { params: { store_id: storeId } });
   },
 
-  clear: async () => {
-    await http.delete<ApiResponse>(CART);
+  clear: async (storeId: string) => {
+    await http.delete<ApiResponse>(CART, { params: { store_id: storeId } });
   },
 };

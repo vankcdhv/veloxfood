@@ -30,10 +30,12 @@ export function CartView() {
 function CartContent() {
   const { data: cart, isLoading, isError } = useMyCart();
   const { removeItem, clear } = useCartMutations();
+  const storeId = cart?.StoreID ?? '';
 
   const handleClear = async () => {
+    if (!storeId) return;
     try {
-      await clear.mutateAsync();
+      await clear.mutateAsync(storeId);
       toast.success('Đã xoá giỏ hàng');
     } catch (e) {
       toast.error(getApiErrorMessage(e, 'Không xoá được giỏ hàng'));
@@ -84,10 +86,12 @@ function CartContent() {
             <CartItemRow
               key={item.MenuItemID}
               item={item}
+              storeId={storeId}
               onRemove={() => {
-                removeItem.mutate(item.MenuItemID, {
-                  onError: (e) => toast.error(getApiErrorMessage(e, 'Không xoá được món')),
-                });
+                removeItem.mutate(
+                  { menuItemId: item.MenuItemID, storeId },
+                  { onError: (e) => toast.error(getApiErrorMessage(e, 'Không xoá được món')) },
+                );
               }}
             />
           ))}
@@ -123,7 +127,7 @@ function CartContent() {
   );
 }
 
-function CartItemRow({ item, onRemove }: { item: CartItem; onRemove: () => void }) {
+function CartItemRow({ item, storeId, onRemove }: { item: CartItem; storeId: string; onRemove: () => void }) {
   const { updateItem } = useCartMutations();
   const [qty, setQty] = useState(item.Qty);
 
@@ -132,12 +136,13 @@ function CartItemRow({ item, onRemove }: { item: CartItem; onRemove: () => void 
     setQty(next);
     try {
       await updateItem.mutateAsync({
-        menuItemId: item.MenuItemID,
-        body: {
-          qty: next,
-          cutoff_id: item.CutoffID,
-          date: item.Date,
-        },
+        store_id: storeId,
+        menu_item_id: item.MenuItemID,
+        name_snapshot: item.NameSnapshot,
+        price_snapshot: item.PriceSnapshot,
+        qty: next,
+        cutoff_id: item.CutoffID,
+        date: item.Date,
       });
     } catch (e) {
       setQty(item.Qty);

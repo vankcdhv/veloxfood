@@ -5,6 +5,7 @@ import { ShoppingCart, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
+import { setActiveStoreId } from '@/shared/lib/active-store';
 import { useCartMutations, useMyCart } from '../hooks/use-cart';
 import type { MenuItem } from '@/features/stores/types/store';
 
@@ -18,7 +19,7 @@ interface AddToCartButtonProps {
 
 export function AddToCartButton({ item, cutoffId, date, className }: AddToCartButtonProps) {
   const { data: cart } = useMyCart();
-  const { updateItem } = useCartMutations();
+  const { updateItem, clear } = useCartMutations();
   const [busy, setBusy] = useState(false);
 
   // Current quantity already in cart for this item.
@@ -42,13 +43,19 @@ export function AddToCartButton({ item, cutoffId, date, className }: AddToCartBu
 
     setBusy(true);
     try {
+      // Switching stores: drop the old store's cart first, then start at qty 1.
+      if (differentStore && cart?.StoreID) {
+        await clear.mutateAsync(cart.StoreID);
+      }
+      setActiveStoreId(item.StoreID);
       await updateItem.mutateAsync({
-        menuItemId: item.ID,
-        body: {
-          qty: existingQty + 1,
-          cutoff_id: cutoffId,
-          date,
-        },
+        store_id: item.StoreID,
+        menu_item_id: item.ID,
+        name_snapshot: item.Name,
+        price_snapshot: item.Price,
+        qty: differentStore ? 1 : existingQty + 1,
+        cutoff_id: cutoffId,
+        date,
       });
       toast.success(`Đã thêm "${item.Name}" vào giỏ hàng`);
     } catch (e) {
