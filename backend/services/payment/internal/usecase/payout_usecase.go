@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"time"
 
 	"project/pkg/outbox"
 	"project/services/payment/internal/entity"
@@ -72,10 +73,24 @@ func NewPayoutUsecase(
 	}
 }
 
+// parseDateOr parses a YYYY-MM-DD string, returning fallback on empty/invalid input.
+func parseDateOr(s string, fallback time.Time) time.Time {
+	if t, err := time.Parse("2006-01-02", s); err == nil {
+		return t
+	}
+	return fallback
+}
+
 func (uc *payoutUsecase) CreateBatch(ctx context.Context, req CreatePayoutRequest) (*entity.PayoutBatch, error) {
 	orderIDsJSON, _ := json.Marshal(req.OrderIDs)
+	// Persist the batch period; fall back to today when the client omits it so
+	// the history never shows a zero date (0001-01-01).
+	periodFrom := parseDateOr(req.PeriodFrom, time.Now().UTC())
+	periodTo := parseDateOr(req.PeriodTo, periodFrom)
 	batch := &entity.PayoutBatch{
 		StoreID:     req.StoreID,
+		PeriodFrom:  periodFrom,
+		PeriodTo:    periodTo,
 		OrderIDs:    orderIDsJSON,
 		TotalAmount: req.TotalAmount,
 		Status:      entity.PayoutPending,

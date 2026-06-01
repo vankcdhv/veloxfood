@@ -100,12 +100,13 @@ func (h *DeliveryEventHandler) handleOrderDelivered(ctx context.Context, env out
 			slog.WarnContext(ctx, "order.delivered: no payment found", "order_id", data.OrderID)
 			return nil
 		}
-		// Only act on COD orders; online payments are settled at capture time.
-		if payment.Method != entity.MethodCOD {
-			return nil
-		}
-		// Idempotent: already captured means store was already credited.
-		if payment.Status == entity.PaymentCaptured {
+		// Store earnings are credited to STORE_PAYABLE on delivery for ALL paid
+		// methods. COD is also marked captured here (cash collected on delivery);
+		// online (WALLET/MOMO) was captured at order time but the store is only
+		// credited now. The processed_events guard above makes this idempotent.
+		isCOD := payment.Method == entity.MethodCOD
+		// For COD, an already-captured payment means the store was already credited.
+		if isCOD && payment.Status == entity.PaymentCaptured {
 			return nil
 		}
 
@@ -161,23 +162,27 @@ func (h *DeliveryEventHandler) handleOrderDelivered(ctx context.Context, env out
 			return err
 		}
 
-		if err := h.paymentRepo.UpdateStatus(ctx, tx, payment.ID, entity.PaymentCaptured, nil); err != nil {
-			return err
+		// COD only: mark the payment captured now and emit payment.captured.
+		// Online payments were already captured + emitted at order time.
+		if isCOD {
+			if err := h.paymentRepo.UpdateStatus(ctx, tx, payment.ID, entity.PaymentCaptured, nil); err != nil {
+				return err
+			}
+			payload, _ := json.Marshal(map[string]any{
+				"payment_id": payment.ID,
+				"order_id":   data.OrderID,
+				"store_id":   data.StoreID,
+				"amount":     amount,
+				"method":     string(entity.MethodCOD),
+			})
+			return h.outboxRepo.Append(ctx, tx, &entity.OutboxEvent{
+				AggregateType: "payment",
+				AggregateID:   payment.ID,
+				EventType:     "payment.captured",
+				Payload:       payload,
+				TraceID:       tracePtr,
+			})
 		}
-
-		payload, _ := json.Marshal(map[string]any{
-			"payment_id": payment.ID,
-			"order_id":   data.OrderID,
-			"store_id":   data.StoreID,
-			"amount":     amount,
-			"method":     string(entity.MethodCOD),
-		})
-		return h.outboxRepo.Append(ctx, tx, &entity.OutboxEvent{
-			AggregateType: "payment",
-			AggregateID:   payment.ID,
-			EventType:     "payment.captured",
-			Payload:       payload,
-			TraceID:       tracePtr,
-		})
+		return nil
 	})
 }
