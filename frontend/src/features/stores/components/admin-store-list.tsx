@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '@/shared/ui/dialog';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
+import { ROLE_IDS } from '@/shared/config/roles';
 import { useAdminStores, useAdminStoreMutations } from '../hooks/use-stores';
 import { SaleStatusBadge } from './sale-status-badge';
 import { useUsers } from '@/features/users/hooks/use-users';
@@ -111,7 +112,7 @@ function CreateStoreDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const { data: userPage, isFetching: fetchingUsers } = useUsers({
     search: ownerSearch,
     status: 'active',
-    role_id: '754a8e4d-4e3b-4241-ba40-619f411aba3b',
+    role_id: ROLE_IDS.vendorOwner,
     page: 1,
     page_size: 10,
   });

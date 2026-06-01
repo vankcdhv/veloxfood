@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
-import { formatVnd } from '@/features/wallet/lib/format-vnd';
+import { formatVnd } from '@/shared/lib/format-vnd';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useStoreOrders, useOwnerOrderMutations, useStoreOrder } from '../hooks/use-orders';
 import { OrderStatusBadge } from './order-status-badge';

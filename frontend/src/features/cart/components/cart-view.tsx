@@ -8,7 +8,7 @@ import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { RoleGuard } from '@/features/auth/components/role-guard';
-import { formatVnd } from '@/features/wallet/lib/format-vnd';
+import { formatVnd } from '@/shared/lib/format-vnd';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { ROUTES } from '@/shared/config/constants';
 import { useMyCart, useCartMutations } from '../hooks/use-cart';
@@ -117,7 +117,7 @@ function CartContent() {
           Xoá giỏ
         </Button>
         <Button asChild className="flex-1">
-          <Link href="/checkout">
+          <Link href={ROUTES.checkout}>
             Thanh toán
             <ArrowRight className="h-4 w-4 ml-1.5" />
           </Link>

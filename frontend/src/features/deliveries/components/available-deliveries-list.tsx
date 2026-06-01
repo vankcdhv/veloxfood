@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
-import { formatVnd } from '@/features/wallet/lib/format-vnd';
+import { formatVnd } from '@/shared/lib/format-vnd';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useStore } from '@/features/stores/hooks/use-stores';
 import { useAvailableDeliveries, useClaimDelivery } from '../hooks/use-deliveries';

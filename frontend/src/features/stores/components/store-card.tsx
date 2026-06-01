@@ -1,7 +1,11 @@
+'use client';
+
 import Link from 'next/link';
-import { Package, Phone, Truck } from 'lucide-react';
+import { Clock, Package, Truck, UtensilsCrossed } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
+import { StarRatingDisplay } from '@/features/reviews/components/star-rating-input';
+import { useStoreRatingSummary } from '@/features/reviews/hooks/use-reviews';
 import { SaleStatusBadge } from './sale-status-badge';
 import type { Store } from '../types/store';
 
@@ -11,48 +15,77 @@ interface StoreCardProps {
 }
 
 export function StoreCard({ store, href }: StoreCardProps) {
+  const { data: rating } = useStoreRatingSummary(store.ID);
+  // Ca giao times, sorted (e.g. "11:00 · 17:30 · 22:00").
+  const cutoffs = [...(store.ShipCutoffs ?? [])]
+    .sort((a, b) => a.CutoffTime.localeCompare(b.CutoffTime))
+    .map((c) => c.CutoffTime);
+
+  // h-full + flex column so every card fills its grid cell and lines up evenly;
+  // the footer is pinned to the bottom (mt-auto) regardless of body length.
   const content = (
-    <Card className="group cursor-pointer transition-shadow hover:shadow-md">
-      <CardContent className="p-5 space-y-3">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="font-serif text-base font-semibold leading-snug group-hover:text-primary transition-colors">
-            {store.Name}
-          </h3>
+    <Card className="group h-full flex flex-col cursor-pointer transition hover:shadow-md hover:-translate-y-0.5">
+      <CardContent className="flex flex-1 flex-col p-5">
+        {/* Header: cuisine icon + name (clamped) + status badge (no wrap) */}
+        <div className="flex items-start gap-3">
+          <div className="bg-primary/10 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
+            <UtensilsCrossed className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-serif text-base font-semibold leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+              {store.Name}
+            </h3>
+            {store.BusinessType && (
+              <p className="text-muted-foreground text-xs line-clamp-1 mt-0.5">{store.BusinessType}</p>
+            )}
+          </div>
           <SaleStatusBadge status={store.SaleStatus} />
         </div>
 
-        {store.BusinessType && (
-          <p className="text-muted-foreground text-xs">{store.BusinessType}</p>
-        )}
-
-        {store.Address && (
-          <p className="text-sm text-muted-foreground truncate">{store.Address}</p>
-        )}
-
-        <div className="flex items-center gap-3 flex-wrap">
-          {store.Phone && (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Phone className="h-3.5 w-3.5" />
-              {store.Phone}
-            </span>
+        {/* Rating row — always reserved so cards stay uniform */}
+        <div className="mt-3 flex items-center gap-1.5 text-xs">
+          {rating && rating.Count > 0 ? (
+            <>
+              <StarRatingDisplay rating={Math.round(rating.Avg)} size="sm" />
+              <span className="font-medium">{rating.Avg.toFixed(1)}</span>
+              <span className="text-muted-foreground">({rating.Count})</span>
+            </>
+          ) : (
+            <span className="text-muted-foreground/60">Chưa có đánh giá</span>
           )}
+        </div>
+
+        {/* Ca giao */}
+        {cutoffs.length > 0 && (
+          <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Clock className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Ca giao: {cutoffs.join(' · ')}</span>
+          </p>
+        )}
+
+        {/* Footer chips pinned to the bottom */}
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
+          <Badge variant="outline" className="text-xs gap-1">
+            <Truck className="h-3 w-3" />
+            Giao tận nơi
+          </Badge>
           {store.PickupEnabled && (
             <Badge variant="secondary" className="text-xs gap-1">
               <Package className="h-3 w-3" />
-              Tự lấy
+              Tự đến lấy
             </Badge>
           )}
-          <Badge variant="outline" className="text-xs gap-1">
-            <Truck className="h-3 w-3" />
-            Giao hàng
-          </Badge>
         </div>
       </CardContent>
     </Card>
   );
 
   if (href) {
-    return <Link href={href}>{content}</Link>;
+    return (
+      <Link href={href} className="block h-full">
+        {content}
+      </Link>
+    );
   }
   return content;
 }

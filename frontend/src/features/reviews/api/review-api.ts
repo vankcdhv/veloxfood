@@ -3,6 +3,8 @@ import { API_PREFIX } from '@/shared/config/constants';
 import type { ApiResponse } from '@/shared/api/api-response';
 import type {
   CreateReviewBody,
+  ItemRatingSummary,
+  RatingSummary,
   ReplyReviewBody,
   ReportReviewBody,
   Review,
@@ -27,11 +29,36 @@ export const reviewApi = {
     ),
 
   // GET /api/v1/stores/:storeId/reviews
-  listByStore: async (storeId: string, skip = 0, limit = 20): Promise<ReviewListResponse> =>
+  listByStore: async (storeId: string, page = 1, pageSize = 20): Promise<ReviewListResponse> =>
     unwrap(
       await http.get<ApiResponse<ReviewListResponse>>(
         `${API_PREFIX}/stores/${storeId}/reviews`,
-        { params: { skip, limit } },
+        { params: { page, page_size: pageSize } },
+      ),
+    ),
+
+  // GET /api/v1/stores/:storeId/reviews/summary — store avg rating + count
+  storeSummary: async (storeId: string): Promise<RatingSummary> =>
+    unwrap(
+      await http.get<ApiResponse<RatingSummary>>(
+        `${API_PREFIX}/stores/${storeId}/reviews/summary`,
+      ),
+    ),
+
+  // GET /api/v1/stores/:storeId/reviews/item-summaries — per-item avg+count
+  itemSummaries: async (storeId: string): Promise<ItemRatingSummary[]> =>
+    unwrap(
+      await http.get<ApiResponse<ItemRatingSummary[]>>(
+        `${API_PREFIX}/stores/${storeId}/reviews/item-summaries`,
+      ),
+    ),
+
+  // GET /api/v1/stores/:storeId/reviews/items/:itemId — reviews of one menu item
+  listByItem: async (storeId: string, itemId: string, page = 1, pageSize = 20): Promise<ReviewListResponse> =>
+    unwrap(
+      await http.get<ApiResponse<ReviewListResponse>>(
+        `${API_PREFIX}/stores/${storeId}/reviews/items/${itemId}`,
+        { params: { page, page_size: pageSize } },
       ),
     ),
 

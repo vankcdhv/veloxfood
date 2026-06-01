@@ -14,6 +14,7 @@ export const ROUTES = {
     locations: '/admin/locations',
     stores: '/admin/stores',
     payouts: '/admin/payouts',
+    settings: '/admin/settings',
   },
   account: {
     locations: '/account/locations',
@@ -36,4 +37,8 @@ export const ROUTES = {
     resetPassword: '/reset-password',
   },
   registerShipper: '/register-shipper',
+  support: {
+    help: '/help',
+    contact: '/contact',
+  },
 } as const;

@@ -1,11 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { Loader2, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
-import { formatVnd } from '@/features/wallet/lib/format-vnd';
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog';
+import { formatVnd } from '@/shared/lib/format-vnd';
+import { formatDate } from '@/shared/lib/format-date';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useSettlement, usePayoutMutations } from '../hooks/use-payouts';
 
@@ -17,8 +20,9 @@ interface Props {
 export function SettlementPreviewPanel({ storeId, storeName }: Props) {
   const { data, isLoading, isError } = useSettlement(storeId);
   const { createBatch } = usePayoutMutations(storeId);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const handleCreateBatch = () => {
+  const confirmCreateBatch = () => {
     if (!data || data.Orders.length === 0) return;
 
     // Period = min/max of order dates; fall back to today if only one order.
@@ -35,7 +39,10 @@ export function SettlementPreviewPanel({ storeId, storeName }: Props) {
         total_amount: data.Total,
       },
       {
-        onSuccess: () => toast.success(`Đã tạo đợt chi trả cho "${storeName}"`),
+        onSuccess: () => {
+          toast.success(`Đã tạo đợt chi trả cho "${storeName}"`);
+          setConfirmOpen(false);
+        },
         onError: (err) => toast.error(getApiErrorMessage(err, 'Tạo đợt chi trả thất bại')),
       },
     );
@@ -88,16 +95,14 @@ export function SettlementPreviewPanel({ storeId, storeName }: Props) {
           </p>
         ) : (
           <div className="space-y-1 max-h-56 overflow-y-auto">
-            {data.Orders.map((order) => (
+            {data.Orders.map((order, i) => (
               <div
                 key={order.OrderID}
                 className="flex items-center justify-between rounded-md px-3 py-1.5 text-sm hover:bg-muted/50"
               >
-                <span className="font-mono text-xs text-muted-foreground">
-                  {order.OrderID.slice(0, 8)}…
-                </span>
+                <span className="text-xs text-muted-foreground">Đơn {i + 1}</span>
                 <span className="text-xs text-muted-foreground">
-                  {new Date(order.CreatedAt).toLocaleDateString('vi-VN')}
+                  {formatDate(order.CreatedAt)}
                 </span>
                 <span className="font-semibold text-sm">{formatVnd(order.Amount)}</span>
               </div>
@@ -107,7 +112,7 @@ export function SettlementPreviewPanel({ storeId, storeName }: Props) {
 
         <Button
           className="w-full"
-          onClick={handleCreateBatch}
+          onClick={() => setConfirmOpen(true)}
           disabled={createBatch.isPending || data.Orders.length === 0}
         >
           {createBatch.isPending ? (
@@ -117,6 +122,16 @@ export function SettlementPreviewPanel({ storeId, storeName }: Props) {
           )}
         </Button>
       </CardContent>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Tạo đợt chi trả?"
+        description={`Gộp ${data.Orders.length} đơn thành một đợt chi trả ${formatVnd(data.Total)} cho "${storeName}". Bạn vẫn cần bấm "Thực hiện chi trả" để thanh toán thật.`}
+        confirmLabel="Tạo đợt"
+        loading={createBatch.isPending}
+        onConfirm={confirmCreateBatch}
+      />
     </Card>
   );
 }

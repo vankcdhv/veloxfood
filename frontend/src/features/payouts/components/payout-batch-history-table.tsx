@@ -1,12 +1,15 @@
 'use client';
 
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
 import { Badge } from '@/shared/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
-import { formatVnd } from '@/features/wallet/lib/format-vnd';
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog';
+import { formatVnd } from '@/shared/lib/format-vnd';
+import { formatDate, formatDateTime } from '@/shared/lib/format-date';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { usePayoutBatches, usePayoutMutations } from '../hooks/use-payouts';
 import type { PayoutBatch } from '../types/payout';
@@ -18,10 +21,15 @@ interface Props {
 export function PayoutBatchHistoryTable({ storeId }: Props) {
   const { data: batches, isLoading, isError } = usePayoutBatches(storeId);
   const { executeBatch } = usePayoutMutations(storeId);
+  const [executeTarget, setExecuteTarget] = useState<PayoutBatch | null>(null);
 
-  const handleExecute = (batch: PayoutBatch) => {
-    executeBatch.mutate(batch.ID, {
-      onSuccess: () => toast.success('Đã thực hiện chi trả thành công'),
+  const confirmExecute = () => {
+    if (!executeTarget) return;
+    executeBatch.mutate(executeTarget.ID, {
+      onSuccess: () => {
+        toast.success('Đã thực hiện chi trả thành công');
+        setExecuteTarget(null);
+      },
       onError: (err) => toast.error(getApiErrorMessage(err, 'Thực hiện chi trả thất bại')),
     });
   };
@@ -56,13 +64,27 @@ export function PayoutBatchHistoryTable({ storeId }: Props) {
               <BatchRow
                 key={batch.ID}
                 batch={batch}
-                onExecute={handleExecute}
+                onExecute={setExecuteTarget}
                 isExecuting={executeBatch.isPending && executeBatch.variables === batch.ID}
               />
             ))}
           </div>
         )}
       </CardContent>
+
+      <ConfirmDialog
+        open={!!executeTarget}
+        onOpenChange={(o) => !o && setExecuteTarget(null)}
+        title="Thực hiện chi trả?"
+        description={
+          executeTarget
+            ? `Chi trả ${formatVnd(executeTarget.TotalAmount)} cho ${executeTarget.OrderIDs.length} đơn. Thao tác không thể hoàn tác.`
+            : undefined
+        }
+        confirmLabel="Chi trả ngay"
+        loading={executeBatch.isPending}
+        onConfirm={confirmExecute}
+      />
     </Card>
   );
 }
@@ -88,11 +110,11 @@ function BatchRow({
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground">
-          {batch.PeriodFrom} → {batch.PeriodTo} · {batch.OrderIDs.length} đơn
+          {formatDate(batch.PeriodFrom)} → {formatDate(batch.PeriodTo)} · {batch.OrderIDs.length} đơn
         </p>
         {batch.SettledAt && (
           <p className="text-xs text-muted-foreground">
-            Thực hiện: {new Date(batch.SettledAt).toLocaleString('vi-VN')}
+            Thực hiện: {formatDateTime(batch.SettledAt)}
           </p>
         )}
       </div>

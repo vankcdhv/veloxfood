@@ -5,14 +5,47 @@ import type { CreateReviewBody, ReplyReviewBody, ReportReviewBody } from '../typ
 export const reviewKeys = {
   all: ['reviews'] as const,
   byStore: (storeId: string) => [...reviewKeys.all, 'store', storeId] as const,
+  storeSummary: (storeId: string) => [...reviewKeys.all, 'store', storeId, 'summary'] as const,
+  itemSummaries: (storeId: string) => [...reviewKeys.all, 'store', storeId, 'item-summaries'] as const,
+  byItem: (storeId: string, itemId: string) => [...reviewKeys.all, 'store', storeId, 'item', itemId] as const,
   reported: () => [...reviewKeys.all, 'admin', 'reported'] as const,
 };
 
-export function useStoreReviews(storeId: string, skip = 0, limit = 20) {
+export function useStoreReviews(storeId: string, page = 1, pageSize = 20) {
   return useQuery({
-    queryKey: [...reviewKeys.byStore(storeId), skip, limit],
-    queryFn: () => reviewApi.listByStore(storeId, skip, limit),
+    queryKey: [...reviewKeys.byStore(storeId), page, pageSize],
+    queryFn: () => reviewApi.listByStore(storeId, page, pageSize),
     enabled: !!storeId,
+  });
+}
+
+// Store-level average rating + count (for the store card / header).
+export function useStoreRatingSummary(storeId: string) {
+  return useQuery({
+    queryKey: reviewKeys.storeSummary(storeId),
+    queryFn: () => reviewApi.storeSummary(storeId),
+    enabled: !!storeId,
+  });
+}
+
+// Per-menu-item rating summaries for a store, returned as a Map keyed by item ID.
+export function useItemRatingSummaries(storeId: string) {
+  return useQuery({
+    queryKey: reviewKeys.itemSummaries(storeId),
+    queryFn: async () => {
+      const list = await reviewApi.itemSummaries(storeId);
+      return new Map((list ?? []).map((s) => [s.TargetID, s]));
+    },
+    enabled: !!storeId,
+  });
+}
+
+// Reviews for a single menu item (lazy — only fetched when enabled).
+export function useItemReviews(storeId: string, itemId: string, enabled = true) {
+  return useQuery({
+    queryKey: reviewKeys.byItem(storeId, itemId),
+    queryFn: () => reviewApi.listByItem(storeId, itemId),
+    enabled: !!storeId && !!itemId && enabled,
   });
 }
 

@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, RotateCcw, XCircle, KeyRound, CheckCircle2, Circle } from 'lucide-react';
+import { ArrowLeft, RotateCcw, XCircle, KeyRound, CheckCircle2, Circle, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { RoleGuard } from '@/features/auth/components/role-guard';
-import { formatVnd } from '@/features/wallet/lib/format-vnd';
+import { formatVnd } from '@/shared/lib/format-vnd';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useAuth } from '@/features/auth/context/auth-provider';
 import { OrderReviewForm } from '@/features/reviews/components/order-review-form';
@@ -136,7 +136,22 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
         </Button>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-serif text-xl font-bold">{displayOrder.Code}</h1>
+            <h1 className="font-serif font-mono text-xl font-bold">{displayOrder.Code}</h1>
+            {displayOrder.Code && (
+              <button
+                type="button"
+                aria-label="Sao chép mã đơn"
+                onClick={() => {
+                  navigator.clipboard?.writeText(displayOrder.Code).then(
+                    () => toast.success('Đã sao chép mã đơn'),
+                    () => toast.error('Không sao chép được'),
+                  );
+                }}
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                <Copy className="h-4 w-4" />
+              </button>
+            )}
             <OrderStatusBadge status={liveStatus} />
             {realtimeStatus && (
               <span className="text-xs text-success font-medium">● realtime</span>
@@ -250,6 +265,7 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
         <OrderReviewForm
           orderId={orderId}
           storeId={displayOrder.StoreID}
+          items={displayOrder.Items}
           onSubmitted={() => setReviewSubmitted(true)}
         />
       )}
@@ -290,14 +306,17 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
 }
 
 function StatusTimeline({ order }: { order: Order }) {
-  const currentIdx = PIPELINE.indexOf(order.Status);
+  // Pickup orders never go through a delivery leg — drop that step from the timeline.
+  const pipeline =
+    order.Fulfillment === 'PICKUP' ? PIPELINE.filter((s) => s !== 'DELIVERING') : PIPELINE;
+  const currentIdx = pipeline.indexOf(order.Status);
   const historySet = new Set(order.StatusHistory?.map((h) => h.Status) ?? []);
 
   return (
     <Card>
       <CardContent className="py-4">
         <ol className="relative space-y-3 pl-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-border">
-          {PIPELINE.map((step, idx) => {
+          {pipeline.map((step, idx) => {
             const done = idx < currentIdx || historySet.has(step);
             const active = step === order.Status;
             return (

@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
-import { formatVnd } from '@/features/wallet/lib/format-vnd';
+import { formatVnd } from '@/shared/lib/format-vnd';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useMyDeliveries, useUpdateDeliveryStatus } from '../hooks/use-deliveries';
 import { DeliveryStatusBadge } from './delivery-status-badge';
@@ -157,7 +157,7 @@ function ActiveDeliveryCard({
       <CardHeader className="pb-2 pt-3 px-3">
         <CardTitle className="text-sm flex items-center justify-between gap-2">
           <span className="font-mono truncate text-xs text-muted-foreground">
-            {delivery.OrderCode || `#${delivery.OrderID.slice(0, 8)}…`}
+            {delivery.OrderCode || 'Đơn chưa có mã'}
           </span>
           <DeliveryStatusBadge status={delivery.Status} />
         </CardTitle>

@@ -72,7 +72,7 @@ export const vendorStoreApi = {
     storeId: string,
     body: { category_id: string; name: string; description: string; price: number },
   ) => unwrap(await http.post<ApiResponse<MenuItem>>(`${STORES}/${storeId}/menu`, body)),
-  updateMenuItem: async (storeId: string, itemId: string, body: Partial<{ category_id: string; name: string; description: string; price: number; tags: string }>) =>
+  updateMenuItem: async (storeId: string, itemId: string, body: Partial<{ category_id: string; name: string; description: string; price: number; tags: string; image_url: string }>) =>
     unwrap(await http.patch<ApiResponse<MenuItem>>(`${STORES}/${storeId}/menu/${itemId}`, body)),
   setMenuItemStatus: async (storeId: string, itemId: string, status: string) =>
     unwrap(await http.patch<ApiResponse<MenuItem>>(`${STORES}/${storeId}/menu/${itemId}/status`, { status })),

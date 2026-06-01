@@ -135,6 +135,7 @@ export function EditMenuItemDialog({
   const [description, setDescription] = useState(item?.Description ?? '');
   const [price, setPrice] = useState(item ? String(item.Price) : '');
   const [tags, setTags] = useState(item?.Tags ?? '');
+  const [imageURL, setImageURL] = useState(item?.ImageURL ?? '');
 
   const submit = () => {
     if (!item) return;
@@ -143,10 +144,15 @@ export function EditMenuItemDialog({
       toast.error('Vui lòng nhập tên và giá hợp lệ.');
       return;
     }
+    const url = imageURL.trim();
+    if (url && !/^https?:\/\//i.test(url)) {
+      toast.error('URL ảnh phải bắt đầu bằng http:// hoặc https://');
+      return;
+    }
     m.updateMenuItem.mutate(
       {
         itemId: item.ID,
-        body: { name: name.trim(), description: description.trim(), price: p, tags: tags.trim() },
+        body: { name: name.trim(), description: description.trim(), price: p, tags: tags.trim(), image_url: imageURL.trim() },
       },
       {
         onSuccess: () => {
@@ -174,6 +180,23 @@ export function EditMenuItemDialog({
             onChange={setTags}
             placeholder="VD: bestseller,new"
           />
+          <div>
+            <Field
+              label="Ảnh món (URL)"
+              value={imageURL}
+              onChange={setImageURL}
+              placeholder="https://… (hoặc dùng nút tải ảnh)"
+            />
+            {/^https?:\/\//i.test(imageURL.trim()) && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={imageURL.trim()}
+                alt="Xem trước ảnh món"
+                className="border-border mt-2 h-20 w-20 rounded-md border object-cover"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            )}
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={m.updateMenuItem.isPending}>Huỷ</Button>

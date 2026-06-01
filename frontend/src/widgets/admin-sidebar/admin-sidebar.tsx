@@ -27,7 +27,7 @@ const PRIMARY_NAV: NavItem[] = [
   { label: 'Chi trả', href: ROUTES.admin.payouts, icon: Banknote },
 ];
 
-const SECONDARY_NAV: NavItem[] = [{ label: 'Cài đặt', href: '#', icon: Settings }];
+const SECONDARY_NAV: NavItem[] = [{ label: 'Cài đặt', href: ROUTES.admin.settings, icon: Settings }];
 
 // Desktop sidebar — hidden below lg (mobile uses AdminMobileTopbar's drawer).
 export function AdminSidebar() {

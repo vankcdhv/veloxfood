@@ -3,9 +3,11 @@
 import Link from 'next/link';
 import { Package } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/card';
+import { Button } from '@/shared/ui/button';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { RoleGuard } from '@/features/auth/components/role-guard';
-import { formatVnd } from '@/features/wallet/lib/format-vnd';
+import { ROUTES } from '@/shared/config/constants';
+import { formatVnd } from '@/shared/lib/format-vnd';
 import { useMyOrders } from '../hooks/use-orders';
 import { OrderStatusBadge } from './order-status-badge';
 import type { Order } from '../types/order';
@@ -46,6 +48,9 @@ function OrderListContent() {
       <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
         <Package className="h-10 w-10 opacity-30" />
         <p className="text-sm">Bạn chưa có đơn hàng nào.</p>
+        <Button asChild size="sm" className="mt-1">
+          <Link href={ROUTES.stores.root}>Đi chợ ngay</Link>
+        </Button>
       </div>
     );
   }

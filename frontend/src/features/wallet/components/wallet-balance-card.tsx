@@ -3,7 +3,7 @@
 import { Wallet } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
-import { formatVnd } from '../lib/format-vnd';
+import { formatVnd } from '@/shared/lib/format-vnd';
 import { TopupDialog } from './wallet-topup-dialog';
 
 interface Props {

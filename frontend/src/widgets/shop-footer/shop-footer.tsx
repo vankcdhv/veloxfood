@@ -39,8 +39,8 @@ export function ShopFooter() {
           <FooterColumn
             title="Hỗ trợ"
             links={[
-              { label: 'Trung tâm trợ giúp', href: '#' },
-              { label: 'Liên hệ', href: '#' },
+              { label: 'Trung tâm trợ giúp', href: ROUTES.support.help },
+              { label: 'Liên hệ', href: ROUTES.support.contact },
             ]}
           />
         </div>

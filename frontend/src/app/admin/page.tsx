@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/sha
 import { Badge } from '@/shared/ui/badge';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { AdminTopbar } from '@/widgets/admin-topbar/admin-topbar';
-import { formatVnd } from '@/features/wallet/lib/format-vnd';
+import { formatVnd } from '@/shared/lib/format-vnd';
 import { reportingApi } from '@/features/notifications/api/reporting-api';
 import type { RecentOrderRow } from '@/features/notifications/api/reporting-api';
 
@@ -238,7 +238,7 @@ function RecentOrderRow({ order }: { order: RecentOrderRow }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 text-sm">
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium font-mono text-xs">{order.Code || `${order.OrderID.slice(0, 8)}…`}</p>
+        <p className="truncate font-medium font-mono text-xs">{order.Code || 'Đơn chưa có mã'}</p>
         {order.StoreName && (
           <p className="text-muted-foreground text-xs truncate">{order.StoreName}</p>
         )}

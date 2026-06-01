@@ -52,7 +52,7 @@ export function StoreReviewsList({ storeId }: StoreReviewsListProps) {
   );
 }
 
-function ReviewCard({ review }: { review: Review }) {
+export function ReviewCard({ review }: { review: Review }) {
   const [reportSent, setReportSent] = useState(false);
   const reportMutation = useReportReview();
 

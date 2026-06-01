@@ -14,6 +14,7 @@ import {
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
+import { formatVnd } from '@/shared/lib/format-vnd';
 import { useTopupWallet } from '../hooks/use-wallet';
 
 const PRESET_AMOUNTS = [50_000, 100_000, 200_000, 500_000];
@@ -71,8 +72,10 @@ export function TopupDialog() {
                 value={rawAmount}
                 onChange={(e) => setRawAmount(e.target.value)}
               />
-              {rawAmount && !isValidAmount && (
+              {rawAmount && !isValidAmount ? (
                 <p className="text-destructive text-xs">Số tiền tối thiểu là 10.000đ</p>
+              ) : (
+                <p className="text-muted-foreground text-xs">Tối thiểu 10.000đ</p>
               )}
             </div>
 
@@ -84,7 +87,7 @@ export function TopupDialog() {
                   onClick={() => handlePreset(amt)}
                   className="rounded-full border border-orange-300 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-50 transition-colors"
                 >
-                  {amt.toLocaleString('vi-VN')}đ
+                  {formatVnd(amt)}
                 </button>
               ))}
             </div>

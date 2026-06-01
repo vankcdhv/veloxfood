@@ -17,6 +17,7 @@ export interface Store {
   SaleStatus: SaleStatus;
   PickupEnabled: boolean;
   CreatedAt: string;
+  ShipCutoffs?: ShipCutoff[]; // Ca giao, attached by the store list/detail endpoints
 }
 
 export interface Category {

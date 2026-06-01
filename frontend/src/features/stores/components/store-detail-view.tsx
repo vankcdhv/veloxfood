@@ -1,19 +1,25 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { MapPin, Phone, Truck, Star, Clock } from 'lucide-react';
+import { MapPin, Phone, Truck, Star, Clock, UtensilsCrossed } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
+import { formatVnd } from '@/shared/lib/format-vnd';
 import { useMyLocations } from '@/features/locations/hooks/use-locations';
 import { formatRoomPath } from '@/features/locations/lib/format-room-path';
 import { LocationPicker } from '@/features/locations/components/location-picker';
 import { AddToCartButton } from '@/features/cart/components/add-to-cart-button';
 import { StoreReviewsList } from '@/features/reviews/components/store-reviews-list';
+import { MenuItemDetailDialog } from '@/features/reviews/components/menu-item-detail-dialog';
+import { StarRatingDisplay } from '@/features/reviews/components/star-rating-input';
+import { useStoreRatingSummary, useItemRatingSummaries } from '@/features/reviews/hooks/use-reviews';
+import type { ItemRatingSummary } from '@/features/reviews/types/review';
 import { browseStoreApi } from '../api/store-api';
 import { useStore, useStoreMenu, useStoreSlots } from '../hooks/use-stores';
+import { isCutoffClosed, resolveActiveCutoff } from '../lib/slot-availability';
 import { SaleStatusBadge } from './sale-status-badge';
 import type { MenuCategory } from '../types/store';
 
@@ -49,6 +55,8 @@ export function StoreDetailView({ storeId }: StoreDetailViewProps) {
   const { data: store, isLoading: storeLoading, isError: storeError } = useStore(storeId);
   const { data: menu, isLoading: menuLoading } = useStoreMenu(storeId);
   const { data: slots } = useStoreSlots(storeId, selectedDate);
+  const { data: rating } = useStoreRatingSummary(storeId);
+  const { data: itemSummaries } = useItemRatingSummaries(storeId);
 
   // Sort cutoffs by time so the session buttons read 11:00 → 17:30 → 22:00.
   const cutoffs = useMemo(
@@ -60,8 +68,8 @@ export function StoreDetailView({ storeId }: StoreDetailViewProps) {
   // Derive the effective session (no effect needed): the user's pick if still
   // valid, otherwise the first available cutoff.
   const activeCutoff = useMemo(
-    () => (cutoffs.some((c) => c.ID === selectedCutoff) ? selectedCutoff : (cutoffs[0]?.ID ?? '')),
-    [cutoffs, selectedCutoff],
+    () => resolveActiveCutoff(cutoffs, selectedCutoff, selectedDate),
+    [cutoffs, selectedCutoff, selectedDate],
   );
 
   // menu_item_id → remaining quota for the selected session/date.
@@ -101,6 +109,13 @@ export function StoreDetailView({ storeId }: StoreDetailViewProps) {
             <Badge variant="secondary">Tự lấy</Badge>
           )}
         </div>
+        {rating && rating.Count > 0 && (
+          <div className="flex items-center gap-1.5 text-sm">
+            <StarRatingDisplay rating={Math.round(rating.Avg)} size="sm" />
+            <span className="font-medium">{rating.Avg.toFixed(1)}</span>
+            <span className="text-muted-foreground">({rating.Count} đánh giá)</span>
+          </div>
+        )}
         {store.BusinessType && (
           <p className="text-muted-foreground text-sm">{store.BusinessType}</p>
         )}
@@ -160,7 +175,7 @@ export function StoreDetailView({ storeId }: StoreDetailViewProps) {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Clock className="h-4 w-4 text-primary" />
-                  Chọn ca giao
+                  Xem suất theo ca
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -179,22 +194,32 @@ export function StoreDetailView({ storeId }: StoreDetailViewProps) {
                 <div>
                   <label className="text-foreground mb-1.5 block text-sm font-medium">Ca</label>
                   <div className="flex flex-wrap gap-2">
-                    {cutoffs.map((c) => (
-                      <button
-                        key={c.ID}
-                        type="button"
-                        onClick={() => setSelectedCutoff(c.ID)}
-                        className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
-                          activeCutoff === c.ID
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-border text-muted-foreground hover:border-primary/50'
-                        }`}
-                      >
-                        Ca {c.CutoffTime}
-                      </button>
-                    ))}
+                    {cutoffs.map((c) => {
+                      const closed = isCutoffClosed(c, selectedDate);
+                      return (
+                        <button
+                          key={c.ID}
+                          type="button"
+                          disabled={closed}
+                          title={closed ? 'Đã quá giờ cắt đơn cho ca này' : undefined}
+                          onClick={() => setSelectedCutoff(c.ID)}
+                          className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                            closed
+                              ? 'border-border text-muted-foreground/40 line-through cursor-not-allowed'
+                              : activeCutoff === c.ID
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-border text-muted-foreground hover:border-primary/50'
+                          }`}
+                        >
+                          Ca {c.CutoffTime}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
+                <p className="text-muted-foreground text-xs">
+                  Chọn ca ở đây chỉ để xem số suất còn lại. Ca giao chính thức của đơn sẽ chọn ở bước thanh toán.
+                </p>
               </CardContent>
             </Card>
           )}
@@ -211,10 +236,12 @@ export function StoreDetailView({ storeId }: StoreDetailViewProps) {
             <MenuCategorySection
               key={cat.Category.ID}
               cat={cat}
+              storeId={storeId}
               slotMode={hasSlots}
               cutoffId={activeCutoff}
               date={selectedDate}
               remainingByItem={remainingByItem}
+              itemSummaries={itemSummaries}
             />
           ))}
         </div>
@@ -346,13 +373,15 @@ function ShipFeeLookup({ storeId }: { storeId: string }) {
 
 interface MenuCategorySectionProps {
   cat: MenuCategory;
+  storeId: string;
   slotMode: boolean;
   cutoffId: string;
   date: string;
   remainingByItem: Map<string, number>;
+  itemSummaries?: Map<string, ItemRatingSummary>;
 }
 
-function MenuCategorySection({ cat, slotMode, cutoffId, date, remainingByItem }: MenuCategorySectionProps) {
+function MenuCategorySection({ cat, storeId, slotMode, cutoffId, date, remainingByItem, itemSummaries }: MenuCategorySectionProps) {
   return (
     <div className="space-y-3">
       <h3 className="font-semibold text-base border-b border-border pb-1">{cat.Category.Name}</h3>
@@ -371,16 +400,30 @@ function MenuCategorySection({ cat, slotMode, cutoffId, date, remainingByItem }:
               key={item.ID}
               className="flex items-start gap-3 rounded-lg border border-border p-3"
             >
-              {item.ImageURL && (
+              {item.ImageURL ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={item.ImageURL}
                   alt={item.Name}
                   className="h-16 w-16 shrink-0 rounded-lg object-cover"
                 />
+              ) : (
+                <div className="bg-muted text-muted-foreground/40 flex h-16 w-16 shrink-0 items-center justify-center rounded-lg">
+                  <UtensilsCrossed className="h-6 w-6" />
+                </div>
               )}
               <div className="min-w-0 flex-1 space-y-1">
-                <p className="font-medium text-sm leading-snug">{item.Name}</p>
+                {(() => {
+                  const s = itemSummaries?.get(item.ID);
+                  return (
+                    <MenuItemDetailDialog
+                      storeId={storeId}
+                      item={item}
+                      avg={s?.Avg ?? 0}
+                      count={s?.Count ?? 0}
+                    />
+                  );
+                })()}
                 {item.Description && (
                   <p className="text-muted-foreground text-xs line-clamp-2">{item.Description}</p>
                 )}
@@ -396,11 +439,11 @@ function MenuCategorySection({ cat, slotMode, cutoffId, date, remainingByItem }:
                 <div className="flex items-center justify-between gap-2 pt-0.5">
                   <div className="min-w-0">
                     <p className="text-primary font-semibold text-sm">
-                      {item.Price.toLocaleString('vi-VN')}đ
+                      {formatVnd(item.Price)}
                     </p>
                     {slotMode && (
                       <p className={`text-xs ${remaining! > 0 ? 'text-muted-foreground' : 'text-destructive'}`}>
-                        {remaining! > 0 ? `Còn ${remaining} suất` : 'Hết suất'}
+                        {remaining! > 0 ? `Còn ${remaining} suất` : 'Hết suất ca này'}
                       </p>
                     )}
                   </div>
@@ -413,7 +456,7 @@ function MenuCategorySection({ cat, slotMode, cutoffId, date, remainingByItem }:
                 </div>
               </div>
               {item.Status === 'off' && (
-                <Badge variant="outline" className="shrink-0 text-xs">Hết hàng</Badge>
+                <Badge variant="outline" className="shrink-0 text-xs">Ngừng bán</Badge>
               )}
             </div>
           );

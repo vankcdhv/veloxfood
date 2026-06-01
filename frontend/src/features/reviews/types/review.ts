@@ -1,7 +1,7 @@
 // Mirrors review-service entities. Fields PascalCase (Go JSON default).
 // Request bodies use snake_case.
 
-export type ReviewTargetType = 'STORE' | 'MENU_ITEM' | 'SHIPPER';
+export type ReviewTargetType = 'STORE' | 'ITEM' | 'SHIPPER';
 
 export interface Review {
   ID: string;
@@ -46,6 +46,19 @@ export interface ReportReviewBody {
 export interface ReviewListResponse {
   Items: Review[];
   Total: number;
+}
+
+// Average rating + count for a store or a single menu item.
+export interface RatingSummary {
+  Avg: number;
+  Count: number;
+}
+
+// Per-menu-item rating summary (TargetID = menu item ID).
+export interface ItemRatingSummary {
+  TargetID: string;
+  Avg: number;
+  Count: number;
 }
 
 // Admin reported reviews

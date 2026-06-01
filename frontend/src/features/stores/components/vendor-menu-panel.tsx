@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
+import { formatVnd } from '@/shared/lib/format-vnd';
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog';
 import { useStoreMenu, useVendorStoreMutations } from '../hooks/use-stores';
 import { AddMenuItemDialog, EditMenuItemDialog, ImageUploadButton } from './vendor-menu-item-dialogs';
 import { VendorMenuItemQuotaDialog } from './vendor-menu-item-quota-dialog';
@@ -25,6 +27,7 @@ export function VendorMenuPanel({ storeId }: Props) {
   const [editTarget, setEditTarget] = useState<MenuItem | null>(null);
   const [quotaTarget, setQuotaTarget] = useState<MenuItem | null>(null);
   const [optGroupTarget, setOptGroupTarget] = useState<MenuItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<MenuItem | null>(null);
 
   const toggleStatus = (item: MenuItem) => {
     const next = item.Status === 'on' ? 'off' : 'on';
@@ -37,9 +40,13 @@ export function VendorMenuPanel({ storeId }: Props) {
     );
   };
 
-  const deleteItem = (itemId: string) => {
-    m.deleteMenuItem.mutate(itemId, {
-      onSuccess: () => toast.success('Đã xoá món.'),
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    m.deleteMenuItem.mutate(deleteTarget.ID, {
+      onSuccess: () => {
+        toast.success('Đã xoá món.');
+        setDeleteTarget(null);
+      },
       onError: (e) => toast.error(getApiErrorMessage(e, 'Xoá thất bại')),
     });
   };
@@ -78,7 +85,7 @@ export function VendorMenuPanel({ storeId }: Props) {
                   item={item}
                   onToggle={() => toggleStatus(item)}
                   onEdit={() => setEditTarget(item)}
-                  onDelete={() => deleteItem(item.ID)}
+                  onDelete={() => setDeleteTarget(item)}
                   onQuota={() => setQuotaTarget(item)}
                   onOptionGroups={() => setOptGroupTarget(item)}
                   toggling={m.setMenuItemStatus.isPending}
@@ -113,6 +120,20 @@ export function VendorMenuPanel({ storeId }: Props) {
         storeId={storeId}
         item={optGroupTarget}
         onClose={() => setOptGroupTarget(null)}
+      />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        title="Xoá món này?"
+        description={
+          deleteTarget
+            ? `Món "${deleteTarget.Name}" sẽ bị xoá khỏi thực đơn. Thao tác không thể hoàn tác.`
+            : undefined
+        }
+        confirmLabel="Xoá món"
+        destructive
+        loading={m.deleteMenuItem.isPending}
+        onConfirm={confirmDelete}
       />
     </>
   );
@@ -150,7 +171,7 @@ function MenuItemRow({
 
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium truncate">{item.Name}</p>
-        <p className="text-primary text-xs font-semibold">{item.Price.toLocaleString('vi-VN')}đ</p>
+        <p className="text-primary text-xs font-semibold">{formatVnd(item.Price)}</p>
       </div>
 
       <Badge variant={item.Status === 'on' ? 'success' : 'outline'} className="shrink-0 text-xs">
