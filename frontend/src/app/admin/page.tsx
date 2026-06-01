@@ -238,7 +238,7 @@ function RecentOrderRow({ order }: { order: RecentOrderRow }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 text-sm">
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium font-mono text-xs">{order.OrderID.slice(0, 8)}…</p>
+        <p className="truncate font-medium font-mono text-xs">{order.Code || `${order.OrderID.slice(0, 8)}…`}</p>
         {order.StoreName && (
           <p className="text-muted-foreground text-xs truncate">{order.StoreName}</p>
         )}

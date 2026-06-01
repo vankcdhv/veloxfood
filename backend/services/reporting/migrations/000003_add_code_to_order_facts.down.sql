@@ -1,0 +1,1 @@
+ALTER TABLE order_facts DROP COLUMN IF EXISTS code;

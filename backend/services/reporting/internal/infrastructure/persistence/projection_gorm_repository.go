@@ -22,15 +22,15 @@ func NewProjectionGormRepository(db *gorm.DB) repository.ProjectionRepository {
 func (r *projectionGormRepository) UpsertOrderFact(ctx context.Context, tx *gorm.DB, f *entity.OrderFact) error {
 	return tx.WithContext(ctx).
 		Exec(`INSERT INTO order_facts
-			(order_id, store_id, customer_id, date, fulfillment,
+			(order_id, code, store_id, customer_id, date, fulfillment,
 			 items_total, ship_fee, discount, grand_total,
 			 payment_method, status, settled, created_at, updated_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
 			ON CONFLICT (order_id) DO UPDATE SET
 			  status     = EXCLUDED.status,
 			  settled    = EXCLUDED.settled,
 			  updated_at = NOW()`,
-			f.OrderID, f.StoreID, f.CustomerID, f.Date, f.Fulfillment,
+			f.OrderID, f.Code, f.StoreID, f.CustomerID, f.Date, f.Fulfillment,
 			f.ItemsTotal, f.ShipFee, f.Discount, f.GrandTotal,
 			f.PaymentMethod, f.Status, f.Settled,
 		).Error

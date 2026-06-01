@@ -53,6 +53,7 @@ func (h *OrderEventHandler) HandleKafkaMessage(ctx context.Context, msg kafka.Me
 // orderPlacedData matches the frozen order.placed payload (02-domain-events §2bis).
 type orderPlacedData struct {
 	OrderID       string `json:"order_id"`
+	Code          string `json:"code"`
 	CustomerID    string `json:"customer_id"`
 	StoreID       string `json:"store_id"`
 	Fulfillment   string `json:"fulfillment"`
@@ -97,6 +98,7 @@ func (h *OrderEventHandler) handleOrderPlaced(ctx context.Context, env outbox.En
 
 		fact := &entity.OrderFact{
 			OrderID:       data.OrderID,
+			Code:          data.Code,
 			StoreID:       data.StoreID,
 			CustomerID:    data.CustomerID,
 			Date:          orderDate,

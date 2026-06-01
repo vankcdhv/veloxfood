@@ -70,6 +70,7 @@ func (h *AdminAnalyticsHandler) ListRecentOrders(c *gin.Context) {
 	// Project to a lean response shape for the FE.
 	type orderItem struct {
 		OrderID    string `json:"OrderID"`
+		Code       string `json:"Code"`
 		StoreID    string `json:"StoreID"`
 		GrandTotal int64  `json:"GrandTotal"`
 		Status     string `json:"Status"`
@@ -79,6 +80,7 @@ func (h *AdminAnalyticsHandler) ListRecentOrders(c *gin.Context) {
 	for _, f := range facts {
 		items = append(items, orderItem{
 			OrderID:    f.OrderID,
+			Code:       f.Code,
 			StoreID:    f.StoreID,
 			GrandTotal: f.GrandTotal,
 			Status:     f.Status,

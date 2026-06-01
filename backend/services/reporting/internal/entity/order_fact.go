@@ -6,6 +6,7 @@ import "time"
 // consumed Kafka events. It is the primary source for analytics queries.
 type OrderFact struct {
 	OrderID       string    `gorm:"type:uuid;primaryKey;column:order_id"`
+	Code          string    `gorm:"type:varchar(20);column:code"`
 	StoreID       string    `gorm:"type:uuid;not null;index;column:store_id"`
 	CustomerID    string    `gorm:"type:uuid;not null;column:customer_id"`
 	Date          time.Time `gorm:"type:date;not null;column:date"`

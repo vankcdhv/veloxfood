@@ -15,6 +15,7 @@ export interface AnalyticsSummary {
 // Recent order row returned by GET /api/v1/admin/orders/recent?limit=N
 export interface RecentOrderRow {
   OrderID: string;
+  Code?: string;
   StoreID: string;
   GrandTotal: number;
   Status: string;
