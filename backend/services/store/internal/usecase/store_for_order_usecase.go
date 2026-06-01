@@ -19,6 +19,13 @@ type OrderItem struct {
 	Price  int64
 }
 
+// CutoffInfo is one of the store's delivery sessions (ca).
+type CutoffInfo struct {
+	ID          string
+	CutoffTime  string // HH:MM
+	LeadMinutes int
+}
+
 // StoreForOrderResult is the assembled response for an order-time store query.
 type StoreForOrderResult struct {
 	Found         bool
@@ -26,7 +33,8 @@ type StoreForOrderResult struct {
 	UnitShipFee   int64
 	Served        bool
 	Items         []OrderItem
-	OrderDeadline string // ISO-8601; earliest (cutoff - lead_minutes) for today
+	OrderDeadline string // ISO-8601; latest (cutoff - lead_minutes) for today
+	Cutoffs       []CutoffInfo
 }
 
 // StoreForOrderUsecase is called by the gRPC handler to validate a store
@@ -96,8 +104,17 @@ func (uc *storeForOrderUsecase) GetStoreForOrder(ctx context.Context, storeID, r
 		result.Items[i] = OrderItem{ItemID: m.ID, Name: m.Name, Price: m.Price}
 	}
 
-	// Order deadline = earliest (cutoff_time - lead_minutes) among today's cutoffs.
+	// Order deadline = latest (cutoff_time - lead_minutes) among today's cutoffs.
 	result.OrderDeadline = resolveOrderDeadline(ctx, uc.shippingRepo, storeID)
+
+	// Expose the raw cutoffs so the order service can compute each item's actual
+	// per-slot deadline (date + cutoff_time - lead) and snapshot it.
+	if cutoffs, err := uc.shippingRepo.ListShipCutoffs(ctx, storeID); err == nil {
+		result.Cutoffs = make([]CutoffInfo, len(cutoffs))
+		for i, c := range cutoffs {
+			result.Cutoffs[i] = CutoffInfo{ID: c.ID, CutoffTime: c.CutoffTime, LeadMinutes: c.LeadMinutes}
+		}
+	}
 
 	return result, nil
 }

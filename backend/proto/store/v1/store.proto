@@ -17,13 +17,22 @@ message GetStoreForOrderRequest {
   string room_id  = 2;
 }
 
+// CutoffInfo describes one delivery session (ca) so the order service can
+// compute each item's actual cutoff deadline (date + cutoff_time - lead).
+message CutoffInfo {
+  string id           = 1;
+  string cutoff_time  = 2;  // HH:MM
+  int32  lead_minutes = 3;
+}
+
 message GetStoreForOrderResponse {
   bool             found            = 1;
   string           sale_status      = 2;
   int64            unit_ship_fee    = 3;
   bool             served           = 4;  // true when the room is covered by a ship fee rule
   repeated OrderItem items          = 5;
-  string           order_deadline   = 6;  // ISO-8601 datetime string (earliest cutoff - lead)
+  string           order_deadline   = 6;  // ISO-8601 datetime string (latest cutoff - lead)
+  repeated CutoffInfo cutoffs       = 7;  // store's ship cutoffs (for per-item deadline)
 }
 
 // DecrementSlotQuotaRequest is called when an order is placed.

@@ -84,6 +84,9 @@ type OrderItem struct {
 	Qty             int             `gorm:"not null"`
 	CutoffID        *string         `gorm:"type:uuid"`
 	Date            *time.Time      `gorm:"type:date"`
+	// CutoffDeadline = slot date + cutoff_time − lead, snapshot at placement.
+	// The cutoff scheduler sweeps READY orders only after this passes.
+	CutoffDeadline  *time.Time      `gorm:"type:timestamptz"`
 	OptionsSnapshot json.RawMessage `gorm:"type:jsonb;not null;default:'[]'"`
 	CreatedAt       time.Time       `gorm:"type:timestamptz;not null;default:now()"`
 }

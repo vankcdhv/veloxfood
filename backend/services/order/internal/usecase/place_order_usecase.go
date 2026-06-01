@@ -126,6 +126,10 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 	for _, it := range storeInfo.Items {
 		priceMap[it.ItemID] = it
 	}
+	cutoffByID := make(map[string]grpcclient.StoreCutoff, len(storeInfo.Cutoffs))
+	for _, c := range storeInfo.Cutoffs {
+		cutoffByID[c.ID] = c
+	}
 
 	var itemsTotal int64
 	orderItems := make([]*entity.OrderItem, 0, len(req.Items))
@@ -165,6 +169,15 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		}
 		if datePtr != nil {
 			oi.Date = datePtr
+		}
+		// Snapshot the slot's actual cutoff deadline (date + cutoff_time − lead)
+		// so the cutoff scheduler only sweeps after the real cutoff passes.
+		if datePtr != nil && ri.CutoffID != "" {
+			if c, ok := cutoffByID[ri.CutoffID]; ok {
+				if dl, ok := slotDeadline(*datePtr, c.CutoffTime, c.LeadMinutes); ok {
+					oi.CutoffDeadline = &dl
+				}
+			}
 		}
 		orderItems = append(orderItems, oi)
 	}

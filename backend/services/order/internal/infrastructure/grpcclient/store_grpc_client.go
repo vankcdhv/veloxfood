@@ -19,6 +19,7 @@ type StoreForOrderResult struct {
 	Served        bool
 	Items         []StoreOrderItem
 	OrderDeadline string // ISO-8601 datetime; empty when no cutoff configured
+	Cutoffs       []StoreCutoff
 }
 
 // StoreOrderItem is one menu item returned from the store catalog snapshot.
@@ -26,6 +27,13 @@ type StoreOrderItem struct {
 	ItemID string
 	Name   string
 	Price  int64
+}
+
+// StoreCutoff is one delivery session (ca) used to compute per-item deadlines.
+type StoreCutoff struct {
+	ID          string
+	CutoffTime  string // HH:MM
+	LeadMinutes int
 }
 
 // StoreClient wraps the Store gRPC service for use by the Order saga.
@@ -59,6 +67,10 @@ func (c *StoreClient) GetStoreForOrder(ctx context.Context, storeID, roomID stri
 	for i, it := range resp.GetItems() {
 		items[i] = StoreOrderItem{ItemID: it.GetItemId(), Name: it.GetName(), Price: it.GetPrice()}
 	}
+	cutoffs := make([]StoreCutoff, len(resp.GetCutoffs()))
+	for i, c := range resp.GetCutoffs() {
+		cutoffs[i] = StoreCutoff{ID: c.GetId(), CutoffTime: c.GetCutoffTime(), LeadMinutes: int(c.GetLeadMinutes())}
+	}
 	return &StoreForOrderResult{
 		Found:         resp.GetFound(),
 		SaleStatus:    resp.GetSaleStatus(),
@@ -66,6 +78,7 @@ func (c *StoreClient) GetStoreForOrder(ctx context.Context, storeID, roomID stri
 		Served:        resp.GetServed(),
 		Items:         items,
 		OrderDeadline: resp.GetOrderDeadline(),
+		Cutoffs:       cutoffs,
 	}, nil
 }
 

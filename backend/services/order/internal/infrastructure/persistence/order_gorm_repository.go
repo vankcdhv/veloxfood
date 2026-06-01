@@ -135,12 +135,15 @@ func (r *orderGormRepository) UpdatePaymentStatus(ctx context.Context, tx *gorm.
 // The cutoff_id represents a specific time slot; we use the item's date field
 // to detect when the service date has passed.
 func (r *orderGormRepository) FindReadyPastCutoff(ctx context.Context) ([]*entity.Order, error) {
-	today := time.Now().UTC().Format("2006-01-02")
 	var orders []*entity.Order
+	// Sweep a READY slot order to STORE_DELIVERING only once its actual cutoff
+	// deadline (date + cutoff_time − lead, snapshot at placement) has passed —
+	// not merely because the slot date is today. Orders without a slot deadline
+	// (non-slot stores) are never auto-swept.
 	err := r.db.WithContext(ctx).
 		Joins("JOIN order_items oi ON oi.order_id = orders.id").
-		Where("orders.status = ? AND oi.date IS NOT NULL AND oi.date <= ?",
-			entity.StatusReady, today).
+		Where("orders.status = ? AND oi.cutoff_deadline IS NOT NULL AND oi.cutoff_deadline <= now()",
+			entity.StatusReady).
 		Distinct("orders.*").
 		Preload("Items").
 		Find(&orders).Error

@@ -59,6 +59,15 @@ func (s *StoreServiceServer) GetStoreForOrder(ctx context.Context, req *storev1.
 		}
 	}
 
+	protoCutoffs := make([]*storev1.CutoffInfo, len(result.Cutoffs))
+	for i, c := range result.Cutoffs {
+		protoCutoffs[i] = &storev1.CutoffInfo{
+			Id:          c.ID,
+			CutoffTime:  c.CutoffTime,
+			LeadMinutes: int32(c.LeadMinutes),
+		}
+	}
+
 	return &storev1.GetStoreForOrderResponse{
 		Found:         true,
 		SaleStatus:    result.SaleStatus,
@@ -66,6 +75,7 @@ func (s *StoreServiceServer) GetStoreForOrder(ctx context.Context, req *storev1.
 		Served:        result.Served,
 		Items:         protoItems,
 		OrderDeadline: result.OrderDeadline,
+		Cutoffs:       protoCutoffs,
 	}, nil
 }
 
