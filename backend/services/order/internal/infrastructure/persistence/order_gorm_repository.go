@@ -22,6 +22,21 @@ func NewOrderGormRepository(db *gorm.DB) repository.OrderRepository {
 	return &orderGormRepository{db: db}
 }
 
+func (r *orderGormRepository) NextDailyCodeSeq(ctx context.Context, day time.Time) (int, error) {
+	// Atomic upsert: first order of the day starts at 1, subsequent ones increment.
+	var seq int
+	err := r.db.WithContext(ctx).Raw(
+		`INSERT INTO order_code_seq (day, seq) VALUES (?, 1)
+		 ON CONFLICT (day) DO UPDATE SET seq = order_code_seq.seq + 1
+		 RETURNING seq`,
+		day.Format("2006-01-02"),
+	).Scan(&seq).Error
+	if err != nil {
+		return 0, fmt.Errorf("next daily code seq: %w", err)
+	}
+	return seq, nil
+}
+
 func (r *orderGormRepository) Create(ctx context.Context, tx *gorm.DB, order *entity.Order, items []*entity.OrderItem) error {
 	if err := tx.WithContext(ctx).Create(order).Error; err != nil {
 		return fmt.Errorf("create order: %w", err)

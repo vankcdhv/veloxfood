@@ -8,6 +8,12 @@ import (
 	"time"
 )
 
+// buildOrderCode produces a human-readable order code like VLX-260601-001,
+// combining the day (yymmdd) with that day's order sequence number.
+func buildOrderCode(day time.Time, seq int) string {
+	return fmt.Sprintf("VLX-%s-%03d", day.Format("060102"), seq)
+}
+
 // strPtr returns a pointer to s, or nil if s is empty.
 func strPtr(s string) *string {
 	if s == "" {
@@ -19,16 +25,6 @@ func strPtr(s string) *string {
 // parseDate parses a YYYY-MM-DD string into time.Time (UTC).
 func parseDate(s string) (time.Time, error) {
 	return time.Parse("2006-01-02", s)
-}
-
-// generateOrderCode produces a human-readable order code like VLX-20240601-A3F9.
-func generateOrderCode() string {
-	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	suffix := make([]byte, 4)
-	for i := range suffix {
-		suffix[i] = chars[rand.Intn(len(chars))]
-	}
-	return fmt.Sprintf("VLX-%s-%s", time.Now().UTC().Format("20060102"), string(suffix))
 }
 
 // generatePickupPIN returns a random 4-digit PIN string.

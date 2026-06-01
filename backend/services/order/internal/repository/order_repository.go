@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"project/services/order/internal/entity"
 
@@ -12,6 +13,10 @@ import (
 type OrderRepository interface {
 	// Create inserts an order + its items inside the given transaction.
 	Create(ctx context.Context, tx *gorm.DB, order *entity.Order, items []*entity.OrderItem) error
+
+	// NextDailyCodeSeq atomically returns the next per-day order sequence number
+	// (1-based), used to build human-readable codes like VLX-260601-001.
+	NextDailyCodeSeq(ctx context.Context, day time.Time) (int, error)
 
 	// GetByID loads an order with its items. Returns gorm.ErrRecordNotFound when absent.
 	GetByID(ctx context.Context, id string) (*entity.Order, error)

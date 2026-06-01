@@ -261,7 +261,20 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		}
 	}
 
-	code := generateOrderCode()
+	codeDay := time.Now().UTC()
+	codeSeq, seqErr := uc.orderRepo.NextDailyCodeSeq(ctx, codeDay)
+	if seqErr != nil {
+		// Compensate saga steps — we cannot mint an order code.
+		if req.PaymentMethod != entity.MethodCOD && uc.paymentClient != nil {
+			_ = uc.paymentClient.Refund(ctx, orderID, grandTotal)
+		}
+		uc.compensateQuota(ctx, decremented)
+		if len(req.VoucherCodes) > 0 && uc.promoClient != nil {
+			_ = uc.promoClient.ReleaseUsage(ctx, orderID)
+		}
+		return nil, seqErr
+	}
+	code := buildOrderCode(codeDay, codeSeq)
 	var pickupPin *string
 	if req.Fulfillment == entity.FulfillmentPickup {
 		pin := generatePickupPIN()
