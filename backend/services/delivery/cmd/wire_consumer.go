@@ -10,7 +10,7 @@ import (
 )
 
 // startOrderEventConsumer subscribes to order.events and handles order lifecycle
-// transitions that affect delivery records (ready, cutoff_reached, cancelled).
+// transitions that affect delivery records (ready, cancelled).
 func startOrderEventConsumer(a *app.App, deps app.Dependencies, handler *deliveryevent.OrderEventHandler) {
 	startConsumer(a, deps, "delivery-service", "order.events", handler.HandleKafkaMessage,
 		"delivery: order event consumer")

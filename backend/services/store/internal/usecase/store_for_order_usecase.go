@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"project/services/store/internal/entity"
 	"project/services/store/internal/repository"
 
 	"gorm.io/gorm"
@@ -19,22 +18,17 @@ type OrderItem struct {
 	Price  int64
 }
 
-// CutoffInfo is one of the store's delivery sessions (ca).
-type CutoffInfo struct {
-	ID          string
-	CutoffTime  string // HH:MM
-	LeadMinutes int
-}
-
 // StoreForOrderResult is the assembled response for an order-time store query.
 type StoreForOrderResult struct {
-	Found         bool
-	SaleStatus    string
-	UnitShipFee   int64
-	Served        bool
-	Items         []OrderItem
-	OrderDeadline string // ISO-8601; latest (cutoff - lead_minutes) for today
-	Cutoffs       []CutoffInfo
+	Found          bool
+	SaleStatus     string
+	UnitShipFee    int64
+	Served         bool
+	Items          []OrderItem
+	PrepMinutes    int
+	OpenNow        bool
+	OpenTimeToday  string // HH:MM; empty when no hours configured for today
+	CloseTimeToday string // HH:MM; empty when no hours configured for today
 }
 
 // StoreForOrderUsecase is called by the gRPC handler to validate a store
@@ -51,6 +45,7 @@ type storeForOrderUsecase struct {
 	catalogRepo      repository.CatalogRepository
 	shippingRepo     repository.ShippingRepository
 	locationResolver LocationResolver
+	hoursUC          HoursUsecase
 }
 
 func NewStoreForOrderUsecase(
@@ -58,12 +53,14 @@ func NewStoreForOrderUsecase(
 	catalogRepo repository.CatalogRepository,
 	shippingRepo repository.ShippingRepository,
 	locationResolver LocationResolver,
+	hoursUC HoursUsecase,
 ) StoreForOrderUsecase {
 	return &storeForOrderUsecase{
 		storeRepo:        storeRepo,
 		catalogRepo:      catalogRepo,
 		shippingRepo:     shippingRepo,
 		locationResolver: locationResolver,
+		hoursUC:          hoursUC,
 	}
 }
 
@@ -77,8 +74,9 @@ func (uc *storeForOrderUsecase) GetStoreForOrder(ctx context.Context, storeID, l
 	}
 
 	result := &StoreForOrderResult{
-		Found:      true,
-		SaleStatus: store.SaleStatus,
+		Found:       true,
+		SaleStatus:  store.SaleStatus,
+		PrepMinutes: store.PrepMinutes,
 	}
 
 	// Resolve ship fee for delivery. PICKUP orders carry no locationID, so skip
@@ -107,17 +105,14 @@ func (uc *storeForOrderUsecase) GetStoreForOrder(ctx context.Context, storeID, l
 		result.Items[i] = OrderItem{ItemID: m.ID, Name: m.Name, Price: m.Price}
 	}
 
-	// Order deadline = latest (cutoff_time - lead_minutes) among today's cutoffs.
-	result.OrderDeadline = resolveOrderDeadline(ctx, uc.shippingRepo, storeID)
-
-	// Expose the raw cutoffs so the order service can compute each item's actual
-	// per-slot deadline (date + cutoff_time - lead) and snapshot it.
-	if cutoffs, err := uc.shippingRepo.ListShipCutoffs(ctx, storeID); err == nil {
-		result.Cutoffs = make([]CutoffInfo, len(cutoffs))
-		for i, c := range cutoffs {
-			result.Cutoffs[i] = CutoffInfo{ID: c.ID, CutoffTime: c.CutoffTime, LeadMinutes: c.LeadMinutes}
-		}
+	// Populate open-now status for the FE checkout gate.
+	openResult, err := uc.hoursUC.IsOpenNow(ctx, storeID, store.SaleStatus, time.Now())
+	if err == nil {
+		result.OpenNow = openResult.OpenNow
+		result.OpenTimeToday = openResult.OpenTimeToday
+		result.CloseTimeToday = openResult.CloseTimeToday
 	}
+	// Tolerate hours lookup failure — result fields stay zero-valued (closed).
 
 	return result, nil
 }
@@ -167,47 +162,4 @@ func resolveFeeForOrder(ctx context.Context, resolver LocationResolver, repo rep
 		return 0, ErrLocationNotServed
 	}
 	return rule.UnitFee, nil
-}
-
-// resolveOrderDeadline computes the LATEST order deadline across all of today's
-// cutoffs — i.e. the last moment a same-day order can still make some batch.
-// With multiple sessions (e.g. 11:00 / 17:30 / 22:00) a customer may keep
-// ordering until the final session's deadline; using the earliest cutoff here
-// would wrongly close ordering right after the first morning batch.
-// Returns empty string when no cutoffs are configured.
-func resolveOrderDeadline(ctx context.Context, repo repository.ShippingRepository, storeID string) string {
-	cutoffs, err := repo.ListShipCutoffs(ctx, storeID)
-	if err != nil || len(cutoffs) == 0 {
-		return ""
-	}
-
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	var latest *time.Time
-
-	for _, c := range cutoffs {
-		dl := parseCutoffDeadline(today, c)
-		if dl == nil {
-			continue
-		}
-		if latest == nil || dl.After(*latest) {
-			latest = dl
-		}
-	}
-
-	if latest == nil {
-		return ""
-	}
-	return latest.Format(time.RFC3339)
-}
-
-// parseCutoffDeadline parses "HH:MM" cutoff time and subtracts lead minutes.
-func parseCutoffDeadline(today time.Time, c *entity.ShipCutoff) *time.Time {
-	var h, m int
-	if _, err := fmt.Sscanf(c.CutoffTime, "%d:%d", &h, &m); err != nil {
-		return nil
-	}
-	cutoff := today.Add(time.Duration(h)*time.Hour + time.Duration(m)*time.Minute)
-	deadline := cutoff.Add(-time.Duration(c.LeadMinutes) * time.Minute)
-	return &deadline
 }

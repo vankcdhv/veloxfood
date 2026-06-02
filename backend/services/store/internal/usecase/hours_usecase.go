@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"time"
 
 	"project/pkg/apperror"
 	"project/pkg/outbox"
@@ -19,20 +20,14 @@ import (
 // hoursChangePayload is the structured JSON payload stored in
 // OperatingHoursChangeRequest.Payload when submitted via the vendor console.
 type hoursChangePayload struct {
-	OperatingHours []hoursChangeEntry  `json:"operating_hours"`
-	ShipCutoffs    []cutoffChangeEntry `json:"ship_cutoffs"`
-	Note           string              `json:"note"`
+	OperatingHours []hoursChangeEntry `json:"operating_hours"`
+	Note           string             `json:"note"`
 }
 
 type hoursChangeEntry struct {
 	Weekday   int16  `json:"weekday"`
 	OpenTime  string `json:"open_time"`
 	CloseTime string `json:"close_time"`
-}
-
-type cutoffChangeEntry struct {
-	CutoffTime  string `json:"cutoff_time"`
-	LeadMinutes int    `json:"lead_minutes"`
 }
 
 // reHHMM matches strings in "HH:MM" format (00:00–23:59).
@@ -52,15 +47,17 @@ func validateHoursPayload(p *hoursChangePayload) error {
 			return apperror.BadRequest(fmt.Sprintf("operating_hours: close_time %q is not HH:MM", oh.CloseTime))
 		}
 	}
-	for _, sc := range p.ShipCutoffs {
-		if !reHHMM.MatchString(sc.CutoffTime) {
-			return apperror.BadRequest(fmt.Sprintf("ship_cutoffs: cutoff_time %q is not HH:MM", sc.CutoffTime))
-		}
-	}
 	return nil
 }
 
-// HoursUsecase manages operating hours, cutoffs, and the admin approval workflow
+// OpenNowResult carries the open-now status and today's operating window.
+type OpenNowResult struct {
+	OpenNow        bool
+	OpenTimeToday  string // HH:MM; empty when no hours configured for today
+	CloseTimeToday string // HH:MM; empty when no hours configured for today
+}
+
+// HoursUsecase manages operating hours and the admin approval workflow
 // for hours change requests.
 type HoursUsecase interface {
 	// Operating hours CRUD
@@ -69,12 +66,10 @@ type HoursUsecase interface {
 	UpdateOperatingHours(ctx context.Context, id string, weekday int16, openTime, closeTime string) (*entity.OperatingHours, error)
 	DeleteOperatingHours(ctx context.Context, id string) error
 
-	// Ship cutoff CRUD
-	CreateShipCutoff(ctx context.Context, storeID, cutoffTime string, leadMinutes int) (*entity.ShipCutoff, error)
-	ListShipCutoffs(ctx context.Context, storeID string) ([]*entity.ShipCutoff, error)
-	ListShipCutoffsForStores(ctx context.Context, storeIDs []string) (map[string][]*entity.ShipCutoff, error)
-	UpdateShipCutoff(ctx context.Context, id, cutoffTime string, leadMinutes int) (*entity.ShipCutoff, error)
-	DeleteShipCutoff(ctx context.Context, id string) error
+	// IsOpenNow returns open status + today's operating window for a store at time t.
+	// openNow = store.SaleStatus=="OPEN" AND t falls within today's weekday hours.
+	// storeStatus is the current SaleStatus string from the Store entity.
+	IsOpenNow(ctx context.Context, storeID string, storeStatus string, t time.Time) (OpenNowResult, error)
 
 	// Hours change approval workflow
 	SubmitHoursChange(ctx context.Context, storeID string, payload any) (*entity.OperatingHoursChangeRequest, error)
@@ -136,42 +131,56 @@ func (uc *hoursUsecase) DeleteOperatingHours(ctx context.Context, id string) err
 	return uc.shippingRepo.DeleteOperatingHours(ctx, id)
 }
 
-// ─── Ship cutoffs ─────────────────────────────────────────────────────────────
-
-func (uc *hoursUsecase) CreateShipCutoff(ctx context.Context, storeID, cutoffTime string, leadMinutes int) (*entity.ShipCutoff, error) {
-	sc := &entity.ShipCutoff{StoreID: storeID, CutoffTime: cutoffTime, LeadMinutes: leadMinutes}
-	if err := uc.shippingRepo.CreateShipCutoff(ctx, sc); err != nil {
-		return nil, fmt.Errorf("create ship cutoff: %w", err)
-	}
-	return sc, nil
-}
-
-func (uc *hoursUsecase) ListShipCutoffs(ctx context.Context, storeID string) ([]*entity.ShipCutoff, error) {
-	return uc.shippingRepo.ListShipCutoffs(ctx, storeID)
-}
-
-func (uc *hoursUsecase) ListShipCutoffsForStores(ctx context.Context, storeIDs []string) (map[string][]*entity.ShipCutoff, error) {
-	return uc.shippingRepo.ListShipCutoffsForStores(ctx, storeIDs)
-}
-
-func (uc *hoursUsecase) UpdateShipCutoff(ctx context.Context, id, cutoffTime string, leadMinutes int) (*entity.ShipCutoff, error) {
-	sc, err := uc.shippingRepo.GetShipCutoff(ctx, id)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, ErrStoreNotFound
-	}
+// IsOpenNow returns whether the store is accepting orders at time t.
+// openNow requires both SaleStatus=="OPEN" and t within today's weekday window.
+// OpenTimeToday/CloseTimeToday are empty strings when no hours are configured for today.
+func (uc *hoursUsecase) IsOpenNow(ctx context.Context, storeID string, storeStatus string, t time.Time) (OpenNowResult, error) {
+	allHours, err := uc.shippingRepo.ListOperatingHours(ctx, storeID)
 	if err != nil {
-		return nil, err
+		return OpenNowResult{}, fmt.Errorf("list operating hours: %w", err)
 	}
-	sc.CutoffTime = cutoffTime
-	sc.LeadMinutes = leadMinutes
-	if err := uc.shippingRepo.UpdateShipCutoff(ctx, sc); err != nil {
-		return nil, fmt.Errorf("update ship cutoff: %w", err)
+
+	// time.Weekday: Sunday=0 … Saturday=6, matching our entity convention.
+	todayWeekday := int16(t.Weekday())
+	var todayHours *entity.OperatingHours
+	for _, oh := range allHours {
+		if oh.Weekday == todayWeekday {
+			todayHours = oh
+			break
+		}
 	}
-	return sc, nil
+
+	if todayHours == nil {
+		// No hours configured for today — store is effectively closed.
+		return OpenNowResult{OpenNow: false}, nil
+	}
+
+	res := OpenNowResult{
+		OpenTimeToday:  todayHours.OpenTime,
+		CloseTimeToday: todayHours.CloseTime,
+	}
+
+	if storeStatus != "OPEN" {
+		return res, nil
+	}
+
+	// Parse open/close as HH:MM and compare against t (same date).
+	openMins := parseHHMM(todayHours.OpenTime)
+	closeMins := parseHHMM(todayHours.CloseTime)
+	nowMins := t.Hour()*60 + t.Minute()
+
+	res.OpenNow = nowMins >= openMins && nowMins <= closeMins
+	return res, nil
 }
 
-func (uc *hoursUsecase) DeleteShipCutoff(ctx context.Context, id string) error {
-	return uc.shippingRepo.DeleteShipCutoff(ctx, id)
+// parseHHMM converts "HH:MM" to total minutes since midnight.
+// Returns 0 on malformed input (safe default — compares as midnight).
+func parseHHMM(hhmm string) int {
+	var h, m int
+	if _, err := fmt.Sscanf(hhmm, "%d:%d", &h, &m); err != nil {
+		return 0
+	}
+	return h*60 + m
 }
 
 // ─── Hours change approval workflow ──────────────────────────────────────────
@@ -221,7 +230,7 @@ func (uc *hoursUsecase) SubmitHoursChange(ctx context.Context, storeID string, p
 }
 
 // ApproveHoursChange marks the request approved, applies the payload to the live
-// hours/cutoff rows, and publishes operating_hours.approved.
+// hours rows, and publishes operating_hours.approved.
 func (uc *hoursUsecase) ApproveHoursChange(ctx context.Context, reqID, adminID string) error {
 	req, err := uc.shippingRepo.GetChangeRequest(ctx, reqID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -276,24 +285,6 @@ func (uc *hoursUsecase) ApproveHoursChange(ctx context.Context, reqID, adminID s
 			}
 			if err := uc.shippingRepo.BulkCreateOperatingHours(ctx, tx, rows); err != nil {
 				return fmt.Errorf("bulk create operating hours: %w", err)
-			}
-		}
-
-		// Apply ship_cutoffs replacement if the payload carries new entries.
-		if len(payload.ShipCutoffs) > 0 {
-			if err := uc.shippingRepo.DeleteShipCutoffsByStore(ctx, tx, req.StoreID); err != nil {
-				return fmt.Errorf("delete ship cutoffs: %w", err)
-			}
-			rows := make([]*entity.ShipCutoff, len(payload.ShipCutoffs))
-			for i, sc := range payload.ShipCutoffs {
-				rows[i] = &entity.ShipCutoff{
-					StoreID:     req.StoreID,
-					CutoffTime:  sc.CutoffTime,
-					LeadMinutes: sc.LeadMinutes,
-				}
-			}
-			if err := uc.shippingRepo.BulkCreateShipCutoffs(ctx, tx, rows); err != nil {
-				return fmt.Errorf("bulk create ship cutoffs: %w", err)
 			}
 		}
 

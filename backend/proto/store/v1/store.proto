@@ -22,47 +22,20 @@ message GetStoreForOrderRequest {
   string location_level = 3;
 }
 
-// CutoffInfo describes one delivery session (ca) so the order service can
-// compute each item's actual cutoff deadline (date + cutoff_time - lead).
-message CutoffInfo {
-  string id           = 1;
-  string cutoff_time  = 2;  // HH:MM
-  int32  lead_minutes = 3;
-}
-
 message GetStoreForOrderResponse {
   bool             found            = 1;
   string           sale_status      = 2;
   int64            unit_ship_fee    = 3;
   bool             served           = 4;  // true when the room is covered by a ship fee rule
   repeated OrderItem items          = 5;
-  string           order_deadline   = 6;  // ISO-8601 datetime string (latest cutoff - lead)
-  repeated CutoffInfo cutoffs       = 7;  // store's ship cutoffs (for per-item deadline)
-}
-
-// DecrementSlotQuotaRequest is called when an order is placed.
-message DecrementSlotQuotaRequest {
-  string item_id   = 1;
-  string cutoff_id = 2;
-  string date      = 3; // YYYY-MM-DD
-  int32  qty       = 4;
-}
-
-message DecrementSlotQuotaResponse {
-  bool  ok        = 1;
-  int32 remaining = 2;
-}
-
-// RestoreSlotQuotaRequest is called on saga compensation or order cancellation.
-message RestoreSlotQuotaRequest {
-  string item_id   = 1;
-  string cutoff_id = 2;
-  string date      = 3; // YYYY-MM-DD
-  int32  qty       = 4;
-}
-
-message RestoreSlotQuotaResponse {
-  bool ok = 1;
+  // Delivery-time model: prep_minutes is the store's minimum preparation time;
+  // open_now reflects SaleStatus + today's operating hours; open/close_time_today
+  // are today's window (HH:MM, empty when closed today). The order service uses
+  // these to validate the customer's desired receive time.
+  int32            prep_minutes      = 6;
+  bool             open_now          = 7;
+  string           open_time_today   = 8;  // HH:MM, empty if closed today
+  string           close_time_today  = 9;  // HH:MM, empty if closed today
 }
 
 // GetStoreOwnershipRequest looks up the ownership record for a store so that
@@ -82,14 +55,6 @@ service StoreService {
   // GetStoreForOrder assembles store availability, ship fee, and menu snapshot
   // for the order service before order placement.
   rpc GetStoreForOrder(GetStoreForOrderRequest) returns (GetStoreForOrderResponse);
-
-  // DecrementSlotQuota atomically reduces sold count for a quota slot.
-  // Returns ok=false if quota is exhausted.
-  rpc DecrementSlotQuota(DecrementSlotQuotaRequest) returns (DecrementSlotQuotaResponse);
-
-  // RestoreSlotQuota increments available quota (inverse of Decrement).
-  // Called on order cancellation or saga compensation.
-  rpc RestoreSlotQuota(RestoreSlotQuotaRequest) returns (RestoreSlotQuotaResponse);
 
   // GetStoreOwnership returns the vendor_id and owner_user_id for a store so
   // peer services (e.g. promotion) can authorise store-scoped mutations without

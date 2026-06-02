@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"time"
 
 	"project/pkg/outbox"
 	"project/services/order/internal/entity"
@@ -258,7 +259,7 @@ func statusEvent(order *entity.Order, to entity.OrderStatus, traceID string) *en
 
 	case entity.StatusReady:
 		// Enriched so the Delivery service can create the delivery record straight
-		// from the event (store + destination + fee) without a follow-up gRPC call.
+		// from the event (store + destination + fee + desired_time) without a follow-up gRPC call.
 		eventType = "order.ready"
 		locationID := ""
 		if order.LocationID != nil {
@@ -268,6 +269,10 @@ func statusEvent(order *entity.Order, to entity.OrderStatus, traceID string) *en
 		locationLevel := "ROOM"
 		if order.LocationLevel != nil && *order.LocationLevel != "" {
 			locationLevel = *order.LocationLevel
+		}
+		desiredTimeStr := ""
+		if order.DesiredTime != nil {
+			desiredTimeStr = order.DesiredTime.UTC().Format(time.RFC3339)
 		}
 		payload, _ = json.Marshal(map[string]any{
 			"order_id":       orderID,
@@ -279,6 +284,7 @@ func statusEvent(order *entity.Order, to entity.OrderStatus, traceID string) *en
 			"ship_fee":       order.ShipFee,
 			"fulfillment":    string(order.Fulfillment),
 			"customer_id":    order.CustomerID,
+			"desired_time":   desiredTimeStr,
 		})
 
 	case entity.StatusReadyPickup:
@@ -335,17 +341,10 @@ func cancelledEvent(order *entity.Order, cancelledBy string, traceID string) *en
 
 	items := make([]map[string]any, len(order.Items))
 	for i, it := range order.Items {
-		m := map[string]any{
+		items[i] = map[string]any{
 			"menu_item_id": it.MenuItemID,
 			"qty":          it.Qty,
 		}
-		if it.CutoffID != nil {
-			m["cutoff_id"] = *it.CutoffID
-		}
-		if it.Date != nil {
-			m["date"] = it.Date.Format("2006-01-02")
-		}
-		items[i] = m
 	}
 
 	payload, _ := json.Marshal(map[string]any{

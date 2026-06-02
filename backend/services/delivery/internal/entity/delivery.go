@@ -31,6 +31,9 @@ type Delivery struct {
 	ShipFee     int64          `gorm:"not null;default:0"`
 	Status      DeliveryStatus `gorm:"type:varchar(20);not null;default:'AVAILABLE';index"`
 	BatchID     *string        `gorm:"type:uuid"`
+	// DesiredTime is the customer's preferred receive time, copied from order.ready.
+	// nil means the customer selected "sớm nhất có thể" (ASAP) or the order predates this field.
+	DesiredTime *time.Time     `gorm:"type:timestamptz"`
 	ClaimedAt   *time.Time     `gorm:"type:timestamptz"`
 	DeliveredAt *time.Time     `gorm:"type:timestamptz"`
 	CreatedAt   time.Time      `gorm:"type:timestamptz;not null;default:now()"`

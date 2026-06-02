@@ -19,6 +19,7 @@ type Store struct {
 	Phone         string         `gorm:"type:varchar(30)"`
 	SaleStatus    string         `gorm:"type:varchar(20);not null;default:'OPEN'"`
 	PickupEnabled bool           `gorm:"not null;default:false"`
+	PrepMinutes   int            `gorm:"not null;default:15"`
 	CreatedAt     time.Time      `gorm:"type:timestamptz;not null;default:now()"`
 	UpdatedAt     time.Time      `gorm:"type:timestamptz;not null;default:now()"`
 	DeletedAt     gorm.DeletedAt `gorm:"type:timestamptz;index"`

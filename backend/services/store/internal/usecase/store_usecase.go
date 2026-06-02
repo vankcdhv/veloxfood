@@ -20,13 +20,14 @@ type UserDirectory interface {
 	GetUserNames(ctx context.Context, ids []string) (map[string]string, error)
 }
 
-// StoreView wraps a Store with the resolved owner display name and (optionally)
-// the store's ship cutoffs (ca giao) so the storefront list can show sessions
-// without a follow-up request per store.
+// StoreView wraps a Store with the resolved owner display name and open-now
+// status so the storefront list can show availability without a follow-up request.
 type StoreView struct {
 	*entity.Store
-	OwnerUserName string               `json:"OwnerUserName"`
-	ShipCutoffs   []*entity.ShipCutoff `json:"ShipCutoffs,omitempty"`
+	OwnerUserName  string `json:"OwnerUserName"`
+	OpenNow        bool   `json:"OpenNow"`
+	OpenTimeToday  string `json:"OpenTimeToday,omitempty"`
+	CloseTimeToday string `json:"CloseTimeToday,omitempty"`
 }
 
 // StoreUsecase handles store lifecycle operations.
@@ -35,7 +36,7 @@ type StoreUsecase interface {
 	GetStore(ctx context.Context, id string) (*entity.Store, error)
 	GetStoreByVendorID(ctx context.Context, vendorID string) (*entity.Store, error)
 	ListStores(ctx context.Context, saleStatus string) ([]*entity.Store, error)
-	UpdateStore(ctx context.Context, id string, name, businessType, address, phone string) (*entity.Store, error)
+	UpdateStore(ctx context.Context, id string, name, businessType, address, phone string, prepMinutes int) (*entity.Store, error)
 	UpdateSaleStatus(ctx context.Context, id string, status string) error
 	UpdatePickup(ctx context.Context, id string, enabled bool) error
 	DeleteStore(ctx context.Context, id string) error
@@ -151,7 +152,7 @@ func (uc *storeUsecase) ListStores(ctx context.Context, saleStatus string) ([]*e
 	return uc.storeRepo.List(ctx, saleStatus)
 }
 
-func (uc *storeUsecase) UpdateStore(ctx context.Context, id, name, businessType, address, phone string) (*entity.Store, error) {
+func (uc *storeUsecase) UpdateStore(ctx context.Context, id, name, businessType, address, phone string, prepMinutes int) (*entity.Store, error) {
 	s, err := uc.storeRepo.GetByID(ctx, id)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrStoreNotFound
@@ -159,10 +160,14 @@ func (uc *storeUsecase) UpdateStore(ctx context.Context, id, name, businessType,
 	if err != nil {
 		return nil, err
 	}
+	if prepMinutes < 0 {
+		prepMinutes = 0
+	}
 	s.Name = name
 	s.BusinessType = businessType
 	s.Address = address
 	s.Phone = phone
+	s.PrepMinutes = prepMinutes
 	if err := uc.storeRepo.Update(ctx, s); err != nil {
 		return nil, fmt.Errorf("update store: %w", err)
 	}

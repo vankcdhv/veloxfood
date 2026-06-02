@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -65,22 +66,10 @@ var allTables = []string{
 	"outbox_events", "processed_events",
 }
 
-// ── fake gRPC clients that satisfy grpcclient concrete type contracts ─────────
-// We wrap thin nil-safe helpers so place_order_usecase receives the right types.
-
-// newStubStoreClient returns a *grpcclient.StoreClient replacement via a local
-// struct that implements the same method signatures used by PlaceOrderUsecase.
-// Since PlaceOrderUsecase accepts *grpcclient.StoreClient directly (not an
-// interface), we use a real nil client and intercept at the usecase level by
-// building a custom PlaceOrderUsecase that accepts interfaces.
-//
-// Simpler approach: build a thin PlaceOrderUsecase variant for tests that
-// accepts interface values. We define those interfaces here.
+// ── store stub facade ─────────────────────────────────────────────────────────
 
 type storeGRPCFacade interface {
-	GetStoreForOrder(ctx context.Context, storeID, roomID string) (*grpcclient.StoreForOrderResult, error)
-	DecrementSlotQuota(ctx context.Context, itemID, cutoffID, date string, qty int) (bool, error)
-	RestoreSlotQuota(ctx context.Context, itemID, cutoffID, date string, qty int) error
+	GetStoreForOrder(ctx context.Context, storeID, roomID, locationLevel string) (*grpcclient.StoreForOrderResult, error)
 }
 
 type promotionGRPCFacade interface {
@@ -96,32 +85,38 @@ type paymentGRPCFacade interface {
 
 // ── stub implementations ──────────────────────────────────────────────────────
 
-type stubStore struct{ fail bool }
+// stubStore returns an open store by default; set closed=true to simulate closed.
+type stubStore struct{ closed bool }
 
-func (s *stubStore) GetStoreForOrder(_ context.Context, _, _ string) (*grpcclient.StoreForOrderResult, error) {
-	if s.fail {
-		return &grpcclient.StoreForOrderResult{Found: false}, nil
+func (s *stubStore) GetStoreForOrder(_ context.Context, _, _, _ string) (*grpcclient.StoreForOrderResult, error) {
+	if s.closed {
+		return &grpcclient.StoreForOrderResult{
+			Found:          true,
+			SaleStatus:     "PAUSED",
+			OpenNow:        false,
+			CloseTimeToday: "22:00",
+		}, nil
 	}
 	return &grpcclient.StoreForOrderResult{
-		Found:       true,
-		SaleStatus:  "OPEN",
-		UnitShipFee: 10000,
-		Served:      true,
-		Items:       []grpcclient.StoreOrderItem{{ItemID: testItemID, Name: "Pho", Price: 50000}},
+		Found:          true,
+		SaleStatus:     "OPEN",
+		UnitShipFee:    10000,
+		Served:         true,
+		OpenNow:        true,
+		PrepMinutes:    15,
+		OpenTimeToday:  "08:00",
+		CloseTimeToday: "23:00",
+		Items:          []grpcclient.StoreOrderItem{{ItemID: testItemID, Name: "Pho", Price: 50000}},
 	}, nil
 }
-func (s *stubStore) DecrementSlotQuota(_ context.Context, _, _, _ string, _ int) (bool, error) {
-	return true, nil
-}
-func (s *stubStore) RestoreSlotQuota(_ context.Context, _, _, _ string, _ int) error { return nil }
 
 type stubPromotion struct{}
 
 func (s *stubPromotion) ApplyPromotion(_ context.Context, _, _, _ string, _ []string, _ int64, _ int32) (*grpcclient.PromotionApplyResult, error) {
 	return &grpcclient.PromotionApplyResult{Success: true}, nil
 }
-func (s *stubPromotion) ConfirmUsage(_ context.Context, _ string) error  { return nil }
-func (s *stubPromotion) ReleaseUsage(_ context.Context, _ string) error  { return nil }
+func (s *stubPromotion) ConfirmUsage(_ context.Context, _ string) error { return nil }
+func (s *stubPromotion) ReleaseUsage(_ context.Context, _ string) error { return nil }
 
 type stubPayment struct{}
 
@@ -130,13 +125,10 @@ func (s *stubPayment) Capture(_ context.Context, _, _ string, _ int64, _ string)
 }
 func (s *stubPayment) Refund(_ context.Context, _ string, _ int64) error { return nil }
 
-// ── stub-aware PlaceOrderUsecase factory ──────────────────────────────────────
-// PlaceOrderUsecase accepts *grpcclient.StoreClient etc. directly.
-// For tests we build real clients from nil-returning constructors and replace
-// internal calls by passing a custom wrapper usecase.
-//
-// Cleanest approach: define a testPlaceOrderUsecase that embeds the same logic
-// but accepts the facade interfaces above.
+// ── stub-aware PlaceOrderUsecase ──────────────────────────────────────────────
+// PlaceOrderUsecase accepts *grpcclient.StoreClient etc. (concrete types).
+// For tests we build a wrapper that satisfies the same PlaceOrderUsecase interface
+// but uses facade interfaces, letting us inject stubs cleanly.
 
 type testPlaceOrderUsecase struct {
 	db         *gorm.DB
@@ -148,20 +140,43 @@ type testPlaceOrderUsecase struct {
 }
 
 func (u *testPlaceOrderUsecase) PlaceOrder(ctx context.Context, req usecase.PlaceOrderRequest) (*usecase.PlaceOrderResult, error) {
-	// Delegate to a real PlaceOrderUsecase constructed with real *grpcclient types
-	// by building shim wrappers that satisfy the concrete types.
-	// Since grpcclient types are concrete structs, we cannot embed our stubs.
-	// Instead we directly replicate just enough logic to test the happy path.
-	//
-	// This is intentionally minimal — it validates the DB + outbox writes that
-	// the real saga would produce. Full saga compensation is tested by unit tests.
-
-	storeInfo, err := u.store.GetStoreForOrder(ctx, req.StoreID, req.LocationID)
+	storeInfo, err := u.store.GetStoreForOrder(ctx, req.StoreID, req.LocationID, req.LocationLevel)
 	if err != nil || !storeInfo.Found {
 		return nil, usecase.ErrStoreNotFound
 	}
-	if storeInfo.SaleStatus != "OPEN" {
+	if !storeInfo.OpenNow {
 		return nil, usecase.ErrStoreClosed
+	}
+
+	// Validate desired_time when provided.
+	var desiredTimePtr *time.Time
+	if req.DesiredTime != "" {
+		dt, parseErr := time.Parse(time.RFC3339, req.DesiredTime)
+		if parseErr != nil {
+			return nil, usecase.ErrDesiredTimePast
+		}
+		now := time.Now()
+		// Must be today (local).
+		ny, nm, nd := now.Date()
+		dy, dm, dd := dt.In(now.Location()).Date()
+		if dy != ny || dm != nm || dd != nd {
+			return nil, usecase.ErrDesiredTimeNotToday
+		}
+		// Must not be in the past.
+		if dt.Before(now) {
+			return nil, usecase.ErrDesiredTimePast
+		}
+		// Must not exceed close time.
+		if storeInfo.CloseTimeToday != "" {
+			var ch, cm int
+			if _, scanErr := fmt.Sscanf(storeInfo.CloseTimeToday, "%d:%d", &ch, &cm); scanErr == nil {
+				close := time.Date(now.Year(), now.Month(), now.Day(), ch, cm, 0, 0, now.Location())
+				if dt.After(close) {
+					return nil, usecase.ErrDesiredTimeAfterClose
+				}
+			}
+		}
+		desiredTimePtr = &dt
 	}
 
 	priceMap := make(map[string]grpcclient.StoreOrderItem, len(storeInfo.Items))
@@ -170,20 +185,20 @@ func (u *testPlaceOrderUsecase) PlaceOrder(ctx context.Context, req usecase.Plac
 	}
 
 	var itemsTotal int64
-	orderItems := make([]*orderItemForCreate, 0, len(req.Items))
+	type itemRow struct {
+		MenuItemID    string
+		NameSnapshot  string
+		PriceSnapshot int64
+		Qty           int
+	}
+	var orderItems []itemRow
 	for _, ri := range req.Items {
 		si, ok := priceMap[ri.MenuItemID]
 		if !ok {
 			return nil, usecase.ErrItemNotInStore
 		}
 		itemsTotal += si.Price * int64(ri.Qty)
-		oi := &orderItemForCreate{
-			MenuItemID:    ri.MenuItemID,
-			NameSnapshot:  si.Name,
-			PriceSnapshot: si.Price,
-			Qty:           ri.Qty,
-		}
-		orderItems = append(orderItems, oi)
+		orderItems = append(orderItems, itemRow{ri.MenuItemID, si.Name, si.Price, ri.Qty})
 	}
 
 	var shipFee int64
@@ -199,26 +214,9 @@ func (u *testPlaceOrderUsecase) PlaceOrder(ctx context.Context, req usecase.Plac
 	orderID := uuid.NewString()
 	code := "VLX-TEST-" + orderID[:4]
 
-	import_json_raw := json.RawMessage("[]")
-
-	order := map[string]any{
-		"id":             orderID,
-		"code":           code,
-		"customer_id":    req.CustomerID,
-		"store_id":       req.StoreID,
-		"fulfillment":    string(req.Fulfillment),
-		"status":         "PENDING",
-		"items_total":    itemsTotal,
-		"ship_fee":       shipFee,
-		"discount":       0,
-		"grand_total":    grandTotal,
-		"payment_method": string(req.PaymentMethod),
-		"payment_status": "UNPAID",
-		"voucher_codes":  import_json_raw,
-		"placed_at":      time.Now().UTC(),
-	}
-	if req.LocationID != "" && req.Fulfillment == "DELIVERY" {
-		order["location_id"] = req.LocationID
+	desiredTimeStr := ""
+	if desiredTimePtr != nil {
+		desiredTimeStr = desiredTimePtr.UTC().Format(time.RFC3339)
 	}
 
 	payload, _ := json.Marshal(map[string]any{
@@ -232,24 +230,48 @@ func (u *testPlaceOrderUsecase) PlaceOrder(ctx context.Context, req usecase.Plac
 		"ship_fee":       shipFee,
 		"discount":       int64(0),
 		"grand_total":    grandTotal,
+		"desired_time":   desiredTimeStr,
 		"items":          orderItems,
 	})
+
+	orderRow := map[string]any{
+		"id":             orderID,
+		"code":           code,
+		"customer_id":    req.CustomerID,
+		"store_id":       req.StoreID,
+		"fulfillment":    string(req.Fulfillment),
+		"status":         "PENDING",
+		"items_total":    itemsTotal,
+		"ship_fee":       shipFee,
+		"discount":       0,
+		"grand_total":    grandTotal,
+		"payment_method": string(req.PaymentMethod),
+		"payment_status": "UNPAID",
+		"voucher_codes":  json.RawMessage("[]"),
+		"placed_at":      time.Now().UTC(),
+	}
+	if desiredTimePtr != nil {
+		orderRow["desired_time"] = *desiredTimePtr
+	}
+	if req.LocationID != "" && req.Fulfillment == "DELIVERY" {
+		orderRow["location_id"] = req.LocationID
+	}
 
 	return &usecase.PlaceOrderResult{
 		OrderID:    orderID,
 		Code:       code,
 		GrandTotal: grandTotal,
 	}, u.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Table("orders").Create(order).Error; err != nil {
+		if err := tx.Table("orders").Create(orderRow).Error; err != nil {
 			return err
 		}
 		for _, oi := range orderItems {
 			if err := tx.Table("order_items").Create(map[string]any{
-				"order_id":       orderID,
-				"menu_item_id":   oi.MenuItemID,
-				"name_snapshot":  oi.NameSnapshot,
-				"price_snapshot": oi.PriceSnapshot,
-				"qty":            oi.Qty,
+				"order_id":         orderID,
+				"menu_item_id":     oi.MenuItemID,
+				"name_snapshot":    oi.NameSnapshot,
+				"price_snapshot":   oi.PriceSnapshot,
+				"qty":              oi.Qty,
 				"options_snapshot": json.RawMessage("[]"),
 			}).Error; err != nil {
 				return err
@@ -271,24 +293,18 @@ func (u *testPlaceOrderUsecase) PlaceOrder(ctx context.Context, req usecase.Plac
 	})
 }
 
-type orderItemForCreate struct {
-	MenuItemID    string
-	NameSnapshot  string
-	PriceSnapshot int64
-	Qty           int
-}
-
 // ── test environment ──────────────────────────────────────────────────────────
 
 type testEnv struct {
-	engine      *gin.Engine
-	db          *gorm.DB
-	cfg         *config.Config
-	token       string
-	customerID  string
-	orderRepo   repository.OrderRepository
-	outboxRepo  repository.OutboxRepository
+	engine        *gin.Engine
+	db            *gorm.DB
+	cfg           *config.Config
+	token         string
+	customerID    string
+	orderRepo     repository.OrderRepository
+	outboxRepo    repository.OutboxRepository
 	processedRepo repository.ProcessedEventRepository
+	storeStub     *stubStore
 }
 
 func setupEnv(t *testing.T) *testEnv {
@@ -312,11 +328,12 @@ func setupEnv(t *testing.T) *testEnv {
 	processedRepo := persistence.NewProcessedEventGormRepository(db)
 
 	cartUC := usecase.NewCartUsecase(cartRepo)
+	storeStub := &stubStore{}
 	placeOrderUC := &testPlaceOrderUsecase{
 		db:         db,
 		orderRepo:  orderRepo,
 		outboxRepo: outboxRepo,
-		store:      &stubStore{},
+		store:      storeStub,
 		promo:      &stubPromotion{},
 		payment:    &stubPayment{},
 	}
@@ -358,6 +375,7 @@ func setupEnv(t *testing.T) *testEnv {
 		orderRepo:     orderRepo,
 		outboxRepo:    outboxRepo,
 		processedRepo: processedRepo,
+		storeStub:     storeStub,
 	}
 }
 
@@ -423,7 +441,7 @@ func TestCart_CrossStore_Rejected(t *testing.T) {
 
 func TestPlaceOrder_COD_Delivery_HappyPath(t *testing.T) {
 	env := setupEnv(t)
-	w := env.do(t, "POST", "/api/v1/orders", buildPlaceOrderBody("COD", "DELIVERY"))
+	w := env.do(t, "POST", "/api/v1/orders", buildPlaceOrderBody("COD", "DELIVERY", ""))
 	if w.Code != http.StatusCreated {
 		t.Fatalf("place order COD DELIVERY: expected 201, got %d — %s", w.Code, w.Body.String())
 	}
@@ -455,7 +473,7 @@ func TestPlaceOrder_COD_Delivery_HappyPath(t *testing.T) {
 
 func TestPlaceOrder_PICKUP_ZeroShipFee(t *testing.T) {
 	env := setupEnv(t)
-	w := env.do(t, "POST", "/api/v1/orders", buildPlaceOrderBody("COD", "PICKUP"))
+	w := env.do(t, "POST", "/api/v1/orders", buildPlaceOrderBody("COD", "PICKUP", ""))
 	if w.Code != http.StatusCreated {
 		t.Fatalf("place order PICKUP: expected 201, got %d — %s", w.Code, w.Body.String())
 	}
@@ -465,6 +483,75 @@ func TestPlaceOrder_PICKUP_ZeroShipFee(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp.Data.GrandTotal != 50000 {
 		t.Errorf("PICKUP grand_total: want 50000 (no ship), got %d", resp.Data.GrandTotal)
+	}
+}
+
+func TestPlaceOrder_WithDesiredTime_Persisted(t *testing.T) {
+	env := setupEnv(t)
+	// desired_time = now + 1 hour (today, in the future, within close 23:00)
+	desired := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	w := env.do(t, "POST", "/api/v1/orders", buildPlaceOrderBody("COD", "DELIVERY", desired))
+	if w.Code != http.StatusCreated {
+		t.Fatalf("desired_time happy path: expected 201, got %d — %s", w.Code, w.Body.String())
+	}
+
+	// Verify desired_time stored in outbox payload.
+	var payload string
+	env.db.Raw("SELECT payload FROM outbox_events WHERE event_type='order.placed' ORDER BY created_at DESC LIMIT 1").Scan(&payload)
+	var m map[string]any
+	if err := json.Unmarshal([]byte(payload), &m); err != nil {
+		t.Fatalf("parse payload: %v", err)
+	}
+	dt, ok := m["desired_time"].(string)
+	if !ok || dt == "" {
+		t.Errorf("desired_time missing in order.placed payload, got %v", m["desired_time"])
+	}
+}
+
+func TestPlaceOrder_DesiredTimeInPast_Rejected(t *testing.T) {
+	env := setupEnv(t)
+	// desired_time 2 hours in the past
+	past := time.Now().Add(-2 * time.Hour).UTC().Format(time.RFC3339)
+	w := env.do(t, "POST", "/api/v1/orders", buildPlaceOrderBody("COD", "DELIVERY", past))
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("past desired_time: expected 400, got %d — %s", w.Code, w.Body.String())
+	}
+}
+
+func TestPlaceOrder_DesiredTimeNotToday_Rejected(t *testing.T) {
+	env := setupEnv(t)
+	// desired_time = tomorrow
+	tomorrow := time.Now().Add(25 * time.Hour).UTC().Format(time.RFC3339)
+	w := env.do(t, "POST", "/api/v1/orders", buildPlaceOrderBody("COD", "DELIVERY", tomorrow))
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("tomorrow desired_time: expected 400, got %d — %s", w.Code, w.Body.String())
+	}
+}
+
+func TestPlaceOrder_StoreClosed_Rejected(t *testing.T) {
+	env := setupEnv(t)
+	env.storeStub.closed = true
+	w := env.do(t, "POST", "/api/v1/orders", buildPlaceOrderBody("COD", "DELIVERY", ""))
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("closed store: expected 400, got %d — %s", w.Code, w.Body.String())
+	}
+}
+
+func TestPlaceOrder_ASAP_NoDesiredTime(t *testing.T) {
+	env := setupEnv(t)
+	// No desired_time → ASAP; order must succeed and desired_time in payload = "".
+	w := env.do(t, "POST", "/api/v1/orders", buildPlaceOrderBody("COD", "DELIVERY", ""))
+	if w.Code != http.StatusCreated {
+		t.Fatalf("ASAP order: expected 201, got %d — %s", w.Code, w.Body.String())
+	}
+
+	var payload string
+	env.db.Raw("SELECT payload FROM outbox_events WHERE event_type='order.placed' ORDER BY created_at DESC LIMIT 1").Scan(&payload)
+	var m map[string]any
+	json.Unmarshal([]byte(payload), &m)
+	dt, _ := m["desired_time"].(string)
+	if dt != "" {
+		t.Errorf("ASAP: desired_time in payload should be empty string, got %q", dt)
 	}
 }
 
@@ -510,6 +597,35 @@ func TestAdvanceStatus_PENDING_to_CONFIRMED(t *testing.T) {
 	env.db.Raw("SELECT status FROM orders WHERE id=$1", orderID).Scan(&status)
 	if status != "CONFIRMED" {
 		t.Errorf("status: want CONFIRMED, got %s", status)
+	}
+}
+
+// ── Tests: order.ready carries desired_time ───────────────────────────────────
+
+func TestOrderReady_DesiredTimeInEvent(t *testing.T) {
+	env := setupEnv(t)
+	desired := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	orderID := mustPlaceOrderWithDesiredTime(t, env, desired)
+
+	// Advance to READY via CONFIRMED → PREPARING → READY.
+	for _, s := range []string{"CONFIRMED", "PREPARING", "READY"} {
+		w := env.do(t, "PATCH", "/api/v1/stores/"+testStoreID+"/orders/"+orderID+"/status",
+			`{"status":"`+s+`"}`)
+		if w.Code != http.StatusOK {
+			t.Fatalf("advance to %s: got %d — %s", s, w.Code, w.Body.String())
+		}
+	}
+
+	var payload string
+	env.db.Raw("SELECT payload FROM outbox_events WHERE event_type='order.ready' AND aggregate_id=$1", orderID).Scan(&payload)
+	if payload == "" {
+		t.Fatal("order.ready outbox event not found")
+	}
+	var m map[string]any
+	json.Unmarshal([]byte(payload), &m)
+	dt, _ := m["desired_time"].(string)
+	if dt == "" {
+		t.Errorf("desired_time missing in order.ready payload, got %v", m["desired_time"])
 	}
 }
 
@@ -613,20 +729,30 @@ func TestProcessedEvents_Deduplication(t *testing.T) {
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-func buildPlaceOrderBody(paymentMethod, fulfillment string) string {
+func buildPlaceOrderBody(paymentMethod, fulfillment, desiredTime string) string {
 	locPart := ""
 	if fulfillment == "DELIVERY" {
 		locPart = `"location_id":"` + testLocationID + `",`
 	}
+	dtPart := ""
+	if desiredTime != "" {
+		dtPart = `,"desired_time":"` + desiredTime + `"`
+	}
 	return `{"store_id":"` + testStoreID + `",` + locPart +
 		`"fulfillment":"` + fulfillment + `",` +
 		`"payment_method":"` + paymentMethod + `",` +
-		`"items":[{"menu_item_id":"` + testItemID + `","qty":1}]}`
+		`"items":[{"menu_item_id":"` + testItemID + `","qty":1}]` +
+		dtPart + `}`
 }
 
 func mustPlaceOrder(t *testing.T, env *testEnv) string {
 	t.Helper()
-	w := env.do(t, "POST", "/api/v1/orders", buildPlaceOrderBody("COD", "DELIVERY"))
+	return mustPlaceOrderWithDesiredTime(t, env, "")
+}
+
+func mustPlaceOrderWithDesiredTime(t *testing.T, env *testEnv, desiredTime string) string {
+	t.Helper()
+	w := env.do(t, "POST", "/api/v1/orders", buildPlaceOrderBody("COD", "DELIVERY", desiredTime))
 	if w.Code != http.StatusCreated {
 		t.Fatalf("mustPlaceOrder: expected 201, got %d — %s", w.Code, w.Body.String())
 	}

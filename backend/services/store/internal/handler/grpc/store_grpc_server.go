@@ -3,7 +3,6 @@ package grpc
 import (
 	"context"
 	"errors"
-	"time"
 
 	"project/pkg/apperror"
 	storev1 "project/proto/store/v1"
@@ -19,18 +18,15 @@ import (
 type StoreServiceServer struct {
 	storev1.UnimplementedStoreServiceServer
 	storeForOrderUC usecase.StoreForOrderUsecase
-	quotaUC         usecase.QuotaUsecase
 	storeRepo       repository.StoreRepository
 }
 
 func NewStoreServiceServer(
 	storeForOrderUC usecase.StoreForOrderUsecase,
-	quotaUC usecase.QuotaUsecase,
 	storeRepo repository.StoreRepository,
 ) *StoreServiceServer {
 	return &StoreServiceServer{
 		storeForOrderUC: storeForOrderUC,
-		quotaUC:         quotaUC,
 		storeRepo:       storeRepo,
 	}
 }
@@ -59,23 +55,16 @@ func (s *StoreServiceServer) GetStoreForOrder(ctx context.Context, req *storev1.
 		}
 	}
 
-	protoCutoffs := make([]*storev1.CutoffInfo, len(result.Cutoffs))
-	for i, c := range result.Cutoffs {
-		protoCutoffs[i] = &storev1.CutoffInfo{
-			Id:          c.ID,
-			CutoffTime:  c.CutoffTime,
-			LeadMinutes: int32(c.LeadMinutes),
-		}
-	}
-
 	return &storev1.GetStoreForOrderResponse{
-		Found:         true,
-		SaleStatus:    result.SaleStatus,
-		UnitShipFee:   result.UnitShipFee,
-		Served:        result.Served,
-		Items:         protoItems,
-		OrderDeadline: result.OrderDeadline,
-		Cutoffs:       protoCutoffs,
+		Found:          true,
+		SaleStatus:     result.SaleStatus,
+		UnitShipFee:    result.UnitShipFee,
+		Served:         result.Served,
+		Items:          protoItems,
+		PrepMinutes:    int32(result.PrepMinutes),
+		OpenNow:        result.OpenNow,
+		OpenTimeToday:  result.OpenTimeToday,
+		CloseTimeToday: result.CloseTimeToday,
 	}, nil
 }
 
@@ -96,37 +85,4 @@ func (s *StoreServiceServer) GetStoreOwnership(ctx context.Context, req *storev1
 		OwnerUserId: store.OwnerUserID,
 		Name:        store.Name,
 	}, nil
-}
-
-// DecrementSlotQuota atomically reduces sold_count for a quota slot.
-func (s *StoreServiceServer) DecrementSlotQuota(ctx context.Context, req *storev1.DecrementSlotQuotaRequest) (*storev1.DecrementSlotQuotaResponse, error) {
-	date, err := time.Parse("2006-01-02", req.GetDate())
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid date format (expected YYYY-MM-DD): %v", err)
-	}
-
-	err = s.quotaUC.DecrementSlot(ctx, req.GetItemId(), date, req.GetCutoffId(), int(req.GetQty()))
-	if err != nil {
-		if err == usecase.ErrQuotaExceeded {
-			return &storev1.DecrementSlotQuotaResponse{Ok: false, Remaining: 0}, nil
-		}
-		return nil, status.Error(codes.Internal, "decrement slot quota failed")
-	}
-
-	return &storev1.DecrementSlotQuotaResponse{Ok: true}, nil
-}
-
-// RestoreSlotQuota reverses a DecrementSlotQuota — called on saga compensation
-// or when an order is cancelled before fulfilment.
-func (s *StoreServiceServer) RestoreSlotQuota(ctx context.Context, req *storev1.RestoreSlotQuotaRequest) (*storev1.RestoreSlotQuotaResponse, error) {
-	date, err := time.Parse("2006-01-02", req.GetDate())
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid date format (expected YYYY-MM-DD): %v", err)
-	}
-
-	if err := s.quotaUC.RestoreSlot(ctx, req.GetItemId(), date, req.GetCutoffId(), int(req.GetQty())); err != nil {
-		return nil, status.Error(codes.Internal, "restore slot quota failed")
-	}
-
-	return &storev1.RestoreSlotQuotaResponse{Ok: true}, nil
 }

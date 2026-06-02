@@ -10,8 +10,6 @@ message OrderItemProto {
   string name_snapshot   = 2;
   int64  price_snapshot  = 3;
   int32  qty             = 4;
-  string cutoff_id       = 5;
-  string date            = 6; // YYYY-MM-DD
 }
 
 // GetOrderRequest looks up a full order by ID.
@@ -38,6 +36,7 @@ message GetOrderResponse {
   string pickup_pin      = 15; // non-empty for PICKUP orders
   string placed_at       = 16; // RFC3339
   repeated OrderItemProto items = 17;
+  string desired_time    = 18; // RFC3339, customer's desired latest receive time (empty if none)
 }
 
 service OrderService {

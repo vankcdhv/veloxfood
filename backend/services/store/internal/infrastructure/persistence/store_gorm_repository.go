@@ -63,6 +63,7 @@ func (r *storeGormRepository) Update(ctx context.Context, s *entity.Store) error
 		"phone":          s.Phone,
 		"sale_status":    s.SaleStatus,
 		"pickup_enabled": s.PickupEnabled,
+		"prep_minutes":   s.PrepMinutes,
 	}).Error
 }
 

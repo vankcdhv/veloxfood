@@ -1,0 +1,1 @@
+ALTER TABLE deliveries ADD COLUMN IF NOT EXISTS desired_time TIMESTAMPTZ;

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"math"
+	"time"
 
 	"project/pkg/outbox"
 	"project/services/delivery/internal/entity"
@@ -16,13 +18,39 @@ import (
 
 // AvailableDeliveryItem is the response shape for the available-deliveries list.
 type AvailableDeliveryItem struct {
-	OrderID      string `json:"order_id"`
-	OrderCode    string `json:"order_code"`
-	StoreID      string `json:"store_id"`
-	LocationID   string `json:"location_id"`
-	RoomPath     string `json:"room_path"`
-	ShipFee      int64  `json:"ship_fee"`
-	CreatedAt    string `json:"created_at"`
+	OrderID      string  `json:"order_id"`
+	OrderCode    string  `json:"order_code"`
+	StoreID      string  `json:"store_id"`
+	LocationID   string  `json:"location_id"`
+	RoomPath     string  `json:"room_path"`
+	ShipFee      int64   `json:"ship_fee"`
+	CreatedAt    string  `json:"created_at"`
+	// DesiredTime is RFC3339 or empty string when the customer chose ASAP.
+	DesiredTime  string  `json:"desired_time"`
+	// LateByMinutes is 0 for available/in-progress deliveries (not yet DELIVERED).
+	LateByMinutes int64  `json:"late_by_minutes"`
+}
+
+// MyDeliveryItem is the per-delivery shape in the shipper's history list.
+// It mirrors the Delivery entity but flattens timestamps and adds lateness.
+type MyDeliveryItem struct {
+	ID            string  `json:"id"`
+	OrderID       string  `json:"order_id"`
+	OrderCode     string  `json:"order_code"`
+	StoreID       string  `json:"store_id"`
+	LocationID    string  `json:"location_id"`
+	LocationLevel string  `json:"location_level"`
+	CustomerID    string  `json:"customer_id"`
+	ShipFee       int64   `json:"ship_fee"`
+	Status        string  `json:"status"`
+	// DesiredTime is RFC3339 or empty string when customer chose ASAP.
+	DesiredTime   string  `json:"desired_time"`
+	// LateByMinutes is max(0, ceil((delivered_at - desired_time) / min)) when
+	// status is DELIVERED and both timestamps are present; 0 otherwise.
+	LateByMinutes int64   `json:"late_by_minutes"`
+	ClaimedAt     string  `json:"claimed_at"`
+	DeliveredAt   string  `json:"delivered_at"`
+	CreatedAt     string  `json:"created_at"`
 }
 
 // ClaimResult is returned after a successful claim.
@@ -32,8 +60,8 @@ type ClaimResult struct {
 
 // MyDeliveriesResult is the response for the shipper's history + earnings.
 type MyDeliveriesResult struct {
-	Deliveries []*entity.Delivery `json:"deliveries"`
-	Earnings   int64              `json:"earnings"`
+	Deliveries []*MyDeliveryItem `json:"deliveries"`
+	Earnings   int64             `json:"earnings"`
 }
 
 // DeliveryUsecase handles shipper-facing delivery operations.
@@ -86,13 +114,15 @@ func (uc *deliveryUsecase) ListAvailable(ctx context.Context) ([]*AvailableDeliv
 			display = d.LocationID // graceful fallback: show UUID
 		}
 		items[i] = &AvailableDeliveryItem{
-			OrderID:    d.OrderID,
-			OrderCode:  d.OrderCode,
-			StoreID:    d.StoreID,
-			LocationID: d.LocationID,
-			RoomPath:   display,
-			ShipFee:    d.ShipFee,
-			CreatedAt:  d.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			OrderID:       d.OrderID,
+			OrderCode:     d.OrderCode,
+			StoreID:       d.StoreID,
+			LocationID:    d.LocationID,
+			RoomPath:      display,
+			ShipFee:       d.ShipFee,
+			CreatedAt:     d.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			DesiredTime:   formatTimePtr(d.DesiredTime),
+			LateByMinutes: 0, // AVAILABLE deliveries are not yet delivered
 		}
 	}
 	return items, nil
@@ -239,16 +269,55 @@ func (uc *deliveryUsecase) MyDeliveries(ctx context.Context, shipperID string) (
 	}
 
 	var earnings int64
-	for _, d := range rows {
+	items := make([]*MyDeliveryItem, len(rows))
+	for i, d := range rows {
 		if d.Status == entity.DeliveryDelivered {
 			earnings += d.ShipFee
+		}
+		items[i] = &MyDeliveryItem{
+			ID:            d.ID,
+			OrderID:       d.OrderID,
+			OrderCode:     d.OrderCode,
+			StoreID:       d.StoreID,
+			LocationID:    d.LocationID,
+			LocationLevel: d.LocationLevel,
+			CustomerID:    d.CustomerID,
+			ShipFee:       d.ShipFee,
+			Status:        string(d.Status),
+			DesiredTime:   formatTimePtr(d.DesiredTime),
+			LateByMinutes: computeLateMinutes(d),
+			ClaimedAt:     formatTimePtr(d.ClaimedAt),
+			DeliveredAt:   formatTimePtr(d.DeliveredAt),
+			CreatedAt:     d.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		}
 	}
 
 	slog.DebugContext(ctx, "delivery: my deliveries loaded",
 		"shipper_id", shipperID, "count", len(rows), "earnings", earnings)
 
-	return &MyDeliveriesResult{Deliveries: rows, Earnings: earnings}, nil
+	return &MyDeliveriesResult{Deliveries: items, Earnings: earnings}, nil
+}
+
+// formatTimePtr formats a *time.Time as RFC3339; returns "" when nil.
+func formatTimePtr(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return t.Format("2006-01-02T15:04:05Z07:00")
+}
+
+// computeLateMinutes returns max(0, round((DeliveredAt - DesiredTime) / minute))
+// only when status is DELIVERED and both timestamps are present; otherwise 0.
+func computeLateMinutes(d *entity.Delivery) int64 {
+	if d.Status != entity.DeliveryDelivered || d.DeliveredAt == nil || d.DesiredTime == nil {
+		return 0
+	}
+	diff := d.DeliveredAt.Sub(*d.DesiredTime)
+	minutes := int64(math.Round(diff.Minutes()))
+	if minutes < 0 {
+		return 0
+	}
+	return minutes
 }
 
 func strPtr(s string) *string {

@@ -30,8 +30,8 @@ func (h *CustomerOrderHandler) PlaceOrder(c *gin.Context) {
 	customerID := authmw.UserIDFromContext(c.Request.Context())
 
 	var body struct {
-		StoreID       string `json:"store_id" binding:"required"`
-		LocationID    string `json:"location_id"`
+		StoreID string `json:"store_id" binding:"required"`
+		LocationID string `json:"location_id"`
 		// LocationLevel is required for DELIVERY and must be one of BUILDING, FLOOR, ROOM.
 		// Absent / empty is treated as ROOM for back-compat.
 		LocationLevel string              `json:"location_level" binding:"omitempty,oneof=BUILDING FLOOR ROOM"`
@@ -39,6 +39,8 @@ func (h *CustomerOrderHandler) PlaceOrder(c *gin.Context) {
 		PaymentMethod string              `json:"payment_method" binding:"required,oneof=COD MOMO WALLET"`
 		VoucherCodes  []string            `json:"voucher_codes"`
 		Items         []placeOrderItemBody `json:"items" binding:"required,min=1"`
+		// DesiredTime is the customer's preferred receive time (RFC3339). Empty = ASAP.
+		DesiredTime string `json:"desired_time"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.BadRequest(c, err.Error())
@@ -50,8 +52,6 @@ func (h *CustomerOrderHandler) PlaceOrder(c *gin.Context) {
 		items[i] = usecase.PlaceOrderItem{
 			MenuItemID:      it.MenuItemID,
 			Qty:             it.Qty,
-			CutoffID:        it.CutoffID,
-			Date:            it.Date,
 			OptionsSnapshot: it.OptionsSnapshot,
 		}
 	}
@@ -65,6 +65,7 @@ func (h *CustomerOrderHandler) PlaceOrder(c *gin.Context) {
 		PaymentMethod: entity.PaymentMethod(body.PaymentMethod),
 		VoucherCodes:  body.VoucherCodes,
 		Items:         items,
+		DesiredTime:   body.DesiredTime,
 	})
 	if err != nil {
 		response.HandleError(c, err)
@@ -83,8 +84,6 @@ func (h *CustomerOrderHandler) PlaceOrder(c *gin.Context) {
 type placeOrderItemBody struct {
 	MenuItemID      string          `json:"menu_item_id" binding:"required"`
 	Qty             int             `json:"qty" binding:"required,min=1"`
-	CutoffID        string          `json:"cutoff_id"`
-	Date            string          `json:"date"`
 	OptionsSnapshot json.RawMessage `json:"options_snapshot"`
 }
 

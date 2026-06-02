@@ -22,24 +22,6 @@ func strPtr(s string) *string {
 	return &s
 }
 
-// parseDate parses a YYYY-MM-DD string into time.Time (UTC).
-func parseDate(s string) (time.Time, error) {
-	return time.Parse("2006-01-02", s)
-}
-
-// slotDeadline computes a slot's order/delivery deadline = (date at cutoff_time)
-// minus lead minutes, in local time (matches the store's cutoff semantics).
-// Returns ok=false if cutoff_time isn't "HH:MM".
-func slotDeadline(date time.Time, cutoffTime string, leadMinutes int) (time.Time, bool) {
-	var h, m int
-	if _, err := fmt.Sscanf(cutoffTime, "%d:%d", &h, &m); err != nil {
-		return time.Time{}, false
-	}
-	dl := time.Date(date.Year(), date.Month(), date.Day(), h, m, 0, 0, time.Local).
-		Add(-time.Duration(leadMinutes) * time.Minute)
-	return dl, true
-}
-
 // generatePickupPIN returns a random 4-digit PIN string.
 func generatePickupPIN() string {
 	return fmt.Sprintf("%04d", rand.Intn(10000))
@@ -64,4 +46,24 @@ func codesJSON(codes []string) json.RawMessage {
 		quoted[i] = `"` + c + `"`
 	}
 	return json.RawMessage("[" + strings.Join(quoted, ",") + "]")
+}
+
+// parseCloseTime parses a "HH:MM" close-time string and returns a time.Time
+// for that moment today (local clock). Returns zero time + false on bad input.
+func parseCloseTime(hhMM string) (time.Time, bool) {
+	var h, m int
+	if _, err := fmt.Sscanf(hhMM, "%d:%d", &h, &m); err != nil {
+		return time.Time{}, false
+	}
+	now := time.Now()
+	t := time.Date(now.Year(), now.Month(), now.Day(), h, m, 0, 0, now.Location())
+	return t, true
+}
+
+// isSameLocalDay reports whether t is on the same calendar day as now (local).
+func isSameLocalDay(t time.Time) bool {
+	now := time.Now()
+	y1, mo1, d1 := t.In(now.Location()).Date()
+	y2, mo2, d2 := now.Date()
+	return y1 == y2 && mo1 == mo2 && d1 == d2
 }

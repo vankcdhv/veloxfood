@@ -43,21 +43,7 @@ type OperatingHours struct {
 
 func (OperatingHours) TableName() string { return "operating_hours" }
 
-// ShipCutoff defines a shipment cut-off time slot for a store.
-// CutoffTime format: HH:MM. LeadMinutes: order deadline = cutoff − lead_minutes (BR8).
-type ShipCutoff struct {
-	ID          string         `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	StoreID     string         `gorm:"type:uuid;not null;index"`
-	CutoffTime  string         `gorm:"type:varchar(5);not null"`
-	LeadMinutes int            `gorm:"not null;default:0"`
-	CreatedAt   time.Time      `gorm:"type:timestamptz;not null;default:now()"`
-	UpdatedAt   time.Time      `gorm:"type:timestamptz;not null;default:now()"`
-	DeletedAt   gorm.DeletedAt `gorm:"type:timestamptz;index"`
-}
-
-func (ShipCutoff) TableName() string { return "ship_cutoffs" }
-
-// OperatingHoursChangeRequest is a pending request to change hours/cutoffs
+// OperatingHoursChangeRequest is a pending request to change hours
 // that requires Admin approval before taking effect (§2.5).
 // Status values: pending | approved | rejected.
 // Payload is stored as JSONB; no gorm.io/datatypes dependency needed.

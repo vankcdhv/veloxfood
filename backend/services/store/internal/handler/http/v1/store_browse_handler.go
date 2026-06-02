@@ -41,14 +41,13 @@ func (h *StoreBrowseHandler) ListStores(c *gin.Context) {
 		response.HandleError(c, err)
 		return
 	}
-	// Attach ship cutoffs (ca giao) so the list can show sessions inline.
-	ids := make([]string, len(stores))
-	for i, s := range stores {
-		ids[i] = s.ID
-	}
-	if cutoffs, err := h.hoursUC.ListShipCutoffsForStores(ctx, ids); err == nil {
-		for _, s := range stores {
-			s.ShipCutoffs = cutoffs[s.ID]
+
+	now := time.Now()
+	for _, s := range stores {
+		if openRes, err := h.hoursUC.IsOpenNow(ctx, s.ID, s.SaleStatus, now); err == nil {
+			s.OpenNow = openRes.OpenNow
+			s.OpenTimeToday = openRes.OpenTimeToday
+			s.CloseTimeToday = openRes.CloseTimeToday
 		}
 	}
 	response.Success(c, stores)
@@ -62,8 +61,12 @@ func (h *StoreBrowseHandler) GetStore(c *gin.Context) {
 		response.HandleError(c, err)
 		return
 	}
-	if cutoffs, err := h.hoursUC.ListShipCutoffs(ctx, store.ID); err == nil {
-		store.ShipCutoffs = cutoffs
+
+	now := time.Now()
+	if openRes, err := h.hoursUC.IsOpenNow(ctx, store.ID, store.SaleStatus, now); err == nil {
+		store.OpenNow = openRes.OpenNow
+		store.OpenTimeToday = openRes.OpenTimeToday
+		store.CloseTimeToday = openRes.CloseTimeToday
 	}
 	response.Success(c, store)
 }
@@ -118,7 +121,7 @@ func (h *StoreBrowseHandler) GetShipFee(c *gin.Context) {
 }
 
 // GetStoreHours GET /api/v1/stores/:id/hours
-// Returns the current approved operating hours and ship cutoffs for a store.
+// Returns the current approved operating hours for a store.
 // Readable by any authenticated user (customers + vendors).
 func (h *StoreBrowseHandler) GetStoreHours(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -129,63 +132,7 @@ func (h *StoreBrowseHandler) GetStoreHours(c *gin.Context) {
 		response.HandleError(c, err)
 		return
 	}
-	sc, err := h.hoursUC.ListShipCutoffs(ctx, storeID)
-	if err != nil {
-		response.HandleError(c, err)
-		return
-	}
-	response.Success(c, gin.H{
-		"operating_hours": oh,
-		"ship_cutoffs":    sc,
-	})
-}
-
-// GetStoreSlots GET /api/v1/stores/:id/slots?date=YYYY-MM-DD
-// Returns the store's ship cutoffs (ca giao) plus the remaining slot quota per
-// (menu item, cutoff) for the given date (default today). Powers the customer
-// session picker + "còn N suất" badges.
-func (h *StoreBrowseHandler) GetStoreSlots(c *gin.Context) {
-	ctx := c.Request.Context()
-	storeID := c.Param("id")
-
-	date := time.Now().UTC().Truncate(24 * time.Hour)
-	if ds := c.Query("date"); ds != "" {
-		d, err := time.Parse("2006-01-02", ds)
-		if err != nil {
-			response.BadRequest(c, "invalid date (want YYYY-MM-DD)")
-			return
-		}
-		date = d
-	}
-
-	cutoffs, err := h.hoursUC.ListShipCutoffs(ctx, storeID)
-	if err != nil {
-		response.HandleError(c, err)
-		return
-	}
-	quotas, err := h.catalogUC.ListStoreSlotQuotas(ctx, storeID, date)
-	if err != nil {
-		response.HandleError(c, err)
-		return
-	}
-
-	type slotQuota struct {
-		MenuItemID string `json:"MenuItemID"`
-		CutoffID   string `json:"CutoffID"`
-		Quota      int    `json:"Quota"`
-		SoldCount  int    `json:"SoldCount"`
-		Remaining  int    `json:"Remaining"`
-	}
-	out := make([]slotQuota, 0, len(quotas))
-	for _, q := range quotas {
-		rem := q.Quota - q.SoldCount
-		if rem < 0 {
-			rem = 0
-		}
-		out = append(out, slotQuota{q.MenuItemID, q.CutoffID, q.Quota, q.SoldCount, rem})
-	}
-
-	response.Success(c, gin.H{"cutoffs": cutoffs, "quotas": out})
+	response.Success(c, gin.H{"operating_hours": oh})
 }
 
 // ListMyStores GET /api/v1/stores/mine

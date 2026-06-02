@@ -40,7 +40,6 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 		stores.GET("/mine", h.ListMyStores)
 		stores.GET("/:id", h.GetStore)
 		stores.GET("/:id/hours", h.GetStoreHours)
-		stores.GET("/:id/slots", h.GetStoreSlots)
 		stores.GET("/:id/menu", h.GetMenu)
 		stores.GET("/:id/categories", h.ListCategories)
 		stores.GET("/:id/ship-fee", h.GetShipFee)
@@ -69,10 +68,6 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 		s.PATCH("/menu/:itemId/status", h.ToggleMenuItemStatus)
 		s.POST("/menu/:itemId/image", h.UploadMenuItemImage)
 		s.DELETE("/menu/:itemId", h.DeleteMenuItem)
-
-		// Slot quota: vendor lists or sets per-(item × cutoff × date) quota ceiling
-		s.GET("/menu/:itemId/quota", h.ListSlotQuotas)
-		s.POST("/menu/:itemId/quota", h.SetSlotQuota)
 
 		// MenuItem ↔ OptionGroup links
 		s.GET("/menu/:itemId/option-groups", h.ListOptionGroupsForItem)

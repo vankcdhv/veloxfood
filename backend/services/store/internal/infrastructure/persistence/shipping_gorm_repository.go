@@ -110,57 +110,6 @@ func (r *shippingGormRepository) DeleteOperatingHours(ctx context.Context, id st
 	return r.db.WithContext(ctx).Delete(&entity.OperatingHours{}, "id = ?", id).Error
 }
 
-// ---- ShipCutoffs ----
-
-func (r *shippingGormRepository) CreateShipCutoff(ctx context.Context, sc *entity.ShipCutoff) error {
-	return r.db.WithContext(ctx).Create(sc).Error
-}
-
-func (r *shippingGormRepository) GetShipCutoff(ctx context.Context, id string) (*entity.ShipCutoff, error) {
-	var sc entity.ShipCutoff
-	if err := r.db.WithContext(ctx).First(&sc, "id = ?", id).Error; err != nil {
-		return nil, err
-	}
-	return &sc, nil
-}
-
-func (r *shippingGormRepository) ListShipCutoffs(ctx context.Context, storeID string) ([]*entity.ShipCutoff, error) {
-	var rows []*entity.ShipCutoff
-	return rows, r.db.WithContext(ctx).
-		Where("store_id = ?", storeID).
-		Order("cutoff_time ASC").
-		Find(&rows).Error
-}
-
-func (r *shippingGormRepository) ListShipCutoffsForStores(ctx context.Context, storeIDs []string) (map[string][]*entity.ShipCutoff, error) {
-	out := make(map[string][]*entity.ShipCutoff, len(storeIDs))
-	if len(storeIDs) == 0 {
-		return out, nil
-	}
-	var rows []*entity.ShipCutoff
-	if err := r.db.WithContext(ctx).
-		Where("store_id IN ?", storeIDs).
-		Order("cutoff_time ASC").
-		Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	for _, sc := range rows {
-		out[sc.StoreID] = append(out[sc.StoreID], sc)
-	}
-	return out, nil
-}
-
-func (r *shippingGormRepository) UpdateShipCutoff(ctx context.Context, sc *entity.ShipCutoff) error {
-	return r.db.WithContext(ctx).Model(sc).Updates(map[string]any{
-		"cutoff_time":  sc.CutoffTime,
-		"lead_minutes": sc.LeadMinutes,
-	}).Error
-}
-
-func (r *shippingGormRepository) DeleteShipCutoff(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).Delete(&entity.ShipCutoff{}, "id = ?", id).Error
-}
-
 // ---- Bulk replace ----
 
 func (r *shippingGormRepository) DeleteOperatingHoursByStore(ctx context.Context, tx *gorm.DB, storeID string) error {
@@ -171,20 +120,6 @@ func (r *shippingGormRepository) DeleteOperatingHoursByStore(ctx context.Context
 }
 
 func (r *shippingGormRepository) BulkCreateOperatingHours(ctx context.Context, tx *gorm.DB, rows []*entity.OperatingHours) error {
-	if len(rows) == 0 {
-		return nil
-	}
-	return tx.WithContext(ctx).Create(&rows).Error
-}
-
-func (r *shippingGormRepository) DeleteShipCutoffsByStore(ctx context.Context, tx *gorm.DB, storeID string) error {
-	// Hard-delete so the subsequent BulkCreate becomes the sole current set.
-	return tx.WithContext(ctx).Unscoped().
-		Where("store_id = ?", storeID).
-		Delete(&entity.ShipCutoff{}).Error
-}
-
-func (r *shippingGormRepository) BulkCreateShipCutoffs(ctx context.Context, tx *gorm.DB, rows []*entity.ShipCutoff) error {
 	if len(rows) == 0 {
 		return nil
 	}

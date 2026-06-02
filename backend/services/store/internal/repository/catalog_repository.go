@@ -2,12 +2,11 @@ package repository
 
 import (
 	"context"
-	"time"
 
 	"project/services/store/internal/entity"
 )
 
-// CatalogRepository manages Categories, MenuItems, Quotas, OptionGroups,
+// CatalogRepository manages Categories, MenuItems, OptionGroups,
 // Options, MenuItemOptions, Combos, and ComboItems.
 type CatalogRepository interface {
 	// ---- Categories ----
@@ -33,30 +32,6 @@ type CatalogRepository interface {
 	ToggleMenuItemStatus(ctx context.Context, id string, status string) error
 
 	DeleteMenuItem(ctx context.Context, id string) error // soft-delete
-
-	// ---- MenuItemSlotQuota ----
-
-	// GetSlotQuota returns the quota record for a specific (item, date, cutoff) triple.
-	GetSlotQuota(ctx context.Context, menuItemID string, date time.Time, cutoffID string) (*entity.MenuItemSlotQuota, error)
-
-	// UpsertSlotQuota inserts or updates the quota for a (item, date, cutoff) triple.
-	UpsertSlotQuota(ctx context.Context, q *entity.MenuItemSlotQuota) error
-
-	// DecrementSlotQuota atomically increments sold_count by qty only when
-	// sold_count + qty <= quota. Returns ErrQuotaExceeded if the guard fails
-	// (RowsAffected == 0). Callers should treat this as an out-of-stock signal.
-	DecrementSlotQuota(ctx context.Context, menuItemID string, date time.Time, cutoffID string, qty int) error
-
-	// RestoreSlotQuota decrements sold_count by qty (order cancellation path),
-	// clamping to a minimum of 0.
-	RestoreSlotQuota(ctx context.Context, menuItemID string, date time.Time, cutoffID string, qty int) error
-
-	// ListSlotQuotas returns all quota rows for an item on a given date.
-	ListSlotQuotas(ctx context.Context, menuItemID string, date time.Time) ([]*entity.MenuItemSlotQuota, error)
-
-	// ListSlotQuotasForStore returns all quota rows for every item of a store on a
-	// given date (customer storefront uses this to show remaining slots per ca).
-	ListSlotQuotasForStore(ctx context.Context, storeID string, date time.Time) ([]*entity.MenuItemSlotQuota, error)
 
 	// ---- OptionGroups ----
 

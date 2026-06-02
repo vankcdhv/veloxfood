@@ -14,7 +14,6 @@ var (
 	ErrShipFeeRuleExists     = apperror.Conflict("a ship fee rule for this location already exists")
 	ErrChangeRequestNotFound = apperror.NotFound("hours change request not found")
 	ErrLocationNotServed     = apperror.BadRequest("store does not deliver to the requested location")
-	ErrQuotaExceeded         = apperror.Conflict("slot quota exceeded for this item")
 	ErrForbidden             = apperror.Forbidden("access denied")
 	ErrInvalidSaleStatus     = apperror.BadRequest("invalid sale_status; must be OPEN, CLOSED_TODAY, or PAUSED")
 	ErrInvalidChangeStatus   = apperror.BadRequest("change request is not in pending status")

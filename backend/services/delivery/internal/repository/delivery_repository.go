@@ -36,7 +36,7 @@ type DeliveryRepository interface {
 	// MarkDelivered sets status=DELIVERED and delivered_at=now() inside tx.
 	MarkDelivered(ctx context.Context, tx *gorm.DB, orderID string) error
 
-	// SetStoreDelivering moves the delivery to STORE_DELIVERING (cutoff reached).
+	// SetStoreDelivering moves the delivery to STORE_DELIVERING.
 	SetStoreDelivering(ctx context.Context, tx *gorm.DB, orderID string) error
 
 	// Cancel moves the delivery to CANCELLED.

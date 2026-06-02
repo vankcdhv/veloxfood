@@ -33,8 +33,6 @@ type AddCartItemRequest struct {
 	NameSnapshot    string
 	PriceSnapshot   int64
 	Qty             int
-	CutoffID        string // optional
-	Date            string // YYYY-MM-DD, optional
 	OptionsSnapshot json.RawMessage
 }
 
@@ -80,16 +78,6 @@ func (uc *cartUsecase) AddOrUpdateItem(ctx context.Context, req AddCartItemReque
 		PriceSnapshot:   req.PriceSnapshot,
 		Qty:             req.Qty,
 		OptionsSnapshot: opts,
-	}
-
-	if req.CutoffID != "" {
-		item.CutoffID = strPtr(req.CutoffID)
-	}
-	if req.Date != "" {
-		t, err := parseDate(req.Date)
-		if err == nil {
-			item.Date = &t
-		}
 	}
 
 	if err := uc.cartRepo.UpsertItem(ctx, item); err != nil {

@@ -69,12 +69,13 @@ func (h *AdminStoreHandler) UpdateStore(c *gin.Context) {
 		BusinessType string `json:"business_type"`
 		Address      string `json:"address"`
 		Phone        string `json:"phone"`
+		PrepMinutes  int    `json:"prep_minutes"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	store, err := h.storeUC.UpdateStore(c.Request.Context(), c.Param("id"), body.Name, body.BusinessType, body.Address, body.Phone)
+	store, err := h.storeUC.UpdateStore(c.Request.Context(), c.Param("id"), body.Name, body.BusinessType, body.Address, body.Phone, body.PrepMinutes)
 	if err != nil {
 		response.HandleError(c, err)
 		return

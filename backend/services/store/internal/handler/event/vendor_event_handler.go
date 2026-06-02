@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"time"
 
 	"project/pkg/outbox"
 	"project/services/store/internal/usecase"
@@ -16,11 +15,10 @@ import (
 // It reacts to vendor lifecycle events to create/close the corresponding store.
 type VendorEventHandler struct {
 	storeUC usecase.StoreUsecase
-	quotaUC usecase.QuotaUsecase
 }
 
-func NewVendorEventHandler(storeUC usecase.StoreUsecase, quotaUC usecase.QuotaUsecase) *VendorEventHandler {
-	return &VendorEventHandler{storeUC: storeUC, quotaUC: quotaUC}
+func NewVendorEventHandler(storeUC usecase.StoreUsecase) *VendorEventHandler {
+	return &VendorEventHandler{storeUC: storeUC}
 }
 
 // HandleKafkaMessage routes an incoming Kafka message to the correct handler
@@ -40,10 +38,6 @@ func (h *VendorEventHandler) HandleKafkaMessage(ctx context.Context, msg kafka.M
 		return h.handleVendorApproved(ctx, env)
 	case "vendor.rejected":
 		return h.handleVendorRejected(ctx, env)
-	case "order.placed":
-		return h.handleOrderPlaced(ctx, env)
-	case "order.cancelled":
-		return h.handleOrderCancelled(ctx, env)
 	default:
 		slog.DebugContext(ctx, "vendor event: unhandled event type", "event_type", env.EventType)
 	}
@@ -106,54 +100,5 @@ func (h *VendorEventHandler) handleVendorRejected(ctx context.Context, env outbo
 		return err
 	}
 	slog.InfoContext(ctx, "vendor.rejected: store closed", "store_id", store.ID, "vendor_id", data.VendorID)
-	return nil
-}
-
-// ─── Order events ─────────────────────────────────────────────────────────────
-
-// orderItemData is one line item in the frozen order.placed / order.cancelled payload.
-type orderItemData struct {
-	MenuItemID string `json:"menu_item_id"`
-	CutoffID   string `json:"cutoff_id"`
-	Date       string `json:"date"` // YYYY-MM-DD
-	Qty        int    `json:"qty"`
-}
-
-// handleOrderPlaced is intentionally a no-op for slot quota. The place-order
-// saga already decrements quota synchronously (via the DecrementSlotQuota gRPC,
-// which fails fast so customers see "hết suất" at checkout and the saga can
-// compensate). Decrementing again here on the order.placed event would
-// double-count. The order.cancelled handler still restores that synchronous
-// decrement when a placed order is later cancelled.
-func (h *VendorEventHandler) handleOrderPlaced(ctx context.Context, _ outbox.Envelope) error {
-	slog.DebugContext(ctx, "order.placed: quota owned by place-order saga; consumer no-op")
-	return nil
-}
-
-type orderCancelledData struct {
-	Items []orderItemData `json:"items"`
-}
-
-// handleOrderCancelled restores the slot quota for each item in a cancelled order.
-// Uses the frozen items[] array (§2bis).
-func (h *VendorEventHandler) handleOrderCancelled(ctx context.Context, env outbox.Envelope) error {
-	var data orderCancelledData
-	if err := json.Unmarshal(env.Data, &data); err != nil {
-		slog.ErrorContext(ctx, "order.cancelled: unmarshal failed", "err", err)
-		return nil
-	}
-
-	for _, item := range data.Items {
-		date, err := time.Parse("2006-01-02", item.Date)
-		if err != nil {
-			slog.ErrorContext(ctx, "order.cancelled: invalid date", "date", item.Date)
-			return nil
-		}
-		if err := h.quotaUC.RestoreSlot(ctx, item.MenuItemID, date, item.CutoffID, item.Qty); err != nil {
-			slog.ErrorContext(ctx, "order.cancelled: restore slot failed",
-				"menu_item_id", item.MenuItemID, "err", err)
-			return err
-		}
-	}
 	return nil
 }

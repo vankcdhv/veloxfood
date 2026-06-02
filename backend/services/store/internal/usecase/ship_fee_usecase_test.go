@@ -24,11 +24,6 @@ type mockShippingRepo struct {
 	listOperatingHoursFn   func(ctx context.Context, storeID string) ([]*entity.OperatingHours, error)
 	updateOperatingHoursFn func(ctx context.Context, oh *entity.OperatingHours) error
 	deleteOperatingHoursFn func(ctx context.Context, id string) error
-	createShipCutoffFn     func(ctx context.Context, sc *entity.ShipCutoff) error
-	getShipCutoffFn        func(ctx context.Context, id string) (*entity.ShipCutoff, error)
-	listShipCutoffsFn      func(ctx context.Context, storeID string) ([]*entity.ShipCutoff, error)
-	updateShipCutoffFn     func(ctx context.Context, sc *entity.ShipCutoff) error
-	deleteShipCutoffFn     func(ctx context.Context, id string) error
 	createChangeRequestFn  func(ctx context.Context, req *entity.OperatingHoursChangeRequest) error
 	getChangeRequestFn     func(ctx context.Context, id string) (*entity.OperatingHoursChangeRequest, error)
 	listChangeRequestsFn   func(ctx context.Context, storeID, status string) ([]*entity.OperatingHoursChangeRequest, error)
@@ -112,45 +107,6 @@ func (m *mockShippingRepo) DeleteOperatingHours(ctx context.Context, id string) 
 	return errors.New("not implemented")
 }
 
-func (m *mockShippingRepo) CreateShipCutoff(ctx context.Context, sc *entity.ShipCutoff) error {
-	if m.createShipCutoffFn != nil {
-		return m.createShipCutoffFn(ctx, sc)
-	}
-	return errors.New("not implemented")
-}
-
-func (m *mockShippingRepo) GetShipCutoff(ctx context.Context, id string) (*entity.ShipCutoff, error) {
-	if m.getShipCutoffFn != nil {
-		return m.getShipCutoffFn(ctx, id)
-	}
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockShippingRepo) ListShipCutoffs(ctx context.Context, storeID string) ([]*entity.ShipCutoff, error) {
-	if m.listShipCutoffsFn != nil {
-		return m.listShipCutoffsFn(ctx, storeID)
-	}
-	return nil, errors.New("not implemented")
-}
-
-func (m *mockShippingRepo) ListShipCutoffsForStores(ctx context.Context, storeIDs []string) (map[string][]*entity.ShipCutoff, error) {
-	return map[string][]*entity.ShipCutoff{}, nil
-}
-
-func (m *mockShippingRepo) UpdateShipCutoff(ctx context.Context, sc *entity.ShipCutoff) error {
-	if m.updateShipCutoffFn != nil {
-		return m.updateShipCutoffFn(ctx, sc)
-	}
-	return errors.New("not implemented")
-}
-
-func (m *mockShippingRepo) DeleteShipCutoff(ctx context.Context, id string) error {
-	if m.deleteShipCutoffFn != nil {
-		return m.deleteShipCutoffFn(ctx, id)
-	}
-	return errors.New("not implemented")
-}
-
 func (m *mockShippingRepo) CreateChangeRequest(ctx context.Context, req *entity.OperatingHoursChangeRequest) error {
 	if m.createChangeRequestFn != nil {
 		return m.createChangeRequestFn(ctx, req)
@@ -181,14 +137,6 @@ func (m *mockShippingRepo) DeleteOperatingHoursByStore(_ context.Context, _ *gor
 }
 
 func (m *mockShippingRepo) BulkCreateOperatingHours(_ context.Context, _ *gorm.DB, _ []*entity.OperatingHours) error {
-	return nil
-}
-
-func (m *mockShippingRepo) DeleteShipCutoffsByStore(_ context.Context, _ *gorm.DB, _ string) error {
-	return nil
-}
-
-func (m *mockShippingRepo) BulkCreateShipCutoffs(_ context.Context, _ *gorm.DB, _ []*entity.ShipCutoff) error {
 	return nil
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"project/services/store/internal/entity"
 	"project/services/store/internal/repository"
@@ -56,10 +55,6 @@ type CatalogUsecase interface {
 	RemoveComboItem(ctx context.Context, comboID, menuItemID string) error
 	ListComboItems(ctx context.Context, comboID string) ([]*entity.ComboItem, error)
 
-	// Quota
-	SetSlotQuota(ctx context.Context, menuItemID string, date time.Time, cutoffID string, quota int) error
-	ListSlotQuotas(ctx context.Context, menuItemID string, date time.Time) ([]*entity.MenuItemSlotQuota, error)
-	ListStoreSlotQuotas(ctx context.Context, storeID string, date time.Time) ([]*entity.MenuItemSlotQuota, error)
 }
 
 type catalogUsecase struct {
@@ -316,22 +311,3 @@ func (uc *catalogUsecase) ListComboItems(ctx context.Context, comboID string) ([
 	return uc.catalogRepo.ListComboItems(ctx, comboID)
 }
 
-// ─── Quota ────────────────────────────────────────────────────────────────────
-
-func (uc *catalogUsecase) SetSlotQuota(ctx context.Context, menuItemID string, date time.Time, cutoffID string, quota int) error {
-	q := &entity.MenuItemSlotQuota{
-		MenuItemID: menuItemID,
-		Date:       date,
-		CutoffID:   cutoffID,
-		Quota:      quota,
-	}
-	return uc.catalogRepo.UpsertSlotQuota(ctx, q)
-}
-
-func (uc *catalogUsecase) ListSlotQuotas(ctx context.Context, menuItemID string, date time.Time) ([]*entity.MenuItemSlotQuota, error) {
-	return uc.catalogRepo.ListSlotQuotas(ctx, menuItemID, date)
-}
-
-func (uc *catalogUsecase) ListStoreSlotQuotas(ctx context.Context, storeID string, date time.Time) ([]*entity.MenuItemSlotQuota, error) {
-	return uc.catalogRepo.ListSlotQuotasForStore(ctx, storeID, date)
-}

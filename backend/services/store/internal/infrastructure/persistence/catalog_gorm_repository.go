@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"context"
-	"time"
 
 	"project/services/store/internal/entity"
 	"project/services/store/internal/repository"
@@ -100,71 +99,6 @@ func (r *catalogGormRepository) ToggleMenuItemStatus(ctx context.Context, id str
 
 func (r *catalogGormRepository) DeleteMenuItem(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&entity.MenuItem{}, "id = ?", id).Error
-}
-
-// ---- MenuItemSlotQuota ----
-
-func (r *catalogGormRepository) GetSlotQuota(ctx context.Context, menuItemID string, date time.Time, cutoffID string) (*entity.MenuItemSlotQuota, error) {
-	var q entity.MenuItemSlotQuota
-	err := r.db.WithContext(ctx).
-		Where("menu_item_id = ? AND date = ? AND cutoff_id = ?", menuItemID, date, cutoffID).
-		First(&q).Error
-	if err != nil {
-		return nil, err
-	}
-	return &q, nil
-}
-
-func (r *catalogGormRepository) UpsertSlotQuota(ctx context.Context, q *entity.MenuItemSlotQuota) error {
-	return r.db.WithContext(ctx).
-		Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "menu_item_id"}, {Name: "date"}, {Name: "cutoff_id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"quota", "updated_at"}),
-		}).
-		Create(q).Error
-}
-
-// DecrementSlotQuota atomically increments sold_count by qty only when the
-// remaining capacity is sufficient (sold_count + qty <= quota). A single
-// UPDATE with a WHERE guard is used; zero RowsAffected signals exhaustion.
-func (r *catalogGormRepository) DecrementSlotQuota(ctx context.Context, menuItemID string, date time.Time, cutoffID string, qty int) error {
-	result := r.db.WithContext(ctx).
-		Model(&entity.MenuItemSlotQuota{}).
-		Where(
-			"menu_item_id = ? AND date = ? AND cutoff_id = ? AND sold_count + ? <= quota",
-			menuItemID, date, cutoffID, qty,
-		).
-		UpdateColumn("sold_count", gorm.Expr("sold_count + ?", qty))
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return repository.ErrQuotaExceeded
-	}
-	return nil
-}
-
-// RestoreSlotQuota decrements sold_count by qty, clamped to 0 (order cancellation).
-func (r *catalogGormRepository) RestoreSlotQuota(ctx context.Context, menuItemID string, date time.Time, cutoffID string, qty int) error {
-	return r.db.WithContext(ctx).
-		Model(&entity.MenuItemSlotQuota{}).
-		Where("menu_item_id = ? AND date = ? AND cutoff_id = ?", menuItemID, date, cutoffID).
-		UpdateColumn("sold_count", gorm.Expr("GREATEST(sold_count - ?, 0)", qty)).Error
-}
-
-func (r *catalogGormRepository) ListSlotQuotas(ctx context.Context, menuItemID string, date time.Time) ([]*entity.MenuItemSlotQuota, error) {
-	var rows []*entity.MenuItemSlotQuota
-	return rows, r.db.WithContext(ctx).
-		Where("menu_item_id = ? AND date = ?", menuItemID, date).
-		Find(&rows).Error
-}
-
-func (r *catalogGormRepository) ListSlotQuotasForStore(ctx context.Context, storeID string, date time.Time) ([]*entity.MenuItemSlotQuota, error) {
-	var rows []*entity.MenuItemSlotQuota
-	return rows, r.db.WithContext(ctx).
-		Joins("JOIN menu_items m ON m.id = menu_item_slot_quotas.menu_item_id").
-		Where("m.store_id = ? AND menu_item_slot_quotas.date = ?", storeID, date).
-		Find(&rows).Error
 }
 
 // ---- OptionGroups ----

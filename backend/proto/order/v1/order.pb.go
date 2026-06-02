@@ -28,8 +28,6 @@ type OrderItemProto struct {
 	NameSnapshot  string                 `protobuf:"bytes,2,opt,name=name_snapshot,json=nameSnapshot,proto3" json:"name_snapshot,omitempty"`
 	PriceSnapshot int64                  `protobuf:"varint,3,opt,name=price_snapshot,json=priceSnapshot,proto3" json:"price_snapshot,omitempty"`
 	Qty           int32                  `protobuf:"varint,4,opt,name=qty,proto3" json:"qty,omitempty"`
-	CutoffId      string                 `protobuf:"bytes,5,opt,name=cutoff_id,json=cutoffId,proto3" json:"cutoff_id,omitempty"`
-	Date          string                 `protobuf:"bytes,6,opt,name=date,proto3" json:"date,omitempty"` // YYYY-MM-DD
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -90,20 +88,6 @@ func (x *OrderItemProto) GetQty() int32 {
 		return x.Qty
 	}
 	return 0
-}
-
-func (x *OrderItemProto) GetCutoffId() string {
-	if x != nil {
-		return x.CutoffId
-	}
-	return ""
-}
-
-func (x *OrderItemProto) GetDate() string {
-	if x != nil {
-		return x.Date
-	}
-	return ""
 }
 
 // GetOrderRequest looks up a full order by ID.
@@ -171,6 +155,7 @@ type GetOrderResponse struct {
 	PickupPin     string                 `protobuf:"bytes,15,opt,name=pickup_pin,json=pickupPin,proto3" json:"pickup_pin,omitempty"` // non-empty for PICKUP orders
 	PlacedAt      string                 `protobuf:"bytes,16,opt,name=placed_at,json=placedAt,proto3" json:"placed_at,omitempty"`    // RFC3339
 	Items         []*OrderItemProto      `protobuf:"bytes,17,rep,name=items,proto3" json:"items,omitempty"`
+	DesiredTime   string                 `protobuf:"bytes,18,opt,name=desired_time,json=desiredTime,proto3" json:"desired_time,omitempty"` // RFC3339, customer's desired latest receive time (empty if none)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -324,21 +309,26 @@ func (x *GetOrderResponse) GetItems() []*OrderItemProto {
 	return nil
 }
 
+func (x *GetOrderResponse) GetDesiredTime() string {
+	if x != nil {
+		return x.DesiredTime
+	}
+	return ""
+}
+
 var File_proto_order_v1_order_proto protoreflect.FileDescriptor
 
 const file_proto_order_v1_order_proto_rawDesc = "" +
 	"\n" +
-	"\x1aproto/order/v1/order.proto\x12\border.v1\"\xc1\x01\n" +
+	"\x1aproto/order/v1/order.proto\x12\border.v1\"\x90\x01\n" +
 	"\x0eOrderItemProto\x12 \n" +
 	"\fmenu_item_id\x18\x01 \x01(\tR\n" +
 	"menuItemId\x12#\n" +
 	"\rname_snapshot\x18\x02 \x01(\tR\fnameSnapshot\x12%\n" +
 	"\x0eprice_snapshot\x18\x03 \x01(\x03R\rpriceSnapshot\x12\x10\n" +
-	"\x03qty\x18\x04 \x01(\x05R\x03qty\x12\x1b\n" +
-	"\tcutoff_id\x18\x05 \x01(\tR\bcutoffId\x12\x12\n" +
-	"\x04date\x18\x06 \x01(\tR\x04date\",\n" +
+	"\x03qty\x18\x04 \x01(\x05R\x03qty\",\n" +
 	"\x0fGetOrderRequest\x12\x19\n" +
-	"\border_id\x18\x01 \x01(\tR\aorderId\"\xa1\x04\n" +
+	"\border_id\x18\x01 \x01(\tR\aorderId\"\xc4\x04\n" +
 	"\x10GetOrderResponse\x12\x14\n" +
 	"\x05found\x18\x01 \x01(\bR\x05found\x12\x19\n" +
 	"\border_id\x18\x02 \x01(\tR\aorderId\x12\x12\n" +
@@ -362,7 +352,8 @@ const file_proto_order_v1_order_proto_rawDesc = "" +
 	"\n" +
 	"pickup_pin\x18\x0f \x01(\tR\tpickupPin\x12\x1b\n" +
 	"\tplaced_at\x18\x10 \x01(\tR\bplacedAt\x12.\n" +
-	"\x05items\x18\x11 \x03(\v2\x18.order.v1.OrderItemProtoR\x05items2Q\n" +
+	"\x05items\x18\x11 \x03(\v2\x18.order.v1.OrderItemProtoR\x05items\x12!\n" +
+	"\fdesired_time\x18\x12 \x01(\tR\vdesiredTime2Q\n" +
 	"\fOrderService\x12A\n" +
 	"\bGetOrder\x12\x19.order.v1.GetOrderRequest\x1a\x1a.order.v1.GetOrderResponseB Z\x1eproject/proto/order/v1;orderv1b\x06proto3"
 

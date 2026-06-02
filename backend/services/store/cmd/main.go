@@ -43,7 +43,7 @@ func main() {
 		catalogUC := usecase.NewCatalogUsecase(catalogRepo)
 		shipFeeUC := usecase.NewShipFeeUsecase(shippingRepo, roomResolver)
 		hoursUC := usecase.NewHoursUsecase(deps.DB, shippingRepo, outboxRepo)
-		quotaUC := usecase.NewQuotaUsecase(catalogRepo)
+
 		// ── MinIO uploader ────────────────────────────────────────────────────
 		uploader := buildUploader(deps)
 
@@ -64,7 +64,7 @@ func main() {
 
 		// ── Background workers ────────────────────────────────────────────────
 		startOutboxDispatcher(a, deps)
-		startVendorEventConsumer(a, deps, storeUC, quotaUC)
+		startVendorEventConsumer(a, deps, storeUC)
 	})
 
 	a.RegisterGRPC(func(s *grpc.Server, deps app.Dependencies) {
@@ -73,12 +73,13 @@ func main() {
 		storeRepo := persistence.NewStoreGormRepository(deps.DB)
 		catalogRepo := persistence.NewCatalogGormRepository(deps.DB)
 		shippingRepo := persistence.NewShippingGormRepository(deps.DB)
+		outboxRepo := persistence.NewOutboxGormRepository(deps.DB)
 		roomResolver := buildLocationResolver(deps)
+		hoursUC := usecase.NewHoursUsecase(deps.DB, shippingRepo, outboxRepo)
 
-		storeForOrderUC := usecase.NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, roomResolver)
-		quotaUC := usecase.NewQuotaUsecase(catalogRepo)
+		storeForOrderUC := usecase.NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, roomResolver, hoursUC)
 
-		storev1.RegisterStoreServiceServer(s, grpchandler.NewStoreServiceServer(storeForOrderUC, quotaUC, storeRepo))
+		storev1.RegisterStoreServiceServer(s, grpchandler.NewStoreServiceServer(storeForOrderUC, storeRepo))
 	})
 
 	a.Run()

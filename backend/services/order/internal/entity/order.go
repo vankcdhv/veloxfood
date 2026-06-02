@@ -68,6 +68,8 @@ type Order struct {
 	PaymentStatus PaymentStatus   `gorm:"type:varchar(10);not null;default:'UNPAID'"`
 	VoucherCodes  json.RawMessage `gorm:"type:jsonb;not null;default:'[]'"`
 	PickupPin     *string         `gorm:"type:varchar(10)"`
+	// DesiredTime is the customer's preferred latest receive time. Nil means ASAP.
+	DesiredTime   *time.Time      `gorm:"type:timestamptz"`
 	PlacedAt      time.Time       `gorm:"type:timestamptz;not null;default:now()"`
 	CreatedAt     time.Time       `gorm:"type:timestamptz;not null;default:now()"`
 	UpdatedAt     time.Time       `gorm:"type:timestamptz;not null;default:now()"`
@@ -86,11 +88,6 @@ type OrderItem struct {
 	NameSnapshot    string          `gorm:"type:varchar(150);not null"`
 	PriceSnapshot   int64           `gorm:"not null"`
 	Qty             int             `gorm:"not null"`
-	CutoffID        *string         `gorm:"type:uuid"`
-	Date            *time.Time      `gorm:"type:date"`
-	// CutoffDeadline = slot date + cutoff_time − lead, snapshot at placement.
-	// The cutoff scheduler sweeps READY orders only after this passes.
-	CutoffDeadline  *time.Time      `gorm:"type:timestamptz"`
 	OptionsSnapshot json.RawMessage `gorm:"type:jsonb;not null;default:'[]'"`
 	CreatedAt       time.Time       `gorm:"type:timestamptz;not null;default:now()"`
 }

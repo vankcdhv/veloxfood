@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
-	"time"
 
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/response"
@@ -110,12 +109,13 @@ func (h *VendorStoreHandler) UpdateStore(c *gin.Context) {
 		BusinessType string `json:"business_type"`
 		Address      string `json:"address"`
 		Phone        string `json:"phone"`
+		PrepMinutes  int    `json:"prep_minutes"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	store, err := h.storeUC.UpdateStore(c.Request.Context(), storeID, body.Name, body.BusinessType, body.Address, body.Phone)
+	store, err := h.storeUC.UpdateStore(c.Request.Context(), storeID, body.Name, body.BusinessType, body.Address, body.Phone, body.PrepMinutes)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -695,65 +695,6 @@ func (h *VendorStoreHandler) DeleteShipFeeRule(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"ok": true})
-}
-
-// ─── Slot quota ───────────────────────────────────────────────────────────────
-
-// SetSlotQuota POST /stores/:id/menu/:itemId/quota
-// Sets (upserts) the per-(item × cutoff × date) slot quota.
-// Vendor must hold store.manage permission scoped to this store's vendor_id.
-func (h *VendorStoreHandler) SetSlotQuota(c *gin.Context) {
-	storeID := c.Param("id")
-	itemID := c.Param("itemId")
-	if _, ok := h.authorizeStoreOwner(c, storeID); !ok {
-		return
-	}
-	var body struct {
-		Date     string `json:"date" binding:"required"`
-		CutoffID string `json:"cutoff_id" binding:"required"`
-		Quota    int    `json:"quota" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-	date, err := time.Parse("2006-01-02", body.Date)
-	if err != nil {
-		response.BadRequest(c, "date must be YYYY-MM-DD")
-		return
-	}
-	if err := h.catalogUC.SetSlotQuota(c.Request.Context(), itemID, date, body.CutoffID, body.Quota); err != nil {
-		response.HandleError(c, err)
-		return
-	}
-	response.Success(c, gin.H{"ok": true})
-}
-
-// ListSlotQuotas GET /stores/:id/menu/:itemId/quota?date=YYYY-MM-DD
-// Returns all per-cutoff quota rows for the item on the given date (defaults to today UTC).
-func (h *VendorStoreHandler) ListSlotQuotas(c *gin.Context) {
-	storeID := c.Param("id")
-	itemID := c.Param("itemId")
-	if _, ok := h.authorizeStoreOwner(c, storeID); !ok {
-		return
-	}
-	var date time.Time
-	if dateStr := c.Query("date"); dateStr == "" {
-		date = time.Now().UTC().Truncate(24 * time.Hour)
-	} else {
-		var err error
-		date, err = time.Parse("2006-01-02", dateStr)
-		if err != nil {
-			response.BadRequest(c, "date must be YYYY-MM-DD")
-			return
-		}
-	}
-	quotas, err := h.catalogUC.ListSlotQuotas(c.Request.Context(), itemID, date)
-	if err != nil {
-		response.HandleError(c, err)
-		return
-	}
-	response.Success(c, quotas)
 }
 
 // ─── Hours change requests ────────────────────────────────────────────────────

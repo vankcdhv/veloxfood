@@ -1,7 +1,7 @@
 // cmd/seed-catalog seeds store_db with 20 demo stores, each holding 45-50 menu
-// items across 4 categories, 3 ship cutoffs (ca giao), a building-scope ship-fee
-// rule (so delivery resolves), and per-(item × cutoff × day) slot quotas for the
-// next 10 days. Idempotent: re-running skips already-seeded stores unless -reset.
+// items across 4 categories, a building-scope ship-fee rule (so delivery resolves),
+// and prep_minutes set per store. Idempotent: re-running skips already-seeded stores
+// unless -reset.
 //
 // Usage: go run ./cmd/seed-catalog [-reset]
 package main
@@ -12,7 +12,6 @@ import (
 	"log/slog"
 	"math/rand"
 	"os"
-	"time"
 
 	"project/pkg/config"
 	"project/services/store/internal/entity"
@@ -25,13 +24,7 @@ import (
 const (
 	ownerUserID = "a835f18b-4877-4bda-99d1-dbf8ae09d649" // reuse existing owner so names resolve
 	buildingID  = "654f59c8-585b-4580-8e82-907f68574409" // Toà A — building-scope ship fee covers all rooms
-	quotaDays   = 10                                      // seed slot quotas for today..+9
 )
-
-var cutoffs = []struct {
-	Time string
-	Lead int
-}{{"11:00", 30}, {"17:30", 30}, {"22:00", 30}}
 
 func seedVendorID(i int) string { return fmt.Sprintf("5eed0000-0000-0000-0000-0000000000%02d", i) }
 
@@ -67,8 +60,7 @@ func main() {
 		slog.Info("[seed] reset: removed previously seeded stores")
 	}
 
-	today := time.Now().Truncate(24 * time.Hour)
-	totItems, totQuotas := 0, 0
+	totItems := 0
 
 	for i := 1; i <= 20; i++ {
 		theme := Themes[i-1]
@@ -83,9 +75,19 @@ func main() {
 			Phone:         fmt.Sprintf("09%08d", rng.Intn(100000000)),
 			SaleStatus:    "OPEN",
 			PickupEnabled: i%2 == 0,
+			PrepMinutes:   15 + (i%4)*5, // 15, 20, 25, 30 cycling
 		}
 		if err := db.Create(store).Error; err != nil {
 			fail("create store "+theme.Store, err)
+		}
+
+		// Operating hours: open every day 07:00–22:00 so the store is orderable
+		// (the checkout gate requires hours for today's weekday).
+		for wd := int16(0); wd <= 6; wd++ {
+			oh := &entity.OperatingHours{StoreID: store.ID, Weekday: wd, OpenTime: "07:00", CloseTime: "22:00"}
+			if err := db.Create(oh).Error; err != nil {
+				fail("create operating hours", err)
+			}
 		}
 
 		// Categories (always all four).
@@ -98,16 +100,6 @@ func main() {
 			catID[name] = c.ID
 		}
 
-		// Ship cutoffs (ca giao) + collect IDs for quota rows.
-		cutoffIDs := make([]string, 0, len(cutoffs))
-		for _, co := range cutoffs {
-			sc := &entity.ShipCutoff{StoreID: store.ID, CutoffTime: co.Time, LeadMinutes: co.Lead}
-			if err := db.Create(sc).Error; err != nil {
-				fail("create cutoff", err)
-			}
-			cutoffIDs = append(cutoffIDs, sc.ID)
-		}
-
 		// Building-scope ship fee so delivery to any room in Toà A resolves.
 		fee := &entity.ShipFeeRule{StoreID: store.ID, Scope: "building", RefID: buildingID,
 			UnitFee: int64(12000 + rng.Intn(7)*1000)}
@@ -118,7 +110,6 @@ func main() {
 		// Compose 45-50 unique items: all themed mains + a rotated slice of the
 		// shared pools (so each store's drinks/sides/desserts differ).
 		menu := composeMenu(theme, i)
-		var quotas []*entity.MenuItemSlotQuota
 		for idx, mi := range menu {
 			item := &entity.MenuItem{
 				StoreID:     store.ID,
@@ -134,24 +125,11 @@ func main() {
 				fail("create menu item", err)
 			}
 			totItems++
-			for dayOff := 0; dayOff < quotaDays; dayOff++ {
-				date := today.AddDate(0, 0, dayOff)
-				for _, cid := range cutoffIDs {
-					quotas = append(quotas, &entity.MenuItemSlotQuota{
-						MenuItemID: item.ID, Date: date, CutoffID: cid,
-						Quota: 25 + rng.Intn(36), SoldCount: 0,
-					})
-				}
-			}
 		}
-		if err := db.CreateInBatches(quotas, 500).Error; err != nil {
-			fail("create slot quotas", err)
-		}
-		totQuotas += len(quotas)
 		slog.Info("[seed] store created", "name", theme.Store, "items", len(menu))
 	}
 
-	slog.Info("[seed] done", "stores", 20, "items", totItems, "quotas", totQuotas)
+	slog.Info("[seed] done", "stores", 20, "items", totItems)
 }
 
 // menuItem pairs a Dish with the category it belongs to in the seeded store.
@@ -221,8 +199,7 @@ func deleteSeeded(db *gorm.DB, vendorIDs []string) {
 	if len(storeIDs) == 0 {
 		return
 	}
-	db.Exec(`DELETE FROM menu_item_slot_quotas WHERE menu_item_id IN (SELECT id FROM menu_items WHERE store_id IN ?)`, storeIDs)
-	for _, tbl := range []string{"menu_items", "categories", "ship_cutoffs", "ship_fee_rules"} {
+	for _, tbl := range []string{"menu_items", "categories", "ship_fee_rules"} {
 		db.Exec(fmt.Sprintf("DELETE FROM %s WHERE store_id IN ?", tbl), storeIDs)
 	}
 	db.Exec(`DELETE FROM stores WHERE id IN ?`, storeIDs)

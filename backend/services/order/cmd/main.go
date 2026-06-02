@@ -63,7 +63,6 @@ func main() {
 
 		// ── Background workers ────────────────────────────────────────────────
 		startOutboxDispatcher(a, deps)
-		startCutoffScheduler(a, deps, orderRepo, outboxRepo)
 	})
 
 	a.RegisterGRPC(func(s *grpc.Server, deps app.Dependencies) {

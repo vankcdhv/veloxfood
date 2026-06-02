@@ -27,8 +27,6 @@ type CartItem struct {
 	NameSnapshot    string          `gorm:"type:varchar(150);not null;default:''"`
 	PriceSnapshot   int64           `gorm:"not null;default:0"`
 	Qty             int             `gorm:"not null"`
-	CutoffID        *string         `gorm:"type:uuid"`
-	Date            *time.Time      `gorm:"type:date"`
 	OptionsSnapshot json.RawMessage `gorm:"type:jsonb;not null;default:'[]'"`
 	CreatedAt       time.Time       `gorm:"type:timestamptz;not null;default:now()"`
 	UpdatedAt       time.Time       `gorm:"type:timestamptz;not null;default:now()"`

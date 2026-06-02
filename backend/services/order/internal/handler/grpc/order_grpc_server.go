@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"time"
 
 	"project/services/order/internal/repository"
 	"project/services/order/internal/usecase"
@@ -39,19 +40,12 @@ func (s *OrderServiceServer) GetOrder(ctx context.Context, req *orderv1.GetOrder
 
 	protoItems := make([]*orderv1.OrderItemProto, len(order.Items))
 	for i, it := range order.Items {
-		pi := &orderv1.OrderItemProto{
-			MenuItemId:   it.MenuItemID,
-			NameSnapshot: it.NameSnapshot,
+		protoItems[i] = &orderv1.OrderItemProto{
+			MenuItemId:    it.MenuItemID,
+			NameSnapshot:  it.NameSnapshot,
 			PriceSnapshot: it.PriceSnapshot,
-			Qty:          int32(it.Qty),
+			Qty:           int32(it.Qty),
 		}
-		if it.CutoffID != nil {
-			pi.CutoffId = *it.CutoffID
-		}
-		if it.Date != nil {
-			pi.Date = it.Date.Format("2006-01-02")
-		}
-		protoItems[i] = pi
 	}
 
 	locationID := ""
@@ -61,6 +55,10 @@ func (s *OrderServiceServer) GetOrder(ctx context.Context, req *orderv1.GetOrder
 	pickupPin := ""
 	if order.PickupPin != nil {
 		pickupPin = *order.PickupPin
+	}
+	desiredTime := ""
+	if order.DesiredTime != nil {
+		desiredTime = order.DesiredTime.UTC().Format(time.RFC3339)
 	}
 
 	return &orderv1.GetOrderResponse{
@@ -79,7 +77,8 @@ func (s *OrderServiceServer) GetOrder(ctx context.Context, req *orderv1.GetOrder
 		Discount:      order.Discount,
 		GrandTotal:    order.GrandTotal,
 		PickupPin:     pickupPin,
-		PlacedAt:      order.PlacedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		PlacedAt:      order.PlacedAt.UTC().Format(time.RFC3339),
 		Items:         protoItems,
+		DesiredTime:   desiredTime,
 	}, nil
 }

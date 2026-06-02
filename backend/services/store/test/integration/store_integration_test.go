@@ -72,7 +72,6 @@ func setup(t *testing.T) *testEnv {
 	tables := []string{
 		"outbox_events",
 		"operating_hours_change_requests",
-		"ship_cutoffs",
 		"operating_hours",
 		"ship_fee_rules",
 		"menu_item_options",
@@ -80,7 +79,6 @@ func setup(t *testing.T) *testEnv {
 		"combos",
 		"options",
 		"option_groups",
-		"menu_item_slot_quotas",
 		"menu_items",
 		"categories",
 		"stores",
@@ -435,16 +433,11 @@ func TestOperatingHoursWorkflow(t *testing.T) {
 	storeID := dataID(t, w)
 
 	// Vendor submits an hours-change request using the structured payload format.
-	// Both operating_hours and ship_cutoffs are included; admin reviews and approves.
 	w = env.do(t, "POST", "/api/v1/stores/"+storeID+"/hours-change", `{
 		"payload": {
 			"operating_hours": [
 				{"weekday": 1, "open_time": "08:00", "close_time": "22:00"},
 				{"weekday": 2, "open_time": "09:00", "close_time": "21:00"}
-			],
-			"ship_cutoffs": [
-				{"cutoff_time": "11:00", "lead_minutes": 30},
-				{"cutoff_time": "17:00", "lead_minutes": 60}
 			],
 			"note": "new weekly schedule"
 		}
@@ -492,19 +485,7 @@ func TestOperatingHoursWorkflow(t *testing.T) {
 		t.Errorf("expected Monday open_time '08:00', got %q", monOpen)
 	}
 
-	// Verify the ship_cutoffs rows were actually applied to the store.
-	var scCount int64
-	env.db.Raw("SELECT COUNT(*) FROM ship_cutoffs WHERE store_id = ?", storeID).Scan(&scCount)
-	if scCount != 2 {
-		t.Errorf("expected 2 ship_cutoffs rows after approve, got %d", scCount)
-	}
-	var cutoffLeadMinutes int
-	env.db.Raw("SELECT lead_minutes FROM ship_cutoffs WHERE store_id = ? AND cutoff_time = '11:00'", storeID).Scan(&cutoffLeadMinutes)
-	if cutoffLeadMinutes != 30 {
-		t.Errorf("expected lead_minutes 30 for 11:00 cutoff, got %d", cutoffLeadMinutes)
-	}
-
-	// Verify the read endpoint returns the applied hours and cutoffs.
+	// Verify the read endpoint returns the applied hours.
 	w = env.do(t, "GET", "/api/v1/stores/"+storeID+"/hours", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("get store hours: %d — %s", w.Code, w.Body.String())
@@ -516,10 +497,6 @@ func TestOperatingHoursWorkflow(t *testing.T) {
 				OpenTime  string `json:"OpenTime"`
 				CloseTime string `json:"CloseTime"`
 			} `json:"operating_hours"`
-			ShipCutoffs []struct {
-				CutoffTime  string `json:"CutoffTime"`
-				LeadMinutes int    `json:"LeadMinutes"`
-			} `json:"ship_cutoffs"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &hoursResp); err != nil {
@@ -528,111 +505,30 @@ func TestOperatingHoursWorkflow(t *testing.T) {
 	if len(hoursResp.Data.OperatingHours) != 2 {
 		t.Errorf("expected 2 operating_hours in GET /hours response, got %d", len(hoursResp.Data.OperatingHours))
 	}
-	if len(hoursResp.Data.ShipCutoffs) != 2 {
-		t.Errorf("expected 2 ship_cutoffs in GET /hours response, got %d", len(hoursResp.Data.ShipCutoffs))
-	}
 }
 
-func TestMenuItemQuotaManagement(t *testing.T) {
+func TestStoreForOrderOpenNow(t *testing.T) {
 	env := setup(t)
 
-	// Setup: create store, category, menu item
-	w := env.do(t, "POST", "/api/v1/admin/stores", `{
-		"vendor_id":"aaaaaaaa-0008-0008-0008-000000000008",
-		"owner_user_id":"bbbbbbbb-0008-0008-0008-000000000008",
-		"name":"Quota Store"
-	}`)
-	if w.Code != http.StatusCreated {
-		t.Fatalf("create store: %d — %s", w.Code, w.Body.String())
-	}
-	storeID := dataID(t, w)
-
-	w = env.do(t, "POST", "/api/v1/stores/"+storeID+"/categories", `{
-		"name":"Dishes",
-		"sort_order":1
-	}`)
-	if w.Code != http.StatusCreated {
-		t.Fatalf("create category: %d — %s", w.Code, w.Body.String())
-	}
-	catID := dataID(t, w)
-
-	w = env.do(t, "POST", "/api/v1/stores/"+storeID+"/menu", `{
-		"category_id":"`+catID+`",
-		"name":"Special Pho",
-		"price":55000
-	}`)
-	if w.Code != http.StatusCreated {
-		t.Fatalf("create menu item: %d — %s", w.Code, w.Body.String())
-	}
-	itemID := dataID(t, w)
-
-	// Seed a ship cutoff directly — cutoff/hours changes go through the
-	// change-request → admin-approve flow which is tested separately.
-	// Here we need a cutoff row to reference in the quota, so we insert directly.
-	if err := env.db.Exec(
-		"INSERT INTO ship_cutoffs (store_id, cutoff_time, lead_minutes) VALUES (?, ?, ?)",
-		storeID, "12:00", 30,
-	).Error; err != nil {
-		t.Fatalf("seed ship cutoff: %v", err)
-	}
-	var cutoffID string
-	env.db.Raw("SELECT id FROM ship_cutoffs WHERE store_id = ? LIMIT 1", storeID).Scan(&cutoffID)
-	if cutoffID == "" {
-		t.Fatal("could not retrieve seeded cutoff ID")
-	}
-
-	// Set quota for today via the vendor quota route.
-	today := time.Now()
-	dateStr := today.Format("2006-01-02")
-
-	w = env.do(t, "POST", "/api/v1/stores/"+storeID+"/menu/"+itemID+"/quota", `{
-		"date":"`+dateStr+`",
-		"cutoff_id":"`+cutoffID+`",
-		"quota":10
-	}`)
-	if w.Code != http.StatusOK {
-		t.Fatalf("set quota: %d — %s", w.Code, w.Body.String())
-	}
-
-	// Verify in DB
-	var count int64
-	env.db.Raw("SELECT COUNT(*) FROM menu_item_slot_quotas WHERE menu_item_id = ? AND quota = ?", itemID, 10).Scan(&count)
-	if count != 1 {
-		t.Fatalf("expected 1 quota record in DB, got %d", count)
-	}
-}
-
-func TestStoreForOrderDeadlineComputation(t *testing.T) {
-	env := setup(t)
-
-	// Create a store (admin). vendor_id/owner must be valid UUIDs.
+	// Create a store.
 	w := env.do(t, "POST", "/api/v1/admin/stores", `{
 		"vendor_id":"11111111-1111-1111-1111-111111111111",
 		"owner_user_id":"22222222-2222-2222-2222-222222222222",
-		"name":"Deadline Store"
+		"name":"OpenNow Store"
 	}`)
 	storeID := dataID(t, w)
 	if storeID == "" {
 		t.Fatalf("create store failed: %d — %s", w.Code, w.Body.String())
 	}
 
-	// Cutoffs are applied via the admin-approved hours-change flow, so seed them
-	// directly to exercise the order-deadline computation in isolation.
-	for _, co := range []string{"11:00", "18:00"} {
-		if err := env.db.Exec(
-			"INSERT INTO ship_cutoffs (store_id, cutoff_time, lead_minutes) VALUES (?, ?, ?)",
-			storeID, co, 30,
-		).Error; err != nil {
-			t.Fatalf("seed cutoff %s: %v", co, err)
-		}
-	}
-
-	// GetStoreForOrder (the gRPC-facing usecase) computes the deadline.
+	// GetStoreForOrder (the gRPC-facing usecase) populates OpenNow / PrepMinutes.
+	hoursUC := usecase.NewHoursUsecase(env.db, persistence.NewShippingGormRepository(env.db), persistence.NewOutboxGormRepository(env.db))
 	uc := usecase.NewStoreForOrderUsecase(
 		persistence.NewStoreGormRepository(env.db),
 		persistence.NewCatalogGormRepository(env.db),
 		persistence.NewShippingGormRepository(env.db),
 		&stubLocationResolver{},
+		hoursUC,
 	)
 	res, err := uc.GetStoreForOrder(context.Background(), storeID, "ROOM", "")
 	if err != nil {
@@ -641,7 +537,12 @@ func TestStoreForOrderDeadlineComputation(t *testing.T) {
 	if !res.Found {
 		t.Fatal("expected store found")
 	}
-	if res.OrderDeadline == "" {
-		t.Error("expected OrderDeadline to be set from seeded cutoffs")
+	// No operating_hours seeded → OpenNow should be false (store has no hours configured).
+	if res.OpenNow {
+		t.Error("expected OpenNow=false when no operating_hours configured")
+	}
+	// PrepMinutes should be the entity default (15).
+	if res.PrepMinutes != 15 {
+		t.Errorf("expected PrepMinutes=15, got %d", res.PrepMinutes)
 	}
 }

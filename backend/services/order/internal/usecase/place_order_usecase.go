@@ -16,9 +16,9 @@ import (
 
 // PlaceOrderRequest is the input for the place-order saga.
 type PlaceOrderRequest struct {
-	CustomerID    string
-	StoreID       string
-	LocationID    string // empty for PICKUP
+	CustomerID string
+	StoreID    string
+	LocationID string // empty for PICKUP
 	// LocationLevel is the delivery granularity: "BUILDING" | "FLOOR" | "ROOM".
 	// Empty / absent ⇒ treated as "ROOM" for back-compat. Only used for DELIVERY.
 	LocationLevel string
@@ -26,14 +26,14 @@ type PlaceOrderRequest struct {
 	PaymentMethod entity.PaymentMethod
 	VoucherCodes  []string
 	Items         []PlaceOrderItem
+	// DesiredTime is the customer's requested receive time (RFC3339). Empty = ASAP.
+	DesiredTime string
 }
 
 // PlaceOrderItem is one line item from the customer.
 type PlaceOrderItem struct {
 	MenuItemID      string
 	Qty             int
-	CutoffID        string
-	Date            string // YYYY-MM-DD
 	OptionsSnapshot json.RawMessage
 }
 
@@ -79,21 +79,21 @@ func NewPlaceOrderUsecase(
 }
 
 // PlaceOrder executes the synchronous saga:
-//  1. Validate store (OPEN, deadline, served)
+//  1. Validate store (open-now gate, desired_time window)
 //  2. Resolve prices + ship_fee
 //  3. Apply promotions (gRPC)
-//  4. Decrement slot quota per item (gRPC)
-//  5. Capture payment (gRPC, WALLET/MOMO only)
-//  6. Persist order + items + history + outbox in one DB tx
+//  4. Capture payment (gRPC, WALLET/MOMO only)
+//  5. Persist order + items + history + outbox in one DB tx
 //
 // Compensation on any failure (in reverse order):
-// Payment.Refund → Promotion.ReleaseUsage → Store.RestoreSlotQuota
+// Payment.Refund → Promotion.ReleaseUsage
 func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderRequest) (*PlaceOrderResult, error) {
 	traceID := outbox.TraceIDFromCtx(ctx)
 
 	// ── Step 1: Validate store ────────────────────────────────────────────────
-	// Pass location_level alongside the location id so the store can resolve ship
-	// fee at the right granularity (BUILDING / FLOOR / ROOM).
+	if uc.storeClient == nil {
+		return nil, ErrStoreNotFound
+	}
 	storeInfo, err := uc.storeClient.GetStoreForOrder(ctx, req.StoreID, req.LocationID, req.LocationLevel)
 	if err != nil {
 		return nil, ErrStoreNotFound
@@ -101,38 +101,52 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 	if !storeInfo.Found {
 		return nil, ErrStoreNotFound
 	}
-	if storeInfo.SaleStatus != "OPEN" {
+	// Server-authoritative open-now gate: reject if store is not currently open.
+	if !storeInfo.OpenNow {
 		return nil, ErrStoreClosed
 	}
 	if req.Fulfillment == entity.FulfillmentDelivery && !storeInfo.Served {
 		return nil, ErrStoreNotServed
 	}
-	// storeInfo.OrderDeadline is "today's earliest cutoff − lead". It only gates
-	// same-day orders; a pre-order for a future date is bounded by the ≤7-day rule
-	// (Step 3), not by a cutoff that already passed today.
-	ordersForToday := false
-	todayStr := time.Now().Format("2006-01-02")
-	for _, ri := range req.Items {
-		if ri.Date == "" || ri.Date == todayStr {
-			ordersForToday = true
-			break
+
+	// ── Step 1b: Validate desired_time ────────────────────────────────────────
+	// Rules (server authoritative):
+	//   • If provided: must be today (local), >= now (grace: >= now, not now+prep),
+	//     and <= close_time today.
+	//   • If absent: treated as ASAP (null stored); no validation required.
+	var desiredTimePtr *time.Time
+	if req.DesiredTime != "" {
+		dt, parseErr := time.Parse(time.RFC3339, req.DesiredTime)
+		if parseErr != nil {
+			return nil, ErrDesiredTimePast // bad format ⇒ treat as invalid
 		}
-	}
-	if ordersForToday && storeInfo.OrderDeadline != "" {
-		deadline, parseErr := time.Parse(time.RFC3339, storeInfo.OrderDeadline)
-		if parseErr == nil && time.Now().UTC().After(deadline) {
-			return nil, ErrOrderDeadlinePassed
+		now := time.Now()
+
+		// Must be the same local calendar day.
+		if !isSameLocalDay(dt) {
+			return nil, ErrDesiredTimeNotToday
 		}
+
+		// Must not be before now (small grace: we allow equal-to-now).
+		if dt.Before(now) {
+			return nil, ErrDesiredTimePast
+		}
+
+		// Must not exceed today's close time (if known).
+		if storeInfo.CloseTimeToday != "" {
+			closeTime, ok := parseCloseTime(storeInfo.CloseTimeToday)
+			if ok && dt.After(closeTime) {
+				return nil, ErrDesiredTimeAfterClose
+			}
+		}
+
+		desiredTimePtr = &dt
 	}
 
 	// ── Step 2: Resolve prices + ship fee ─────────────────────────────────────
 	priceMap := make(map[string]grpcclient.StoreOrderItem, len(storeInfo.Items))
 	for _, it := range storeInfo.Items {
 		priceMap[it.ItemID] = it
-	}
-	cutoffByID := make(map[string]grpcclient.StoreCutoff, len(storeInfo.Cutoffs))
-	for _, c := range storeInfo.Cutoffs {
-		cutoffByID[c.ID] = c
 	}
 
 	var itemsTotal int64
@@ -150,40 +164,13 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 			opts = json.RawMessage("[]")
 		}
 
-		var datePtr *time.Time
-		if ri.Date != "" {
-			if t, parseErr := parseDate(ri.Date); parseErr == nil {
-				// Pre-order: enforce ≤ 7 days.
-				if t.After(time.Now().UTC().Add(7 * 24 * time.Hour)) {
-					return nil, ErrPreOrderTooFar
-				}
-				datePtr = &t
-			}
-		}
-
-		oi := &entity.OrderItem{
+		orderItems = append(orderItems, &entity.OrderItem{
 			MenuItemID:      ri.MenuItemID,
 			NameSnapshot:    storeItem.Name,
 			PriceSnapshot:   storeItem.Price,
 			Qty:             ri.Qty,
 			OptionsSnapshot: opts,
-		}
-		if ri.CutoffID != "" {
-			oi.CutoffID = strPtr(ri.CutoffID)
-		}
-		if datePtr != nil {
-			oi.Date = datePtr
-		}
-		// Snapshot the slot's actual cutoff deadline (date + cutoff_time − lead)
-		// so the cutoff scheduler only sweeps after the real cutoff passes.
-		if datePtr != nil && ri.CutoffID != "" {
-			if c, ok := cutoffByID[ri.CutoffID]; ok {
-				if dl, ok := slotDeadline(*datePtr, c.CutoffTime, c.LeadMinutes); ok {
-					oi.CutoffDeadline = &dl
-				}
-			}
-		}
-		orderItems = append(orderItems, oi)
+		})
 	}
 
 	// Ship fee: unit_fee × total_qty for DELIVERY; 0 for PICKUP.
@@ -224,36 +211,16 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		grandTotal = 0
 	}
 
-	// ── Step 4: Decrement slot quota per item ─────────────────────────────────
-	decremented := make([]PlaceOrderItem, 0, len(req.Items))
-	for _, ri := range req.Items {
-		if ri.CutoffID == "" || ri.Date == "" {
-			continue // no quota slot — skip
-		}
-		ok, qErr := uc.storeClient.DecrementSlotQuota(ctx, ri.MenuItemID, ri.CutoffID, ri.Date, ri.Qty)
-		if qErr != nil || !ok {
-			// Compensation: restore already-decremented slots.
-			uc.compensateQuota(ctx, decremented)
-			if len(req.VoucherCodes) > 0 && uc.promoClient != nil {
-				_ = uc.promoClient.ReleaseUsage(ctx, orderID)
-			}
-			return nil, ErrQuotaExceeded
-		}
-		decremented = append(decremented, ri)
-	}
-
-	// ── Step 5: Capture payment (WALLET/MOMO) ─────────────────────────────────
+	// ── Step 4: Capture payment (WALLET/MOMO) ─────────────────────────────────
 	var payURL string
-	// WALLET capture is synchronous: a CAPTURED result means the wallet was
-	// already debited, so the order is PAID immediately (no need to wait for the
-	// payment.captured event). MOMO returns PENDING + pay_url → stays UNPAID until
-	// the IPN-driven payment.captured event arrives. COD stays UNPAID until delivered.
+	// WALLET capture is synchronous: CAPTURED ⇒ debited immediately ⇒ PAID.
+	// MOMO returns PENDING + pay_url → stays UNPAID until payment.captured event.
+	// COD stays UNPAID until delivered.
 	paymentStatus := entity.PaymentUnpaid
 
 	if req.PaymentMethod != entity.MethodCOD && uc.paymentClient != nil {
 		capResult, capErr := uc.paymentClient.Capture(ctx, orderID, req.CustomerID, grandTotal, string(req.PaymentMethod))
 		if capErr != nil || capResult.Status == "FAILED" {
-			uc.compensateQuota(ctx, decremented)
 			if len(req.VoucherCodes) > 0 && uc.promoClient != nil {
 				_ = uc.promoClient.ReleaseUsage(ctx, orderID)
 			}
@@ -265,14 +232,13 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		}
 	}
 
-	// ── Step 6: Confirm promotion usages, then persist in one DB tx ───────────
+	// ── Step 5: Confirm promotion usages, then persist in one DB tx ───────────
 	if len(req.VoucherCodes) > 0 && uc.promoClient != nil {
 		if confErr := uc.promoClient.ConfirmUsage(ctx, orderID); confErr != nil {
 			slog.WarnContext(ctx, "place order: confirm usage failed — compensating", "err", confErr)
 			if req.PaymentMethod != entity.MethodCOD && uc.paymentClient != nil {
 				_ = uc.paymentClient.Refund(ctx, orderID, grandTotal)
 			}
-			uc.compensateQuota(ctx, decremented)
 			_ = uc.promoClient.ReleaseUsage(ctx, orderID)
 			return nil, ErrPromotionInvalid
 		}
@@ -281,17 +247,16 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 	codeDay := time.Now().UTC()
 	codeSeq, seqErr := uc.orderRepo.NextDailyCodeSeq(ctx, codeDay)
 	if seqErr != nil {
-		// Compensate saga steps — we cannot mint an order code.
 		if req.PaymentMethod != entity.MethodCOD && uc.paymentClient != nil {
 			_ = uc.paymentClient.Refund(ctx, orderID, grandTotal)
 		}
-		uc.compensateQuota(ctx, decremented)
 		if len(req.VoucherCodes) > 0 && uc.promoClient != nil {
 			_ = uc.promoClient.ReleaseUsage(ctx, orderID)
 		}
 		return nil, seqErr
 	}
 	code := buildOrderCode(codeDay, codeSeq)
+
 	var pickupPin *string
 	if req.Fulfillment == entity.FulfillmentPickup {
 		pin := generatePickupPIN()
@@ -312,6 +277,18 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		locationLevelPtr = strPtr(level)
 	}
 
+	// Resolve effective location level for event payloads.
+	effectiveLevel := req.LocationLevel
+	if effectiveLevel == "" {
+		effectiveLevel = "ROOM"
+	}
+
+	// desired_time in event payload: RFC3339 string or "" when ASAP.
+	desiredTimeStr := ""
+	if desiredTimePtr != nil {
+		desiredTimeStr = desiredTimePtr.UTC().Format(time.RFC3339)
+	}
+
 	order := &entity.Order{
 		ID:            orderID,
 		Code:          code,
@@ -329,26 +306,20 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		PaymentStatus: paymentStatus,
 		VoucherCodes:  codesJSON(req.VoucherCodes),
 		PickupPin:     pickupPin,
+		DesiredTime:   desiredTimePtr,
 		PlacedAt:      time.Now().UTC(),
 	}
 
-	// Build frozen order.placed payload (§2bis).
+	// Build frozen order.placed payload.
 	placedItems := make([]map[string]any, len(req.Items))
 	for i, ri := range req.Items {
 		storeItem := priceMap[ri.MenuItemID]
 		placedItems[i] = map[string]any{
 			"menu_item_id":   ri.MenuItemID,
-			"cutoff_id":      ri.CutoffID,
-			"date":           ri.Date,
 			"qty":            ri.Qty,
 			"name_snapshot":  storeItem.Name,
 			"price_snapshot": storeItem.Price,
 		}
-	}
-	// Resolve the effective location level for event payloads (default ROOM).
-	effectiveLevel := req.LocationLevel
-	if effectiveLevel == "" {
-		effectiveLevel = "ROOM"
 	}
 
 	placedPayload, _ := json.Marshal(map[string]any{
@@ -364,6 +335,7 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		"ship_fee":       shipFee,
 		"discount":       discount,
 		"grand_total":    grandTotal,
+		"desired_time":   desiredTimeStr,
 		"items":          placedItems,
 	})
 
@@ -386,11 +358,9 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		return uc.outboxRepo.Append(ctx, tx, outboxEvt)
 	})
 	if txErr != nil {
-		// Compensate all saga steps — order was not persisted.
 		if req.PaymentMethod != entity.MethodCOD && uc.paymentClient != nil {
 			_ = uc.paymentClient.Refund(ctx, orderID, grandTotal)
 		}
-		uc.compensateQuota(ctx, decremented)
 		if len(req.VoucherCodes) > 0 && uc.promoClient != nil {
 			_ = uc.promoClient.ReleaseUsage(ctx, orderID)
 		}
@@ -398,7 +368,9 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		return nil, txErr
 	}
 
-	slog.InfoContext(ctx, "order placed", "order_id", orderID, "code", code, "grand_total", grandTotal)
+	slog.InfoContext(ctx, "order placed",
+		"order_id", orderID, "code", code,
+		"grand_total", grandTotal, "desired_time", desiredTimeStr)
 	return &PlaceOrderResult{
 		OrderID:    orderID,
 		Code:       code,
@@ -407,22 +379,7 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 	}, nil
 }
 
-// compensateQuota restores slot quotas for all items that were successfully
-// decremented before a saga failure. Errors are logged but not returned —
-// this is a best-effort compensation; eventual consistency is acceptable here.
-func (uc *placeOrderUsecase) compensateQuota(ctx context.Context, decremented []PlaceOrderItem) {
-	for _, ri := range decremented {
-		if ri.CutoffID == "" || ri.Date == "" {
-			continue
-		}
-		if err := uc.storeClient.RestoreSlotQuota(ctx, ri.MenuItemID, ri.CutoffID, ri.Date, ri.Qty); err != nil {
-			slog.ErrorContext(ctx, "compensate: restore quota failed",
-				"menu_item_id", ri.MenuItemID, "err", err)
-		}
-	}
-}
-
-// apperrorPayment converts a payment capture error to a user-facing apperror.
+// apperrorPayment converts a payment capture error to a user-facing error.
 func apperrorPayment(err error) error {
 	if err != nil {
 		return err

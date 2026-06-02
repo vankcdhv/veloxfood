@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"project/services/store/internal/entity"
 
@@ -198,40 +199,6 @@ func TestHoursUsecase_DeleteOperatingHours(t *testing.T) {
 	}
 }
 
-func TestHoursUsecase_CreateShipCutoff(t *testing.T) {
-	ctx := context.Background()
-	storeID := "store-001"
-
-	mockShip := &mockShippingRepo{}
-	mockShip.createShipCutoffFn = func(_ context.Context, sc *entity.ShipCutoff) error {
-		if sc != nil {
-			sc.ID = "cutoff-001"
-		}
-		return nil
-	}
-
-	shippingRepo := &mockShippingRepoWithHours{
-		mockShippingRepo: mockShip,
-	}
-	outboxRepo := &mockOutboxRepo{}
-
-	uc := NewHoursUsecase(nil, shippingRepo, outboxRepo)
-	result, err := uc.CreateShipCutoff(ctx, storeID, "11:00", 30)
-
-	if err != nil {
-		t.Fatalf("CreateShipCutoff: %v", err)
-	}
-	if result.ID != "cutoff-001" {
-		t.Errorf("expected ID cutoff-001, got %s", result.ID)
-	}
-	if result.CutoffTime != "11:00" {
-		t.Errorf("expected CutoffTime 11:00, got %s", result.CutoffTime)
-	}
-	if result.LeadMinutes != 30 {
-		t.Errorf("expected LeadMinutes 30, got %d", result.LeadMinutes)
-	}
-}
-
 func TestHoursUsecase_SubmitHoursChange_CreatesRequest(t *testing.T) {
 	// This test exercises SubmitHoursChange which creates a pending request and appends an outbox event.
 	// Since it uses *gorm.DB for transaction, we verify the interface exists.
@@ -300,5 +267,123 @@ func TestHoursUsecase_ListChangeRequests(t *testing.T) {
 	}
 	if len(result) != 1 {
 		t.Errorf("expected 1 change request, got %d", len(result))
+	}
+}
+
+// ── IsOpenNow tests ───────────────────────────────────────────────────────────
+
+func makeHoursUCWithHours(hours []*entity.OperatingHours) HoursUsecase {
+	mockShip := &mockShippingRepo{}
+	mockShip.listOperatingHoursFn = func(_ context.Context, _ string) ([]*entity.OperatingHours, error) {
+		return hours, nil
+	}
+	return NewHoursUsecase(nil, &mockShippingRepoWithHours{mockShippingRepo: mockShip}, &mockOutboxRepo{})
+}
+
+// Monday = weekday 1 (time.Monday)
+func mondayAt(h, m int) time.Time {
+	// Find or construct a Monday
+	t := time.Date(2024, 1, 1, h, m, 0, 0, time.UTC) // 2024-01-01 is a Monday
+	return t
+}
+
+func TestIsOpenNow_OpenStatus_WithinHours(t *testing.T) {
+	hours := []*entity.OperatingHours{
+		{StoreID: "s1", Weekday: int16(time.Monday), OpenTime: "08:00", CloseTime: "22:00"},
+	}
+	uc := makeHoursUCWithHours(hours)
+	// 10:00 on Monday → within 08:00–22:00
+	res, err := uc.IsOpenNow(context.Background(), "s1", "OPEN", mondayAt(10, 0))
+	if err != nil {
+		t.Fatalf("IsOpenNow: %v", err)
+	}
+	if !res.OpenNow {
+		t.Error("expected OpenNow=true")
+	}
+	if res.OpenTimeToday != "08:00" {
+		t.Errorf("expected OpenTimeToday=08:00, got %s", res.OpenTimeToday)
+	}
+	if res.CloseTimeToday != "22:00" {
+		t.Errorf("expected CloseTimeToday=22:00, got %s", res.CloseTimeToday)
+	}
+}
+
+func TestIsOpenNow_OpenStatus_BeforeOpen(t *testing.T) {
+	hours := []*entity.OperatingHours{
+		{StoreID: "s1", Weekday: int16(time.Monday), OpenTime: "08:00", CloseTime: "22:00"},
+	}
+	uc := makeHoursUCWithHours(hours)
+	// 07:59 on Monday → before opening
+	res, err := uc.IsOpenNow(context.Background(), "s1", "OPEN", mondayAt(7, 59))
+	if err != nil {
+		t.Fatalf("IsOpenNow: %v", err)
+	}
+	if res.OpenNow {
+		t.Error("expected OpenNow=false before open time")
+	}
+	if res.OpenTimeToday != "08:00" {
+		t.Errorf("expected OpenTimeToday=08:00, got %s", res.OpenTimeToday)
+	}
+}
+
+func TestIsOpenNow_PausedStatus_WithinHours(t *testing.T) {
+	hours := []*entity.OperatingHours{
+		{StoreID: "s1", Weekday: int16(time.Monday), OpenTime: "08:00", CloseTime: "22:00"},
+	}
+	uc := makeHoursUCWithHours(hours)
+	// 10:00 but SaleStatus=PAUSED → not open
+	res, err := uc.IsOpenNow(context.Background(), "s1", "PAUSED", mondayAt(10, 0))
+	if err != nil {
+		t.Fatalf("IsOpenNow: %v", err)
+	}
+	if res.OpenNow {
+		t.Error("expected OpenNow=false when SaleStatus=PAUSED")
+	}
+	// But open/close times still reported for display
+	if res.OpenTimeToday != "08:00" {
+		t.Errorf("expected OpenTimeToday=08:00, got %s", res.OpenTimeToday)
+	}
+}
+
+func TestIsOpenNow_NoHoursForToday(t *testing.T) {
+	// No hours for Monday
+	hours := []*entity.OperatingHours{
+		{StoreID: "s1", Weekday: int16(time.Tuesday), OpenTime: "09:00", CloseTime: "21:00"},
+	}
+	uc := makeHoursUCWithHours(hours)
+	res, err := uc.IsOpenNow(context.Background(), "s1", "OPEN", mondayAt(10, 0))
+	if err != nil {
+		t.Fatalf("IsOpenNow: %v", err)
+	}
+	if res.OpenNow {
+		t.Error("expected OpenNow=false when no hours configured for today")
+	}
+	if res.OpenTimeToday != "" {
+		t.Errorf("expected empty OpenTimeToday, got %s", res.OpenTimeToday)
+	}
+}
+
+func TestIsOpenNow_ExactBoundaries(t *testing.T) {
+	hours := []*entity.OperatingHours{
+		{StoreID: "s1", Weekday: int16(time.Monday), OpenTime: "08:00", CloseTime: "22:00"},
+	}
+	uc := makeHoursUCWithHours(hours)
+
+	// At exactly open time (08:00)
+	res, err := uc.IsOpenNow(context.Background(), "s1", "OPEN", mondayAt(8, 0))
+	if err != nil {
+		t.Fatalf("IsOpenNow at open: %v", err)
+	}
+	if !res.OpenNow {
+		t.Error("expected OpenNow=true at exactly open time")
+	}
+
+	// At exactly close time (22:00)
+	res, err = uc.IsOpenNow(context.Background(), "s1", "OPEN", mondayAt(22, 0))
+	if err != nil {
+		t.Fatalf("IsOpenNow at close: %v", err)
+	}
+	if !res.OpenNow {
+		t.Error("expected OpenNow=true at exactly close time")
 	}
 }

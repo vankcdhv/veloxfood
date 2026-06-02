@@ -36,11 +36,6 @@ type OrderRepository interface {
 
 	// UpdatePaymentStatus sets order.payment_status.
 	UpdatePaymentStatus(ctx context.Context, tx *gorm.DB, orderID string, status entity.PaymentStatus) error
-
-	// FindReadyPastCutoff returns READY orders whose slot date+cutoff time has
-	// passed and for which no shipper has been assigned yet.
-	// Used by the cutoff scheduler (BR8).
-	FindReadyPastCutoff(ctx context.Context) ([]*entity.Order, error)
 }
 
 // OutboxRepository persists outbox events for the order service.

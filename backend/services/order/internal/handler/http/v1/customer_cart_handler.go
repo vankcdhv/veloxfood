@@ -51,8 +51,6 @@ func (h *CustomerCartHandler) AddOrUpdateItem(c *gin.Context) {
 		NameSnapshot    string          `json:"name_snapshot"`
 		PriceSnapshot   int64           `json:"price_snapshot"`
 		Qty             int             `json:"qty" binding:"required,min=1"`
-		CutoffID        string          `json:"cutoff_id"`
-		Date            string          `json:"date"`
 		OptionsSnapshot json.RawMessage `json:"options_snapshot"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -67,8 +65,6 @@ func (h *CustomerCartHandler) AddOrUpdateItem(c *gin.Context) {
 		NameSnapshot:    body.NameSnapshot,
 		PriceSnapshot:   body.PriceSnapshot,
 		Qty:             body.Qty,
-		CutoffID:        body.CutoffID,
-		Date:            body.Date,
 		OptionsSnapshot: body.OptionsSnapshot,
 	})
 	if err != nil {

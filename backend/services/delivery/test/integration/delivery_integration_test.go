@@ -111,14 +111,19 @@ func buildKafkaMsg(eventType string, data any) kafka.Message {
 }
 
 func orderReadyMsg(orderID, fulfillment string) kafka.Message {
+	return orderReadyMsgWithDesiredTime(orderID, fulfillment, "")
+}
+
+func orderReadyMsgWithDesiredTime(orderID, fulfillment, desiredTime string) kafka.Message {
 	return buildKafkaMsg("order.ready", map[string]any{
-		"order_id":    orderID,
-		"status":      "READY",
-		"store_id":    testStoreID,
-		"location_id": testLocationID,
-		"ship_fee":    int64(15000),
-		"fulfillment": fulfillment,
-		"customer_id": testCustomerID,
+		"order_id":     orderID,
+		"status":       "READY",
+		"store_id":     testStoreID,
+		"location_id":  testLocationID,
+		"ship_fee":     int64(15000),
+		"fulfillment":  fulfillment,
+		"customer_id":  testCustomerID,
+		"desired_time": desiredTime,
 	})
 }
 
@@ -349,11 +354,126 @@ func TestStatusTransition_WrongShipper(t *testing.T) {
 	}
 }
 
-// ── Tests: cutoff_reached and cancelled ───────────────────────────────────────
+// ── Tests: desired_time ────────────────────────────────────────────────────────
 
-// TestCutoffReached_SetsStoreDelivering verifies order.cutoff_reached moves
-// the AVAILABLE delivery to STORE_DELIVERING.
-func TestCutoffReached_SetsStoreDelivering(t *testing.T) {
+// TestOrderReady_WithDesiredTime_Stored verifies desired_time is persisted when provided.
+func TestOrderReady_WithDesiredTime_Stored(t *testing.T) {
+	env := setupEnv(t)
+	ctx := context.Background()
+
+	want := time.Now().UTC().Add(45 * time.Minute).Truncate(time.Second)
+	msg := orderReadyMsgWithDesiredTime(testOrderID, "DELIVERY", want.Format(time.RFC3339))
+	if err := env.orderHandler.HandleKafkaMessage(ctx, msg); err != nil {
+		t.Fatalf("handle order.ready: %v", err)
+	}
+
+	var got *time.Time
+	env.db.Raw("SELECT desired_time FROM deliveries WHERE order_id = ?", testOrderID).Scan(&got)
+	if got == nil {
+		t.Fatal("desired_time must be non-nil when provided")
+	}
+	if got.UTC().Truncate(time.Second) != want {
+		t.Errorf("desired_time: want %v, got %v", want, got.UTC().Truncate(time.Second))
+	}
+}
+
+// TestOrderReady_NoDesiredTime_NilStored verifies desired_time is nil when absent (ASAP).
+func TestOrderReady_NoDesiredTime_NilStored(t *testing.T) {
+	env := setupEnv(t)
+	ctx := context.Background()
+
+	if err := env.orderHandler.HandleKafkaMessage(ctx, orderReadyMsg(testOrderID, "DELIVERY")); err != nil {
+		t.Fatalf("handle order.ready: %v", err)
+	}
+
+	// Use sql.NullTime to distinguish DB NULL from zero time.
+	type nullRow struct {
+		DesiredTime *time.Time `gorm:"column:desired_time"`
+	}
+	var row nullRow
+	env.db.Raw("SELECT desired_time FROM deliveries WHERE order_id = ?", testOrderID).Scan(&row)
+	if row.DesiredTime != nil {
+		t.Errorf("desired_time must be nil for ASAP order, got %v", row.DesiredTime)
+	}
+}
+
+// TestLateByMinutes_DeliveredAfterDesiredTime verifies late_by_minutes computed correctly.
+func TestLateByMinutes_DeliveredAfterDesiredTime(t *testing.T) {
+	env := setupEnv(t)
+	ctx := context.Background()
+
+	desired := time.Now().UTC().Add(-30 * time.Minute) // 30 min ago was the desired time
+	msg := orderReadyMsgWithDesiredTime(testOrderID, "DELIVERY", desired.Format(time.RFC3339))
+	if err := env.orderHandler.HandleKafkaMessage(ctx, msg); err != nil {
+		t.Fatalf("order.ready: %v", err)
+	}
+	if _, err := env.deliveryUC.ClaimDelivery(ctx, testOrderID, testShipperID); err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	for _, s := range []entity.DeliveryStatus{
+		entity.DeliveryPickedUp,
+		entity.DeliveryDelivering,
+		entity.DeliveryDelivered,
+	} {
+		if err := env.deliveryUC.UpdateStatus(ctx, testOrderID, testShipperID, s); err != nil {
+			t.Fatalf("update to %s: %v", s, err)
+		}
+	}
+
+	result, err := env.deliveryUC.MyDeliveries(ctx, testShipperID)
+	if err != nil {
+		t.Fatalf("my deliveries: %v", err)
+	}
+	if len(result.Deliveries) != 1 {
+		t.Fatalf("want 1 delivery, got %d", len(result.Deliveries))
+	}
+	d := result.Deliveries[0]
+	if d.LateByMinutes <= 0 {
+		t.Errorf("want late_by_minutes > 0 (delivered ~30min late), got %d", d.LateByMinutes)
+	}
+	if d.DesiredTime == "" {
+		t.Error("desired_time must be non-empty in response")
+	}
+}
+
+// TestLateByMinutes_EarlyDelivery verifies late_by_minutes is 0 when delivered before desired.
+func TestLateByMinutes_EarlyDelivery(t *testing.T) {
+	env := setupEnv(t)
+	ctx := context.Background()
+
+	desired := time.Now().UTC().Add(60 * time.Minute) // 60 min in future
+	msg := orderReadyMsgWithDesiredTime(testOrderID, "DELIVERY", desired.Format(time.RFC3339))
+	if err := env.orderHandler.HandleKafkaMessage(ctx, msg); err != nil {
+		t.Fatalf("order.ready: %v", err)
+	}
+	if _, err := env.deliveryUC.ClaimDelivery(ctx, testOrderID, testShipperID); err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	for _, s := range []entity.DeliveryStatus{
+		entity.DeliveryPickedUp,
+		entity.DeliveryDelivering,
+		entity.DeliveryDelivered,
+	} {
+		if err := env.deliveryUC.UpdateStatus(ctx, testOrderID, testShipperID, s); err != nil {
+			t.Fatalf("update to %s: %v", s, err)
+		}
+	}
+
+	result, err := env.deliveryUC.MyDeliveries(ctx, testShipperID)
+	if err != nil {
+		t.Fatalf("my deliveries: %v", err)
+	}
+	if len(result.Deliveries) != 1 {
+		t.Fatalf("want 1 delivery, got %d", len(result.Deliveries))
+	}
+	if result.Deliveries[0].LateByMinutes != 0 {
+		t.Errorf("early delivery: want late_by_minutes=0, got %d", result.Deliveries[0].LateByMinutes)
+	}
+}
+
+// TestUnhandledEvent_CutoffReached_IsIgnored verifies the removed cutoff_reached event
+// is gracefully ignored (no error, no state change).
+func TestUnhandledEvent_CutoffReached_IsIgnored(t *testing.T) {
 	env := setupEnv(t)
 	ctx := context.Background()
 
@@ -366,15 +486,18 @@ func TestCutoffReached_SetsStoreDelivering(t *testing.T) {
 		"store_id": testStoreID,
 	})
 	if err := env.orderHandler.HandleKafkaMessage(ctx, msg); err != nil {
-		t.Fatalf("order.cutoff_reached: %v", err)
+		t.Fatalf("cutoff_reached must not return error, got: %v", err)
 	}
 
+	// Delivery must remain AVAILABLE — cutoff_reached no longer mutates state.
 	var status string
 	env.db.Raw("SELECT status FROM deliveries WHERE order_id = ?", testOrderID).Scan(&status)
-	if status != "STORE_DELIVERING" {
-		t.Errorf("want STORE_DELIVERING, got %q", status)
+	if status != "AVAILABLE" {
+		t.Errorf("want AVAILABLE (cutoff_reached ignored), got %q", status)
 	}
 }
+
+// ── Tests: cancelled ──────────────────────────────────────────────────────────
 
 // TestOrderCancelled_CancelsDelivery verifies order.cancelled sets delivery CANCELLED.
 func TestOrderCancelled_CancelsDelivery(t *testing.T) {

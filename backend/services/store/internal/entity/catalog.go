@@ -39,21 +39,6 @@ type MenuItem struct {
 
 func (MenuItem) TableName() string { return "menu_items" }
 
-// MenuItemSlotQuota tracks per-(item × cutoff × date) quota and sold count.
-// Unique on (menu_item_id, date, cutoff_id).
-type MenuItemSlotQuota struct {
-	ID         string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	MenuItemID string    `gorm:"type:uuid;not null;uniqueIndex:uq_slot_quota,composite:menu_item_id_date_cutoff"`
-	Date       time.Time `gorm:"type:date;not null;uniqueIndex:uq_slot_quota,composite:menu_item_id_date_cutoff"`
-	CutoffID   string    `gorm:"type:uuid;not null;uniqueIndex:uq_slot_quota,composite:menu_item_id_date_cutoff"`
-	Quota      int       `gorm:"not null"`
-	SoldCount  int       `gorm:"not null;default:0"`
-	CreatedAt  time.Time `gorm:"type:timestamptz;not null;default:now()"`
-	UpdatedAt  time.Time `gorm:"type:timestamptz;not null;default:now()"`
-}
-
-func (MenuItemSlotQuota) TableName() string { return "menu_item_slot_quotas" }
-
 // OptionGroup defines a topping/size selector attached to a store.
 type OptionGroup struct {
 	ID        string         `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
