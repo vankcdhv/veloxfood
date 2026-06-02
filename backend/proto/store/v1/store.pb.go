@@ -84,9 +84,14 @@ func (x *OrderItem) GetPrice() int64 {
 
 // GetStoreForOrderRequest is called by the order service before placing an order.
 type GetStoreForOrderRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	StoreId       string                 `protobuf:"bytes,1,opt,name=store_id,json=storeId,proto3" json:"store_id,omitempty"`
-	RoomId        string                 `protobuf:"bytes,2,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	StoreId string                 `protobuf:"bytes,1,opt,name=store_id,json=storeId,proto3" json:"store_id,omitempty"`
+	// room_id carries the delivery location id at the level given by location_level
+	// (room id for ROOM, floor id for FLOOR, building id for BUILDING). Empty for PICKUP.
+	// Field kept named room_id for backward compatibility.
+	RoomId string `protobuf:"bytes,2,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	// location_level: "ROOM" | "FLOOR" | "BUILDING". Empty ⇒ treated as ROOM.
+	LocationLevel string `protobuf:"bytes,3,opt,name=location_level,json=locationLevel,proto3" json:"location_level,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -131,6 +136,13 @@ func (x *GetStoreForOrderRequest) GetStoreId() string {
 func (x *GetStoreForOrderRequest) GetRoomId() string {
 	if x != nil {
 		return x.RoomId
+	}
+	return ""
+}
+
+func (x *GetStoreForOrderRequest) GetLocationLevel() string {
+	if x != nil {
+		return x.LocationLevel
 	}
 	return ""
 }
@@ -645,10 +657,11 @@ const file_proto_store_v1_store_proto_rawDesc = "" +
 	"\tOrderItem\x12\x17\n" +
 	"\aitem_id\x18\x01 \x01(\tR\x06itemId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
-	"\x05price\x18\x03 \x01(\x03R\x05price\"M\n" +
+	"\x05price\x18\x03 \x01(\x03R\x05price\"t\n" +
 	"\x17GetStoreForOrderRequest\x12\x19\n" +
 	"\bstore_id\x18\x01 \x01(\tR\astoreId\x12\x17\n" +
-	"\aroom_id\x18\x02 \x01(\tR\x06roomId\"`\n" +
+	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12%\n" +
+	"\x0elocation_level\x18\x03 \x01(\tR\rlocationLevel\"`\n" +
 	"\n" +
 	"CutoffInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +

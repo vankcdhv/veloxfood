@@ -89,14 +89,27 @@ func (h *StoreBrowseHandler) ListCategories(c *gin.Context) {
 	response.Success(c, cats)
 }
 
-// GetShipFee GET /api/v1/stores/:id/ship-fee?room_id=
+// GetShipFee GET /api/v1/stores/:id/ship-fee?level=<BUILDING|FLOOR|ROOM>&location_id=<id>
+// Back-compat: if "level" is absent, falls back to "room_id" query param treated as ROOM.
 func (h *StoreBrowseHandler) GetShipFee(c *gin.Context) {
-	roomID := c.Query("room_id")
-	if roomID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "room_id is required"})
+	level := c.Query("level")
+	locationID := c.Query("location_id")
+
+	// Backward compatibility: legacy callers pass room_id without level.
+	if locationID == "" && level == "" {
+		locationID = c.Query("room_id")
+		level = "ROOM"
+	}
+
+	if locationID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "location_id (or room_id) is required"})
 		return
 	}
-	fee, err := h.shipFeeUC.ResolveFee(c.Request.Context(), c.Param("id"), roomID)
+	if level == "" {
+		level = "ROOM"
+	}
+
+	fee, err := h.shipFeeUC.ResolveFee(c.Request.Context(), c.Param("id"), level, locationID)
 	if err != nil {
 		response.HandleError(c, err)
 		return

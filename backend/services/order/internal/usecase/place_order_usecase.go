@@ -19,6 +19,9 @@ type PlaceOrderRequest struct {
 	CustomerID    string
 	StoreID       string
 	LocationID    string // empty for PICKUP
+	// LocationLevel is the delivery granularity: "BUILDING" | "FLOOR" | "ROOM".
+	// Empty / absent ⇒ treated as "ROOM" for back-compat. Only used for DELIVERY.
+	LocationLevel string
 	Fulfillment   entity.Fulfillment
 	PaymentMethod entity.PaymentMethod
 	VoucherCodes  []string
@@ -89,8 +92,9 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 	traceID := outbox.TraceIDFromCtx(ctx)
 
 	// ── Step 1: Validate store ────────────────────────────────────────────────
-	roomID := req.LocationID
-	storeInfo, err := uc.storeClient.GetStoreForOrder(ctx, req.StoreID, roomID)
+	// Pass location_level alongside the location id so the store can resolve ship
+	// fee at the right granularity (BUILDING / FLOOR / ROOM).
+	storeInfo, err := uc.storeClient.GetStoreForOrder(ctx, req.StoreID, req.LocationID, req.LocationLevel)
 	if err != nil {
 		return nil, ErrStoreNotFound
 	}
@@ -295,8 +299,17 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 	}
 
 	var locationIDPtr *string
-	if req.LocationID != "" && req.Fulfillment == entity.FulfillmentDelivery {
-		locationIDPtr = strPtr(req.LocationID)
+	var locationLevelPtr *string
+	if req.Fulfillment == entity.FulfillmentDelivery {
+		if req.LocationID != "" {
+			locationIDPtr = strPtr(req.LocationID)
+		}
+		// Default to ROOM when level is absent (back-compat with old clients).
+		level := req.LocationLevel
+		if level == "" {
+			level = "ROOM"
+		}
+		locationLevelPtr = strPtr(level)
 	}
 
 	order := &entity.Order{
@@ -305,6 +318,7 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		CustomerID:    req.CustomerID,
 		StoreID:       req.StoreID,
 		LocationID:    locationIDPtr,
+		LocationLevel: locationLevelPtr,
 		Fulfillment:   req.Fulfillment,
 		Status:        entity.StatusPending,
 		ItemsTotal:    itemsTotal,
@@ -331,12 +345,19 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 			"price_snapshot": storeItem.Price,
 		}
 	}
+	// Resolve the effective location level for event payloads (default ROOM).
+	effectiveLevel := req.LocationLevel
+	if effectiveLevel == "" {
+		effectiveLevel = "ROOM"
+	}
+
 	placedPayload, _ := json.Marshal(map[string]any{
 		"order_id":       orderID,
 		"code":           code,
 		"customer_id":    req.CustomerID,
 		"store_id":       req.StoreID,
 		"location_id":    req.LocationID,
+		"location_level": effectiveLevel,
 		"fulfillment":    string(req.Fulfillment),
 		"payment_method": string(req.PaymentMethod),
 		"items_total":    itemsTotal,

@@ -17,6 +17,17 @@ type ResolvedRoom struct {
 	Building *entity.Building
 }
 
+// ResolvedFloor is the floor + parent building path (for gRPC consumers).
+type ResolvedFloor struct {
+	Floor    *entity.Floor
+	Building *entity.Building
+}
+
+// ResolvedBuilding is the building path (for gRPC consumers).
+type ResolvedBuilding struct {
+	Building *entity.Building
+}
+
 // LocationUsecase covers admin tree management + public browse + room resolve.
 type LocationUsecase interface {
 	// Buildings
@@ -36,6 +47,8 @@ type LocationUsecase interface {
 	DeleteRoom(ctx context.Context, id string) error
 	// Resolve (gRPC)
 	ResolveRoom(ctx context.Context, roomID string) (*ResolvedRoom, error)
+	ResolveFloor(ctx context.Context, floorID string) (*ResolvedFloor, error)
+	ResolveBuilding(ctx context.Context, buildingID string) (*ResolvedBuilding, error)
 }
 
 type locationUsecase struct {
@@ -181,6 +194,36 @@ func (uc *locationUsecase) ResolveRoom(ctx context.Context, roomID string) (*Res
 		return nil, mapNotFound(err, ErrBuildingNotFound)
 	}
 	return &ResolvedRoom{Room: room, Floor: floor, Building: building}, nil
+}
+
+// ResolveFloor loads a floor and its parent building. Returns ErrFloorNotFound
+// (not an error) when the floor does not exist — callers check found flag.
+func (uc *locationUsecase) ResolveFloor(ctx context.Context, floorID string) (*ResolvedFloor, error) {
+	if floorID == "" {
+		return nil, ErrFloorIDRequired
+	}
+	floor, err := uc.repo.GetFloor(ctx, floorID)
+	if err != nil {
+		return nil, mapNotFound(err, ErrFloorNotFound)
+	}
+	building, err := uc.repo.GetBuilding(ctx, floor.BuildingID)
+	if err != nil {
+		return nil, mapNotFound(err, ErrBuildingNotFound)
+	}
+	return &ResolvedFloor{Floor: floor, Building: building}, nil
+}
+
+// ResolveBuilding loads a building by ID. Returns ErrBuildingNotFound (not an
+// error) when the building does not exist — callers check found flag.
+func (uc *locationUsecase) ResolveBuilding(ctx context.Context, buildingID string) (*ResolvedBuilding, error) {
+	if buildingID == "" {
+		return nil, ErrBuildingIDRequired
+	}
+	building, err := uc.repo.GetBuilding(ctx, buildingID)
+	if err != nil {
+		return nil, mapNotFound(err, ErrBuildingNotFound)
+	}
+	return &ResolvedBuilding{Building: building}, nil
 }
 
 func mapNotFound(err, notFound error) error {

@@ -58,16 +58,18 @@ func (h *OrderEventHandler) HandleKafkaMessage(ctx context.Context, msg kafka.Me
 	return nil
 }
 
-// orderReadyData is the enriched order.ready payload (§2bis frozen contract).
+// orderReadyData is the enriched order.ready payload (frozen contract).
 type orderReadyData struct {
-	OrderID     string `json:"order_id"`
-	Code        string `json:"code"`
-	Status      string `json:"status"`
-	StoreID     string `json:"store_id"`
-	LocationID  string `json:"location_id"`
-	ShipFee     int64  `json:"ship_fee"`
-	Fulfillment string `json:"fulfillment"`
-	CustomerID  string `json:"customer_id"`
+	OrderID       string `json:"order_id"`
+	Code          string `json:"code"`
+	Status        string `json:"status"`
+	StoreID       string `json:"store_id"`
+	LocationID    string `json:"location_id"`
+	// LocationLevel is "BUILDING" | "FLOOR" | "ROOM". Empty ⇒ ROOM for back-compat.
+	LocationLevel string `json:"location_level"`
+	ShipFee       int64  `json:"ship_fee"`
+	Fulfillment   string `json:"fulfillment"`
+	CustomerID    string `json:"customer_id"`
 }
 
 func (h *OrderEventHandler) handleOrderReady(ctx context.Context, env outbox.Envelope) error {
@@ -97,14 +99,21 @@ func (h *OrderEventHandler) handleOrderReady(ctx context.Context, env outbox.Env
 			return nil // idempotent
 		}
 
+		// Default to ROOM for orders placed before location_level was introduced.
+		locationLevel := data.LocationLevel
+		if locationLevel == "" {
+			locationLevel = "ROOM"
+		}
+
 		d := &entity.Delivery{
-			OrderID:    data.OrderID,
-			OrderCode:  data.Code,
-			StoreID:    data.StoreID,
-			LocationID: data.LocationID,
-			CustomerID: data.CustomerID,
-			ShipFee:    data.ShipFee,
-			Status:     entity.DeliveryAvailable,
+			OrderID:       data.OrderID,
+			OrderCode:     data.Code,
+			StoreID:       data.StoreID,
+			LocationID:    data.LocationID,
+			LocationLevel: locationLevel,
+			CustomerID:    data.CustomerID,
+			ShipFee:       data.ShipFee,
+			Status:        entity.DeliveryAvailable,
 		}
 		if err := h.deliveryRepo.Create(ctx, tx, d); err != nil {
 			slog.ErrorContext(ctx, "delivery: order.ready: create delivery failed",

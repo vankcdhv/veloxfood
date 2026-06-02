@@ -18,7 +18,7 @@ type mockShippingRepo struct {
 	listShipFeeRulesFn     func(ctx context.Context, storeID string) ([]*entity.ShipFeeRule, error)
 	updateShipFeeRuleFn    func(ctx context.Context, r *entity.ShipFeeRule) error
 	deleteShipFeeRuleFn    func(ctx context.Context, id string) error
-	resolveShipFeeFn       func(ctx context.Context, storeID, buildingID, roomID string) (*entity.ShipFeeRule, error)
+	resolveShipFeeFn       func(ctx context.Context, storeID string, scopes, ids []string) (*entity.ShipFeeRule, error)
 	createOperatingHoursFn func(ctx context.Context, oh *entity.OperatingHours) error
 	getOperatingHoursFn    func(ctx context.Context, id string) (*entity.OperatingHours, error)
 	listOperatingHoursFn   func(ctx context.Context, storeID string) ([]*entity.OperatingHours, error)
@@ -69,9 +69,9 @@ func (m *mockShippingRepo) DeleteShipFeeRule(ctx context.Context, id string) err
 	return nil
 }
 
-func (m *mockShippingRepo) ResolveShipFee(ctx context.Context, storeID, buildingID, roomID string) (*entity.ShipFeeRule, error) {
+func (m *mockShippingRepo) ResolveShipFee(ctx context.Context, storeID string, scopes, ids []string) (*entity.ShipFeeRule, error) {
 	if m.resolveShipFeeFn != nil {
-		return m.resolveShipFeeFn(ctx, storeID, buildingID, roomID)
+		return m.resolveShipFeeFn(ctx, storeID, scopes, ids)
 	}
 	return nil, errors.New("not implemented")
 }
@@ -192,174 +192,470 @@ func (m *mockShippingRepo) BulkCreateShipCutoffs(_ context.Context, _ *gorm.DB, 
 	return nil
 }
 
-type mockRoomResolver struct {
-	getRoomFn func(ctx context.Context, roomID string) (buildingID string, found bool, err error)
+// mockLocationResolver implements usecase.LocationResolver.
+type mockLocationResolver struct {
+	getRoomFn     func(ctx context.Context, roomID string) (floorID, buildingID string, found bool, err error)
+	getFloorFn    func(ctx context.Context, floorID string) (buildingID string, found bool, err error)
+	getBuildingFn func(ctx context.Context, buildingID string) (found bool, err error)
 }
 
-func (m *mockRoomResolver) GetRoom(ctx context.Context, roomID string) (string, bool, error) {
+func (m *mockLocationResolver) GetRoom(ctx context.Context, roomID string) (floorID, buildingID string, found bool, err error) {
 	if m.getRoomFn != nil {
 		return m.getRoomFn(ctx, roomID)
+	}
+	return "", "", false, errors.New("not implemented")
+}
+
+func (m *mockLocationResolver) GetFloor(ctx context.Context, floorID string) (buildingID string, found bool, err error) {
+	if m.getFloorFn != nil {
+		return m.getFloorFn(ctx, floorID)
 	}
 	return "", false, errors.New("not implemented")
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+func (m *mockLocationResolver) GetBuilding(ctx context.Context, buildingID string) (found bool, err error) {
+	if m.getBuildingFn != nil {
+		return m.getBuildingFn(ctx, buildingID)
+	}
+	return false, errors.New("not implemented")
+}
 
-func TestShipFeeUsecase_ResolveFee_RoomRuleBeatsBuilding(t *testing.T) {
+// ── Helper: cascade priority tracker ─────────────────────────────────────────
+
+// firstMatchResolver simulates the repo returning the first candidate that
+// matches one of the provided (scope,id) pairs — mirrors persistence logic.
+func firstMatchRule(rules map[string]*entity.ShipFeeRule) func(ctx context.Context, storeID string, scopes, ids []string) (*entity.ShipFeeRule, error) {
+	return func(_ context.Context, _ string, scopes, ids []string) (*entity.ShipFeeRule, error) {
+		for i := range scopes {
+			key := scopes[i] + ":" + ids[i]
+			if r, ok := rules[key]; ok {
+				return r, nil
+			}
+		}
+		return nil, nil
+	}
+}
+
+// ── Tests: ResolveFee (3-level cascade) ───────────────────────────────────────
+
+func TestResolveFee_Room_RoomRuleWins(t *testing.T) {
 	ctx := context.Background()
 	storeID := "store-001"
-	roomID := "room-001"
-	buildingID := "building-001"
+	roomID, floorID, buildingID := "room-1", "floor-1", "building-1"
 
-	shippingRepo := &mockShippingRepo{
-		resolveShipFeeFn: func(_ context.Context, s, b, r string) (*entity.ShipFeeRule, error) {
-			// Simulate room rule exists (preferred over building)
-			if r == roomID {
-				return &entity.ShipFeeRule{ID: "rule-room", Scope: "room", RefID: roomID, UnitFee: 5000}, nil
-			}
-			return nil, nil
-		},
+	rules := map[string]*entity.ShipFeeRule{
+		"room:room-1":         {Scope: "room", RefID: roomID, UnitFee: 5000},
+		"building:building-1": {Scope: "building", RefID: buildingID, UnitFee: 15000},
 	}
-	roomResolver := &mockRoomResolver{
-		getRoomFn: func(_ context.Context, _ string) (string, bool, error) {
-			return buildingID, true, nil
+	repo := &mockShippingRepo{resolveShipFeeFn: firstMatchRule(rules)}
+	resolver := &mockLocationResolver{
+		getRoomFn: func(_ context.Context, _ string) (string, string, bool, error) {
+			return floorID, buildingID, true, nil
 		},
 	}
 
-	uc := NewShipFeeUsecase(shippingRepo, roomResolver)
-	fee, err := uc.ResolveFee(ctx, storeID, roomID)
-
+	uc := NewShipFeeUsecase(repo, resolver)
+	fee, err := uc.ResolveFee(ctx, storeID, "ROOM", roomID)
 	if err != nil {
-		t.Fatalf("ResolveFee: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if fee != 5000 {
-		t.Errorf("expected fee 5000, got %d", fee)
+		t.Errorf("expected room fee 5000, got %d", fee)
 	}
 }
 
-func TestShipFeeUsecase_ResolveFee_BuildingRuleWhenNoRoom(t *testing.T) {
+func TestResolveFee_Room_FloorRuleFallback(t *testing.T) {
 	ctx := context.Background()
 	storeID := "store-001"
-	roomID := "room-001"
-	buildingID := "building-001"
+	roomID, floorID, buildingID := "room-1", "floor-1", "building-1"
 
-	shippingRepo := &mockShippingRepo{
-		resolveShipFeeFn: func(_ context.Context, s, b, r string) (*entity.ShipFeeRule, error) {
-			// Only building rule exists
-			if b == buildingID {
-				return &entity.ShipFeeRule{ID: "rule-building", Scope: "building", RefID: buildingID, UnitFee: 3000}, nil
-			}
-			return nil, nil
-		},
+	rules := map[string]*entity.ShipFeeRule{
+		"floor:floor-1":       {Scope: "floor", RefID: floorID, UnitFee: 10000},
+		"building:building-1": {Scope: "building", RefID: buildingID, UnitFee: 15000},
 	}
-	roomResolver := &mockRoomResolver{
-		getRoomFn: func(_ context.Context, _ string) (string, bool, error) {
-			return buildingID, true, nil
+	repo := &mockShippingRepo{resolveShipFeeFn: firstMatchRule(rules)}
+	resolver := &mockLocationResolver{
+		getRoomFn: func(_ context.Context, _ string) (string, string, bool, error) {
+			return floorID, buildingID, true, nil
 		},
 	}
 
-	uc := NewShipFeeUsecase(shippingRepo, roomResolver)
-	fee, err := uc.ResolveFee(ctx, storeID, roomID)
-
+	uc := NewShipFeeUsecase(repo, resolver)
+	fee, err := uc.ResolveFee(ctx, storeID, "ROOM", roomID)
 	if err != nil {
-		t.Fatalf("ResolveFee: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if fee != 3000 {
-		t.Errorf("expected fee 3000, got %d", fee)
+	if fee != 10000 {
+		t.Errorf("expected floor fee 10000, got %d", fee)
 	}
 }
 
-func TestShipFeeUsecase_ResolveFee_NotServed(t *testing.T) {
+func TestResolveFee_Room_BuildingRuleFallback(t *testing.T) {
 	ctx := context.Background()
 	storeID := "store-001"
-	roomID := "room-001"
-	buildingID := "building-001"
+	roomID, floorID, buildingID := "room-1", "floor-1", "building-1"
 
-	shippingRepo := &mockShippingRepo{
-		resolveShipFeeFn: func(_ context.Context, s, b, r string) (*entity.ShipFeeRule, error) {
-			// No matching rule
-			return nil, nil
+	rules := map[string]*entity.ShipFeeRule{
+		"building:building-1": {Scope: "building", RefID: buildingID, UnitFee: 15000},
+	}
+	repo := &mockShippingRepo{resolveShipFeeFn: firstMatchRule(rules)}
+	resolver := &mockLocationResolver{
+		getRoomFn: func(_ context.Context, _ string) (string, string, bool, error) {
+			return floorID, buildingID, true, nil
 		},
 	}
-	roomResolver := &mockRoomResolver{
-		getRoomFn: func(_ context.Context, _ string) (string, bool, error) {
+
+	uc := NewShipFeeUsecase(repo, resolver)
+	fee, err := uc.ResolveFee(ctx, storeID, "ROOM", roomID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fee != 15000 {
+		t.Errorf("expected building fee 15000, got %d", fee)
+	}
+}
+
+func TestResolveFee_Floor_FloorRuleWins(t *testing.T) {
+	ctx := context.Background()
+	storeID := "store-001"
+	floorID, buildingID := "floor-1", "building-1"
+
+	rules := map[string]*entity.ShipFeeRule{
+		"floor:floor-1":       {Scope: "floor", RefID: floorID, UnitFee: 10000},
+		"building:building-1": {Scope: "building", RefID: buildingID, UnitFee: 15000},
+	}
+	repo := &mockShippingRepo{resolveShipFeeFn: firstMatchRule(rules)}
+	resolver := &mockLocationResolver{
+		getFloorFn: func(_ context.Context, _ string) (string, bool, error) {
 			return buildingID, true, nil
 		},
 	}
 
-	uc := NewShipFeeUsecase(shippingRepo, roomResolver)
-	_, err := uc.ResolveFee(ctx, storeID, roomID)
-
-	if !errors.Is(err, ErrLocationNotServed) {
-		t.Errorf("expected ErrLocationNotServed, got %v", err)
+	uc := NewShipFeeUsecase(repo, resolver)
+	fee, err := uc.ResolveFee(ctx, storeID, "FLOOR", floorID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fee != 10000 {
+		t.Errorf("expected floor fee 10000, got %d", fee)
 	}
 }
 
-func TestShipFeeUsecase_ResolveFee_RoomNotFound(t *testing.T) {
+func TestResolveFee_Floor_BuildingRuleFallback(t *testing.T) {
 	ctx := context.Background()
 	storeID := "store-001"
-	roomID := "room-unknown"
+	floorID, buildingID := "floor-1", "building-1"
 
-	shippingRepo := &mockShippingRepo{}
-	roomResolver := &mockRoomResolver{
-		getRoomFn: func(_ context.Context, _ string) (string, bool, error) {
-			return "", false, nil // room not found
+	rules := map[string]*entity.ShipFeeRule{
+		"building:building-1": {Scope: "building", RefID: buildingID, UnitFee: 15000},
+	}
+	repo := &mockShippingRepo{resolveShipFeeFn: firstMatchRule(rules)}
+	resolver := &mockLocationResolver{
+		getFloorFn: func(_ context.Context, _ string) (string, bool, error) {
+			return buildingID, true, nil
 		},
 	}
 
-	uc := NewShipFeeUsecase(shippingRepo, roomResolver)
-	_, err := uc.ResolveFee(ctx, storeID, roomID)
+	uc := NewShipFeeUsecase(repo, resolver)
+	fee, err := uc.ResolveFee(ctx, storeID, "FLOOR", floorID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fee != 15000 {
+		t.Errorf("expected building fee 15000, got %d", fee)
+	}
+}
 
+func TestResolveFee_Building_DirectRule(t *testing.T) {
+	ctx := context.Background()
+	storeID := "store-001"
+	buildingID := "building-1"
+
+	rules := map[string]*entity.ShipFeeRule{
+		"building:building-1": {Scope: "building", RefID: buildingID, UnitFee: 15000},
+	}
+	repo := &mockShippingRepo{resolveShipFeeFn: firstMatchRule(rules)}
+	resolver := &mockLocationResolver{
+		getBuildingFn: func(_ context.Context, _ string) (bool, error) {
+			return true, nil
+		},
+	}
+
+	uc := NewShipFeeUsecase(repo, resolver)
+	fee, err := uc.ResolveFee(ctx, storeID, "BUILDING", buildingID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fee != 15000 {
+		t.Errorf("expected 15000, got %d", fee)
+	}
+}
+
+func TestResolveFee_ZeroFeeIsValid(t *testing.T) {
+	ctx := context.Background()
+	storeID := "store-001"
+	roomID, floorID, buildingID := "room-vip", "floor-1", "building-1"
+
+	rules := map[string]*entity.ShipFeeRule{
+		"room:room-vip": {Scope: "room", RefID: roomID, UnitFee: 0},
+	}
+	repo := &mockShippingRepo{resolveShipFeeFn: firstMatchRule(rules)}
+	resolver := &mockLocationResolver{
+		getRoomFn: func(_ context.Context, _ string) (string, string, bool, error) {
+			return floorID, buildingID, true, nil
+		},
+	}
+
+	uc := NewShipFeeUsecase(repo, resolver)
+	fee, err := uc.ResolveFee(ctx, storeID, "ROOM", roomID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fee != 0 {
+		t.Errorf("expected fee 0 (free), got %d", fee)
+	}
+}
+
+func TestResolveFee_NotServed_NoRule(t *testing.T) {
+	ctx := context.Background()
+	repo := &mockShippingRepo{
+		resolveShipFeeFn: func(_ context.Context, _ string, _, _ []string) (*entity.ShipFeeRule, error) {
+			return nil, nil
+		},
+	}
+	resolver := &mockLocationResolver{
+		getRoomFn: func(_ context.Context, _ string) (string, string, bool, error) {
+			return "floor-1", "building-1", true, nil
+		},
+	}
+
+	uc := NewShipFeeUsecase(repo, resolver)
+	_, err := uc.ResolveFee(ctx, "store-001", "ROOM", "room-1")
 	if !errors.Is(err, ErrLocationNotServed) {
 		t.Errorf("expected ErrLocationNotServed, got %v", err)
 	}
 }
 
-func TestShipFeeUsecase_CreateShipFeeRule(t *testing.T) {
+func TestResolveFee_NotServed_RoomNotFound(t *testing.T) {
 	ctx := context.Background()
-	shippingRepo := &mockShippingRepo{
+	repo := &mockShippingRepo{}
+	resolver := &mockLocationResolver{
+		getRoomFn: func(_ context.Context, _ string) (string, string, bool, error) {
+			return "", "", false, nil
+		},
+	}
+
+	uc := NewShipFeeUsecase(repo, resolver)
+	_, err := uc.ResolveFee(ctx, "store-001", "ROOM", "room-unknown")
+	if !errors.Is(err, ErrLocationNotServed) {
+		t.Errorf("expected ErrLocationNotServed, got %v", err)
+	}
+}
+
+func TestResolveFee_DefaultLevelIsRoom(t *testing.T) {
+	ctx := context.Background()
+	roomID, floorID, buildingID := "room-1", "floor-1", "building-1"
+
+	rules := map[string]*entity.ShipFeeRule{
+		"building:building-1": {Scope: "building", RefID: buildingID, UnitFee: 15000},
+	}
+	repo := &mockShippingRepo{resolveShipFeeFn: firstMatchRule(rules)}
+	resolver := &mockLocationResolver{
+		getRoomFn: func(_ context.Context, _ string) (string, string, bool, error) {
+			return floorID, buildingID, true, nil
+		},
+	}
+
+	uc := NewShipFeeUsecase(repo, resolver)
+	// empty level → defaults to ROOM
+	fee, err := uc.ResolveFee(ctx, "store-001", "", roomID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fee != 15000 {
+		t.Errorf("expected 15000, got %d", fee)
+	}
+}
+
+// ── Tests: CreateShipFeeRule ───────────────────────────────────────────────────
+
+func TestCreateShipFeeRule_Building_NoAncestorCheck(t *testing.T) {
+	ctx := context.Background()
+	repo := &mockShippingRepo{
 		createShipFeeRuleFn: func(_ context.Context, r *entity.ShipFeeRule) error {
 			r.ID = "rule-new"
 			return nil
 		},
 	}
-	roomResolver := &mockRoomResolver{}
+	resolver := &mockLocationResolver{}
 
-	uc := NewShipFeeUsecase(shippingRepo, roomResolver)
-	rule, err := uc.CreateShipFeeRule(ctx, "store-001", "building", "building-001", 2000)
-
+	uc := NewShipFeeUsecase(repo, resolver)
+	rule, err := uc.CreateShipFeeRule(ctx, "store-001", "building", "building-001", 15000)
 	if err != nil {
-		t.Fatalf("CreateShipFeeRule: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if rule.ID == "" {
-		t.Error("expected rule ID to be assigned")
-	}
-	if rule.UnitFee != 2000 {
-		t.Errorf("expected fee 2000, got %d", rule.UnitFee)
+		t.Error("expected ID to be assigned")
 	}
 }
 
-func TestShipFeeUsecase_UpdateShipFeeRule(t *testing.T) {
+func TestCreateShipFeeRule_DuplicateReturnsConflict(t *testing.T) {
+	ctx := context.Background()
+	repo := &mockShippingRepo{
+		createShipFeeRuleFn: func(_ context.Context, _ *entity.ShipFeeRule) error {
+			// Simulate the Postgres unique-violation on (store_id, scope, ref_id).
+			return errors.New(`ERROR: duplicate key value violates unique constraint "uq_ship_fee_rule" (SQLSTATE 23505)`)
+		},
+	}
+	resolver := &mockLocationResolver{}
+
+	uc := NewShipFeeUsecase(repo, resolver)
+	_, err := uc.CreateShipFeeRule(ctx, "store-001", "building", "building-001", 15000)
+	if !errors.Is(err, ErrShipFeeRuleExists) {
+		t.Errorf("expected ErrShipFeeRuleExists, got %v", err)
+	}
+}
+
+func TestCreateShipFeeRule_Floor_RequiresBuildingRule(t *testing.T) {
+	ctx := context.Background()
+	floorID, buildingID := "floor-1", "building-1"
+
+	repo := &mockShippingRepo{
+		listShipFeeRulesFn: func(_ context.Context, _ string) ([]*entity.ShipFeeRule, error) {
+			// No building rule yet.
+			return []*entity.ShipFeeRule{}, nil
+		},
+	}
+	resolver := &mockLocationResolver{
+		getFloorFn: func(_ context.Context, _ string) (string, bool, error) {
+			return buildingID, true, nil
+		},
+	}
+
+	uc := NewShipFeeUsecase(repo, resolver)
+	_, err := uc.CreateShipFeeRule(ctx, "store-001", "floor", floorID, 10000)
+	if !errors.Is(err, ErrBuildingRuleRequired) {
+		t.Errorf("expected ErrBuildingRuleRequired, got %v", err)
+	}
+}
+
+func TestCreateShipFeeRule_Floor_SucceedsWhenBuildingRuleExists(t *testing.T) {
+	ctx := context.Background()
+	floorID, buildingID := "floor-1", "building-1"
+
+	repo := &mockShippingRepo{
+		listShipFeeRulesFn: func(_ context.Context, _ string) ([]*entity.ShipFeeRule, error) {
+			return []*entity.ShipFeeRule{
+				{Scope: "building", RefID: buildingID, UnitFee: 15000},
+			}, nil
+		},
+		createShipFeeRuleFn: func(_ context.Context, r *entity.ShipFeeRule) error {
+			r.ID = "rule-floor"
+			return nil
+		},
+	}
+	resolver := &mockLocationResolver{
+		getFloorFn: func(_ context.Context, _ string) (string, bool, error) {
+			return buildingID, true, nil
+		},
+	}
+
+	uc := NewShipFeeUsecase(repo, resolver)
+	rule, err := uc.CreateShipFeeRule(ctx, "store-001", "floor", floorID, 10000)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rule.Scope != "floor" {
+		t.Errorf("expected scope floor, got %s", rule.Scope)
+	}
+}
+
+func TestCreateShipFeeRule_Room_RequiresBuildingRule(t *testing.T) {
+	ctx := context.Background()
+	roomID, floorID, buildingID := "room-1", "floor-1", "building-1"
+
+	repo := &mockShippingRepo{
+		listShipFeeRulesFn: func(_ context.Context, _ string) ([]*entity.ShipFeeRule, error) {
+			return []*entity.ShipFeeRule{}, nil
+		},
+	}
+	resolver := &mockLocationResolver{
+		getRoomFn: func(_ context.Context, _ string) (string, string, bool, error) {
+			return floorID, buildingID, true, nil
+		},
+	}
+
+	uc := NewShipFeeUsecase(repo, resolver)
+	_, err := uc.CreateShipFeeRule(ctx, "store-001", "room", roomID, 5000)
+	if !errors.Is(err, ErrBuildingRuleRequired) {
+		t.Errorf("expected ErrBuildingRuleRequired, got %v", err)
+	}
+}
+
+func TestCreateShipFeeRule_ZeroFeeAllowed(t *testing.T) {
+	ctx := context.Background()
+	repo := &mockShippingRepo{
+		createShipFeeRuleFn: func(_ context.Context, r *entity.ShipFeeRule) error {
+			r.ID = "rule-free"
+			return nil
+		},
+	}
+	resolver := &mockLocationResolver{}
+
+	uc := NewShipFeeUsecase(repo, resolver)
+	rule, err := uc.CreateShipFeeRule(ctx, "store-001", "building", "building-001", 0)
+	if err != nil {
+		t.Fatalf("expected zero fee to be allowed, got: %v", err)
+	}
+	if rule.UnitFee != 0 {
+		t.Errorf("expected fee 0, got %d", rule.UnitFee)
+	}
+}
+
+func TestCreateShipFeeRule_NegativeFeeRejected(t *testing.T) {
+	ctx := context.Background()
+	repo := &mockShippingRepo{}
+	resolver := &mockLocationResolver{}
+
+	uc := NewShipFeeUsecase(repo, resolver)
+	_, err := uc.CreateShipFeeRule(ctx, "store-001", "building", "building-001", -1)
+	if !errors.Is(err, ErrInvalidUnitFee) {
+		t.Errorf("expected ErrInvalidUnitFee, got %v", err)
+	}
+}
+
+func TestCreateShipFeeRule_InvalidScope(t *testing.T) {
+	ctx := context.Background()
+	repo := &mockShippingRepo{}
+	resolver := &mockLocationResolver{}
+
+	uc := NewShipFeeUsecase(repo, resolver)
+	_, err := uc.CreateShipFeeRule(ctx, "store-001", "country", "id-1", 1000)
+	if !errors.Is(err, ErrInvalidScope) {
+		t.Errorf("expected ErrInvalidScope, got %v", err)
+	}
+}
+
+// ── Tests: UpdateShipFeeRule / DeleteShipFeeRule ───────────────────────────────
+
+func TestUpdateShipFeeRule(t *testing.T) {
 	ctx := context.Background()
 	ruleID := "rule-001"
 	oldRule := &entity.ShipFeeRule{ID: ruleID, StoreID: "store-001", UnitFee: 1000}
 
-	shippingRepo := &mockShippingRepo{
+	repo := &mockShippingRepo{
 		getShipFeeRuleFn: func(_ context.Context, id string) (*entity.ShipFeeRule, error) {
 			if id == ruleID {
 				return oldRule, nil
 			}
 			return nil, errors.New("not found")
 		},
-		updateShipFeeRuleFn: func(_ context.Context, r *entity.ShipFeeRule) error {
-			return nil
-		},
+		updateShipFeeRuleFn: func(_ context.Context, r *entity.ShipFeeRule) error { return nil },
 	}
-	roomResolver := &mockRoomResolver{}
+	resolver := &mockLocationResolver{}
 
-	uc := NewShipFeeUsecase(shippingRepo, roomResolver)
+	uc := NewShipFeeUsecase(repo, resolver)
 	updated, err := uc.UpdateShipFeeRule(ctx, ruleID, 3000)
-
 	if err != nil {
 		t.Fatalf("UpdateShipFeeRule: %v", err)
 	}
@@ -368,12 +664,12 @@ func TestShipFeeUsecase_UpdateShipFeeRule(t *testing.T) {
 	}
 }
 
-func TestShipFeeUsecase_DeleteShipFeeRule(t *testing.T) {
+func TestDeleteShipFeeRule(t *testing.T) {
 	ctx := context.Background()
 	ruleID := "rule-001"
 	deleted := false
 
-	shippingRepo := &mockShippingRepo{
+	repo := &mockShippingRepo{
 		deleteShipFeeRuleFn: func(_ context.Context, id string) error {
 			if id == ruleID {
 				deleted = true
@@ -382,12 +678,10 @@ func TestShipFeeUsecase_DeleteShipFeeRule(t *testing.T) {
 			return errors.New("not found")
 		},
 	}
-	roomResolver := &mockRoomResolver{}
+	resolver := &mockLocationResolver{}
 
-	uc := NewShipFeeUsecase(shippingRepo, roomResolver)
-	err := uc.DeleteShipFeeRule(ctx, ruleID)
-
-	if err != nil {
+	uc := NewShipFeeUsecase(repo, resolver)
+	if err := uc.DeleteShipFeeRule(ctx, ruleID); err != nil {
 		t.Fatalf("DeleteShipFeeRule: %v", err)
 	}
 	if !deleted {

@@ -19,9 +19,12 @@ type ShippingRepository interface {
 	UpdateShipFeeRule(ctx context.Context, r *entity.ShipFeeRule) error
 	DeleteShipFeeRule(ctx context.Context, id string) error // soft-delete
 
-	// ResolveShipFee returns the applicable unit fee for a store + location.
-	// Resolution order: room-scoped rule → building-scoped rule → nil (not served).
-	ResolveShipFee(ctx context.Context, storeID string, buildingID string, roomID string) (*entity.ShipFeeRule, error)
+	// ResolveShipFee returns the most specific matching fee rule for a store and
+	// ordered candidate (scope, id) pairs.  scopes[i] and ids[i] form a pair;
+	// the first DB match wins (most-specific first).  Returns nil when no rule
+	// matches (store does not serve the location).
+	// Example for a ROOM delivery: scopes=["room","floor","building"], ids=[roomID,floorID,buildingID].
+	ResolveShipFee(ctx context.Context, storeID string, scopes []string, ids []string) (*entity.ShipFeeRule, error)
 
 	// ---- OperatingHours ----
 

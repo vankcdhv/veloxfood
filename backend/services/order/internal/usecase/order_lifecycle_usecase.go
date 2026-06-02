@@ -264,15 +264,21 @@ func statusEvent(order *entity.Order, to entity.OrderStatus, traceID string) *en
 		if order.LocationID != nil {
 			locationID = *order.LocationID
 		}
+		// location_level defaults to "ROOM" for orders placed before this field existed.
+		locationLevel := "ROOM"
+		if order.LocationLevel != nil && *order.LocationLevel != "" {
+			locationLevel = *order.LocationLevel
+		}
 		payload, _ = json.Marshal(map[string]any{
-			"order_id":    orderID,
-			"code":        order.Code,
-			"status":      string(entity.StatusReady),
-			"store_id":    order.StoreID,
-			"location_id": locationID,
-			"ship_fee":    order.ShipFee,
-			"fulfillment": string(order.Fulfillment),
-			"customer_id": order.CustomerID,
+			"order_id":       orderID,
+			"code":           order.Code,
+			"status":         string(entity.StatusReady),
+			"store_id":       order.StoreID,
+			"location_id":    locationID,
+			"location_level": locationLevel,
+			"ship_fee":       order.ShipFee,
+			"fulfillment":    string(order.Fulfillment),
+			"customer_id":    order.CustomerID,
 		})
 
 	case entity.StatusReadyPickup:

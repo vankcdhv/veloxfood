@@ -111,7 +111,7 @@ func setup(t *testing.T) *testEnv {
 	outboxRepo := persistence.NewOutboxGormRepository(db)
 
 	// Stub RoomResolver that returns a fixed building for testing
-	roomResolver := &stubRoomResolver{}
+	roomResolver := &stubLocationResolver{}
 
 	storeUC := usecase.NewStoreUsecase(db, storeRepo, outboxRepo, nil)
 	catalogUC := usecase.NewCatalogUsecase(catalogRepo)
@@ -166,11 +166,18 @@ func dataID(t *testing.T, w *httptest.ResponseRecorder) string {
 	return resp.Data.ID
 }
 
-type stubRoomResolver struct{}
+type stubLocationResolver struct{}
 
-func (s *stubRoomResolver) GetRoom(ctx context.Context, roomID string) (buildingID string, found bool, err error) {
-	// Always return a fixed building for testing
+func (s *stubLocationResolver) GetRoom(_ context.Context, _ string) (floorID, buildingID string, found bool, err error) {
+	return "floor-default-001", "building-default-001", true, nil
+}
+
+func (s *stubLocationResolver) GetFloor(_ context.Context, _ string) (buildingID string, found bool, err error) {
 	return "building-default-001", true, nil
+}
+
+func (s *stubLocationResolver) GetBuilding(_ context.Context, _ string) (found bool, err error) {
+	return true, nil
 }
 
 type stubFileUploader struct{}
@@ -625,9 +632,9 @@ func TestStoreForOrderDeadlineComputation(t *testing.T) {
 		persistence.NewStoreGormRepository(env.db),
 		persistence.NewCatalogGormRepository(env.db),
 		persistence.NewShippingGormRepository(env.db),
-		&stubRoomResolver{},
+		&stubLocationResolver{},
 	)
-	res, err := uc.GetStoreForOrder(context.Background(), storeID, "")
+	res, err := uc.GetStoreForOrder(context.Background(), storeID, "ROOM", "")
 	if err != nil {
 		t.Fatalf("GetStoreForOrder: %v", err)
 	}

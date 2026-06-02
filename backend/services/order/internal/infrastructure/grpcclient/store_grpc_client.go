@@ -55,10 +55,13 @@ func NewStoreClient(addr string) (*StoreClient, error) {
 }
 
 // GetStoreForOrder fetches store availability, ship fee, and menu snapshot.
-func (c *StoreClient) GetStoreForOrder(ctx context.Context, storeID, roomID string) (*StoreForOrderResult, error) {
+// locationLevel must be "BUILDING", "FLOOR", or "ROOM" (empty ⇒ ROOM back-compat).
+// locationID is stored in RoomId per the proto contract regardless of level.
+func (c *StoreClient) GetStoreForOrder(ctx context.Context, storeID, locationID, locationLevel string) (*StoreForOrderResult, error) {
 	resp, err := c.client.GetStoreForOrder(ctx, &storev1.GetStoreForOrderRequest{
-		StoreId: storeID,
-		RoomId:  roomID,
+		StoreId:       storeID,
+		RoomId:        locationID,
+		LocationLevel: locationLevel,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("store.GetStoreForOrder: %w", err)

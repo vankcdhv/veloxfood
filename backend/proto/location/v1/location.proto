@@ -26,8 +26,48 @@ message GetRoomResponse {
   bool found = 2;
 }
 
+// Floor delivery target resolved to its parent building.
+message ResolvedFloor {
+  string floor_id = 1;
+  string floor_name = 2;
+  string building_id = 3;
+  string building_name = 4;
+  bool active = 5;
+}
+
+message GetFloorRequest {
+  string floor_id = 1;
+}
+
+message GetFloorResponse {
+  ResolvedFloor floor = 1;
+  bool found = 2;
+}
+
+// Building delivery target.
+message ResolvedBuilding {
+  string building_id = 1;
+  string building_name = 2;
+  bool active = 3;
+}
+
+message GetBuildingRequest {
+  string building_id = 1;
+}
+
+message GetBuildingResponse {
+  ResolvedBuilding building = 1;
+  bool found = 2;
+}
+
 service LocationService {
   // GetRoom resolves a room to its full building/floor/room path for other
   // services (Store ship-fee, Order delivery address).
   rpc GetRoom(GetRoomRequest) returns (GetRoomResponse);
+  // GetFloor resolves a floor to its parent building — used when a delivery is
+  // addressed at floor level (ship-fee resolution + delivery path).
+  rpc GetFloor(GetFloorRequest) returns (GetFloorResponse);
+  // GetBuilding resolves a building — used when a delivery is addressed at
+  // building level.
+  rpc GetBuilding(GetBuildingRequest) returns (GetBuildingResponse);
 }

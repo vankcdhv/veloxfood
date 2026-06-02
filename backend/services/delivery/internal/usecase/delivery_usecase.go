@@ -76,8 +76,12 @@ func (uc *deliveryUsecase) ListAvailable(ctx context.Context) ([]*AvailableDeliv
 	}
 	items := make([]*AvailableDeliveryItem, len(rows))
 	for i, d := range rows {
-		roomPath := uc.locationClient.GetRoomPath(ctx, d.LocationID)
-		display := roomPath.String()
+		// Branch by location_level so shippers see the right path granularity:
+		// BUILDING → "Toà A", FLOOR → "Toà A / Tầng 2", ROOM → full path.
+		var display string
+		if uc.locationClient != nil {
+			display = uc.locationClient.GetLocationPath(ctx, d.LocationID, d.LocationLevel)
+		}
 		if display == "" {
 			display = d.LocationID // graceful fallback: show UUID
 		}

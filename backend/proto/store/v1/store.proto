@@ -14,7 +14,12 @@ message OrderItem {
 // GetStoreForOrderRequest is called by the order service before placing an order.
 message GetStoreForOrderRequest {
   string store_id = 1;
+  // room_id carries the delivery location id at the level given by location_level
+  // (room id for ROOM, floor id for FLOOR, building id for BUILDING). Empty for PICKUP.
+  // Field kept named room_id for backward compatibility.
   string room_id  = 2;
+  // location_level: "ROOM" | "FLOOR" | "BUILDING". Empty ⇒ treated as ROOM.
+  string location_level = 3;
 }
 
 // CutoffInfo describes one delivery session (ca) so the order service can

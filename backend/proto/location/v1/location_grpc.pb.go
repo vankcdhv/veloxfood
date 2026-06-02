@@ -19,7 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	LocationService_GetRoom_FullMethodName = "/location.v1.LocationService/GetRoom"
+	LocationService_GetRoom_FullMethodName     = "/location.v1.LocationService/GetRoom"
+	LocationService_GetFloor_FullMethodName    = "/location.v1.LocationService/GetFloor"
+	LocationService_GetBuilding_FullMethodName = "/location.v1.LocationService/GetBuilding"
 )
 
 // LocationServiceClient is the client API for LocationService service.
@@ -29,6 +31,12 @@ type LocationServiceClient interface {
 	// GetRoom resolves a room to its full building/floor/room path for other
 	// services (Store ship-fee, Order delivery address).
 	GetRoom(ctx context.Context, in *GetRoomRequest, opts ...grpc.CallOption) (*GetRoomResponse, error)
+	// GetFloor resolves a floor to its parent building — used when a delivery is
+	// addressed at floor level (ship-fee resolution + delivery path).
+	GetFloor(ctx context.Context, in *GetFloorRequest, opts ...grpc.CallOption) (*GetFloorResponse, error)
+	// GetBuilding resolves a building — used when a delivery is addressed at
+	// building level.
+	GetBuilding(ctx context.Context, in *GetBuildingRequest, opts ...grpc.CallOption) (*GetBuildingResponse, error)
 }
 
 type locationServiceClient struct {
@@ -49,6 +57,26 @@ func (c *locationServiceClient) GetRoom(ctx context.Context, in *GetRoomRequest,
 	return out, nil
 }
 
+func (c *locationServiceClient) GetFloor(ctx context.Context, in *GetFloorRequest, opts ...grpc.CallOption) (*GetFloorResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetFloorResponse)
+	err := c.cc.Invoke(ctx, LocationService_GetFloor_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *locationServiceClient) GetBuilding(ctx context.Context, in *GetBuildingRequest, opts ...grpc.CallOption) (*GetBuildingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetBuildingResponse)
+	err := c.cc.Invoke(ctx, LocationService_GetBuilding_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // LocationServiceServer is the server API for LocationService service.
 // All implementations must embed UnimplementedLocationServiceServer
 // for forward compatibility.
@@ -56,6 +84,12 @@ type LocationServiceServer interface {
 	// GetRoom resolves a room to its full building/floor/room path for other
 	// services (Store ship-fee, Order delivery address).
 	GetRoom(context.Context, *GetRoomRequest) (*GetRoomResponse, error)
+	// GetFloor resolves a floor to its parent building — used when a delivery is
+	// addressed at floor level (ship-fee resolution + delivery path).
+	GetFloor(context.Context, *GetFloorRequest) (*GetFloorResponse, error)
+	// GetBuilding resolves a building — used when a delivery is addressed at
+	// building level.
+	GetBuilding(context.Context, *GetBuildingRequest) (*GetBuildingResponse, error)
 	mustEmbedUnimplementedLocationServiceServer()
 }
 
@@ -68,6 +102,12 @@ type UnimplementedLocationServiceServer struct{}
 
 func (UnimplementedLocationServiceServer) GetRoom(context.Context, *GetRoomRequest) (*GetRoomResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetRoom not implemented")
+}
+func (UnimplementedLocationServiceServer) GetFloor(context.Context, *GetFloorRequest) (*GetFloorResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetFloor not implemented")
+}
+func (UnimplementedLocationServiceServer) GetBuilding(context.Context, *GetBuildingRequest) (*GetBuildingResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetBuilding not implemented")
 }
 func (UnimplementedLocationServiceServer) mustEmbedUnimplementedLocationServiceServer() {}
 func (UnimplementedLocationServiceServer) testEmbeddedByValue()                         {}
@@ -108,6 +148,42 @@ func _LocationService_GetRoom_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _LocationService_GetFloor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetFloorRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LocationServiceServer).GetFloor(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LocationService_GetFloor_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LocationServiceServer).GetFloor(ctx, req.(*GetFloorRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _LocationService_GetBuilding_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBuildingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LocationServiceServer).GetBuilding(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LocationService_GetBuilding_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LocationServiceServer).GetBuilding(ctx, req.(*GetBuildingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // LocationService_ServiceDesc is the grpc.ServiceDesc for LocationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -118,6 +194,14 @@ var LocationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRoom",
 			Handler:    _LocationService_GetRoom_Handler,
+		},
+		{
+			MethodName: "GetFloor",
+			Handler:    _LocationService_GetFloor_Handler,
+		},
+		{
+			MethodName: "GetBuilding",
+			Handler:    _LocationService_GetBuilding_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

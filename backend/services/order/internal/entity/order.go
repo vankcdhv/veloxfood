@@ -54,6 +54,10 @@ type Order struct {
 	CustomerID    string          `gorm:"type:uuid;not null;index"`
 	StoreID       string          `gorm:"type:uuid;not null;index"`
 	LocationID    *string         `gorm:"type:uuid"`
+	// LocationLevel is the delivery granularity: "BUILDING" | "FLOOR" | "ROOM".
+	// Nil / empty ⇒ treated as "ROOM" for back-compat with orders before this field.
+	// Only meaningful for DELIVERY fulfillment; empty for PICKUP.
+	LocationLevel *string         `gorm:"type:varchar(10)"`
 	Fulfillment   Fulfillment     `gorm:"type:varchar(10);not null"`
 	Status        OrderStatus     `gorm:"type:varchar(20);not null;default:'PENDING';index"`
 	ItemsTotal    int64           `gorm:"not null;default:0"`

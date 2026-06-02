@@ -46,3 +46,45 @@ func (s *LocationServiceServer) GetRoom(ctx context.Context, req *locationv1.Get
 		},
 	}, nil
 }
+
+// GetFloor resolves a floor to its parent building.
+func (s *LocationServiceServer) GetFloor(ctx context.Context, req *locationv1.GetFloorRequest) (*locationv1.GetFloorResponse, error) {
+	resolved, err := s.uc.ResolveFloor(ctx, req.GetFloorId())
+	if err != nil {
+		var appErr *apperror.Error
+		if errors.As(err, &appErr) && appErr.Code == 404 {
+			return &locationv1.GetFloorResponse{Found: false}, nil
+		}
+		return nil, status.Error(codes.Internal, "resolve floor failed")
+	}
+	return &locationv1.GetFloorResponse{
+		Found: true,
+		Floor: &locationv1.ResolvedFloor{
+			FloorId:      resolved.Floor.ID,
+			FloorName:    resolved.Floor.Name,
+			BuildingId:   resolved.Building.ID,
+			BuildingName: resolved.Building.Name,
+			Active:       !resolved.Floor.DeletedAt.Valid,
+		},
+	}, nil
+}
+
+// GetBuilding resolves a building by ID.
+func (s *LocationServiceServer) GetBuilding(ctx context.Context, req *locationv1.GetBuildingRequest) (*locationv1.GetBuildingResponse, error) {
+	resolved, err := s.uc.ResolveBuilding(ctx, req.GetBuildingId())
+	if err != nil {
+		var appErr *apperror.Error
+		if errors.As(err, &appErr) && appErr.Code == 404 {
+			return &locationv1.GetBuildingResponse{Found: false}, nil
+		}
+		return nil, status.Error(codes.Internal, "resolve building failed")
+	}
+	return &locationv1.GetBuildingResponse{
+		Found: true,
+		Building: &locationv1.ResolvedBuilding{
+			BuildingId:   resolved.Building.ID,
+			BuildingName: resolved.Building.Name,
+			Active:       resolved.Building.IsActive,
+		},
+	}, nil
+}

@@ -219,6 +219,336 @@ func (x *GetRoomResponse) GetFound() bool {
 	return false
 }
 
+// Floor delivery target resolved to its parent building.
+type ResolvedFloor struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FloorId       string                 `protobuf:"bytes,1,opt,name=floor_id,json=floorId,proto3" json:"floor_id,omitempty"`
+	FloorName     string                 `protobuf:"bytes,2,opt,name=floor_name,json=floorName,proto3" json:"floor_name,omitempty"`
+	BuildingId    string                 `protobuf:"bytes,3,opt,name=building_id,json=buildingId,proto3" json:"building_id,omitempty"`
+	BuildingName  string                 `protobuf:"bytes,4,opt,name=building_name,json=buildingName,proto3" json:"building_name,omitempty"`
+	Active        bool                   `protobuf:"varint,5,opt,name=active,proto3" json:"active,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolvedFloor) Reset() {
+	*x = ResolvedFloor{}
+	mi := &file_proto_location_v1_location_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolvedFloor) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolvedFloor) ProtoMessage() {}
+
+func (x *ResolvedFloor) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_location_v1_location_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolvedFloor.ProtoReflect.Descriptor instead.
+func (*ResolvedFloor) Descriptor() ([]byte, []int) {
+	return file_proto_location_v1_location_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ResolvedFloor) GetFloorId() string {
+	if x != nil {
+		return x.FloorId
+	}
+	return ""
+}
+
+func (x *ResolvedFloor) GetFloorName() string {
+	if x != nil {
+		return x.FloorName
+	}
+	return ""
+}
+
+func (x *ResolvedFloor) GetBuildingId() string {
+	if x != nil {
+		return x.BuildingId
+	}
+	return ""
+}
+
+func (x *ResolvedFloor) GetBuildingName() string {
+	if x != nil {
+		return x.BuildingName
+	}
+	return ""
+}
+
+func (x *ResolvedFloor) GetActive() bool {
+	if x != nil {
+		return x.Active
+	}
+	return false
+}
+
+type GetFloorRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FloorId       string                 `protobuf:"bytes,1,opt,name=floor_id,json=floorId,proto3" json:"floor_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetFloorRequest) Reset() {
+	*x = GetFloorRequest{}
+	mi := &file_proto_location_v1_location_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetFloorRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetFloorRequest) ProtoMessage() {}
+
+func (x *GetFloorRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_location_v1_location_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetFloorRequest.ProtoReflect.Descriptor instead.
+func (*GetFloorRequest) Descriptor() ([]byte, []int) {
+	return file_proto_location_v1_location_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *GetFloorRequest) GetFloorId() string {
+	if x != nil {
+		return x.FloorId
+	}
+	return ""
+}
+
+type GetFloorResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Floor         *ResolvedFloor         `protobuf:"bytes,1,opt,name=floor,proto3" json:"floor,omitempty"`
+	Found         bool                   `protobuf:"varint,2,opt,name=found,proto3" json:"found,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetFloorResponse) Reset() {
+	*x = GetFloorResponse{}
+	mi := &file_proto_location_v1_location_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetFloorResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetFloorResponse) ProtoMessage() {}
+
+func (x *GetFloorResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_location_v1_location_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetFloorResponse.ProtoReflect.Descriptor instead.
+func (*GetFloorResponse) Descriptor() ([]byte, []int) {
+	return file_proto_location_v1_location_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GetFloorResponse) GetFloor() *ResolvedFloor {
+	if x != nil {
+		return x.Floor
+	}
+	return nil
+}
+
+func (x *GetFloorResponse) GetFound() bool {
+	if x != nil {
+		return x.Found
+	}
+	return false
+}
+
+// Building delivery target.
+type ResolvedBuilding struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BuildingId    string                 `protobuf:"bytes,1,opt,name=building_id,json=buildingId,proto3" json:"building_id,omitempty"`
+	BuildingName  string                 `protobuf:"bytes,2,opt,name=building_name,json=buildingName,proto3" json:"building_name,omitempty"`
+	Active        bool                   `protobuf:"varint,3,opt,name=active,proto3" json:"active,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolvedBuilding) Reset() {
+	*x = ResolvedBuilding{}
+	mi := &file_proto_location_v1_location_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolvedBuilding) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolvedBuilding) ProtoMessage() {}
+
+func (x *ResolvedBuilding) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_location_v1_location_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolvedBuilding.ProtoReflect.Descriptor instead.
+func (*ResolvedBuilding) Descriptor() ([]byte, []int) {
+	return file_proto_location_v1_location_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ResolvedBuilding) GetBuildingId() string {
+	if x != nil {
+		return x.BuildingId
+	}
+	return ""
+}
+
+func (x *ResolvedBuilding) GetBuildingName() string {
+	if x != nil {
+		return x.BuildingName
+	}
+	return ""
+}
+
+func (x *ResolvedBuilding) GetActive() bool {
+	if x != nil {
+		return x.Active
+	}
+	return false
+}
+
+type GetBuildingRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BuildingId    string                 `protobuf:"bytes,1,opt,name=building_id,json=buildingId,proto3" json:"building_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBuildingRequest) Reset() {
+	*x = GetBuildingRequest{}
+	mi := &file_proto_location_v1_location_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBuildingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBuildingRequest) ProtoMessage() {}
+
+func (x *GetBuildingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_location_v1_location_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBuildingRequest.ProtoReflect.Descriptor instead.
+func (*GetBuildingRequest) Descriptor() ([]byte, []int) {
+	return file_proto_location_v1_location_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GetBuildingRequest) GetBuildingId() string {
+	if x != nil {
+		return x.BuildingId
+	}
+	return ""
+}
+
+type GetBuildingResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Building      *ResolvedBuilding      `protobuf:"bytes,1,opt,name=building,proto3" json:"building,omitempty"`
+	Found         bool                   `protobuf:"varint,2,opt,name=found,proto3" json:"found,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBuildingResponse) Reset() {
+	*x = GetBuildingResponse{}
+	mi := &file_proto_location_v1_location_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBuildingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBuildingResponse) ProtoMessage() {}
+
+func (x *GetBuildingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_location_v1_location_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBuildingResponse.ProtoReflect.Descriptor instead.
+func (*GetBuildingResponse) Descriptor() ([]byte, []int) {
+	return file_proto_location_v1_location_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GetBuildingResponse) GetBuilding() *ResolvedBuilding {
+	if x != nil {
+		return x.Building
+	}
+	return nil
+}
+
+func (x *GetBuildingResponse) GetFound() bool {
+	if x != nil {
+		return x.Found
+	}
+	return false
+}
+
 var File_proto_location_v1_location_proto protoreflect.FileDescriptor
 
 const file_proto_location_v1_location_proto_rawDesc = "" +
@@ -239,9 +569,35 @@ const file_proto_location_v1_location_proto_rawDesc = "" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"V\n" +
 	"\x0fGetRoomResponse\x12-\n" +
 	"\x04room\x18\x01 \x01(\v2\x19.location.v1.ResolvedRoomR\x04room\x12\x14\n" +
-	"\x05found\x18\x02 \x01(\bR\x05found2W\n" +
+	"\x05found\x18\x02 \x01(\bR\x05found\"\xa7\x01\n" +
+	"\rResolvedFloor\x12\x19\n" +
+	"\bfloor_id\x18\x01 \x01(\tR\afloorId\x12\x1d\n" +
+	"\n" +
+	"floor_name\x18\x02 \x01(\tR\tfloorName\x12\x1f\n" +
+	"\vbuilding_id\x18\x03 \x01(\tR\n" +
+	"buildingId\x12#\n" +
+	"\rbuilding_name\x18\x04 \x01(\tR\fbuildingName\x12\x16\n" +
+	"\x06active\x18\x05 \x01(\bR\x06active\",\n" +
+	"\x0fGetFloorRequest\x12\x19\n" +
+	"\bfloor_id\x18\x01 \x01(\tR\afloorId\"Z\n" +
+	"\x10GetFloorResponse\x120\n" +
+	"\x05floor\x18\x01 \x01(\v2\x1a.location.v1.ResolvedFloorR\x05floor\x12\x14\n" +
+	"\x05found\x18\x02 \x01(\bR\x05found\"p\n" +
+	"\x10ResolvedBuilding\x12\x1f\n" +
+	"\vbuilding_id\x18\x01 \x01(\tR\n" +
+	"buildingId\x12#\n" +
+	"\rbuilding_name\x18\x02 \x01(\tR\fbuildingName\x12\x16\n" +
+	"\x06active\x18\x03 \x01(\bR\x06active\"5\n" +
+	"\x12GetBuildingRequest\x12\x1f\n" +
+	"\vbuilding_id\x18\x01 \x01(\tR\n" +
+	"buildingId\"f\n" +
+	"\x13GetBuildingResponse\x129\n" +
+	"\bbuilding\x18\x01 \x01(\v2\x1d.location.v1.ResolvedBuildingR\bbuilding\x12\x14\n" +
+	"\x05found\x18\x02 \x01(\bR\x05found2\xf2\x01\n" +
 	"\x0fLocationService\x12D\n" +
-	"\aGetRoom\x12\x1b.location.v1.GetRoomRequest\x1a\x1c.location.v1.GetRoomResponseB&Z$project/proto/location/v1;locationv1b\x06proto3"
+	"\aGetRoom\x12\x1b.location.v1.GetRoomRequest\x1a\x1c.location.v1.GetRoomResponse\x12G\n" +
+	"\bGetFloor\x12\x1c.location.v1.GetFloorRequest\x1a\x1d.location.v1.GetFloorResponse\x12P\n" +
+	"\vGetBuilding\x12\x1f.location.v1.GetBuildingRequest\x1a .location.v1.GetBuildingResponseB&Z$project/proto/location/v1;locationv1b\x06proto3"
 
 var (
 	file_proto_location_v1_location_proto_rawDescOnce sync.Once
@@ -255,21 +611,33 @@ func file_proto_location_v1_location_proto_rawDescGZIP() []byte {
 	return file_proto_location_v1_location_proto_rawDescData
 }
 
-var file_proto_location_v1_location_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_proto_location_v1_location_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_proto_location_v1_location_proto_goTypes = []any{
-	(*ResolvedRoom)(nil),    // 0: location.v1.ResolvedRoom
-	(*GetRoomRequest)(nil),  // 1: location.v1.GetRoomRequest
-	(*GetRoomResponse)(nil), // 2: location.v1.GetRoomResponse
+	(*ResolvedRoom)(nil),        // 0: location.v1.ResolvedRoom
+	(*GetRoomRequest)(nil),      // 1: location.v1.GetRoomRequest
+	(*GetRoomResponse)(nil),     // 2: location.v1.GetRoomResponse
+	(*ResolvedFloor)(nil),       // 3: location.v1.ResolvedFloor
+	(*GetFloorRequest)(nil),     // 4: location.v1.GetFloorRequest
+	(*GetFloorResponse)(nil),    // 5: location.v1.GetFloorResponse
+	(*ResolvedBuilding)(nil),    // 6: location.v1.ResolvedBuilding
+	(*GetBuildingRequest)(nil),  // 7: location.v1.GetBuildingRequest
+	(*GetBuildingResponse)(nil), // 8: location.v1.GetBuildingResponse
 }
 var file_proto_location_v1_location_proto_depIdxs = []int32{
 	0, // 0: location.v1.GetRoomResponse.room:type_name -> location.v1.ResolvedRoom
-	1, // 1: location.v1.LocationService.GetRoom:input_type -> location.v1.GetRoomRequest
-	2, // 2: location.v1.LocationService.GetRoom:output_type -> location.v1.GetRoomResponse
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	3, // 1: location.v1.GetFloorResponse.floor:type_name -> location.v1.ResolvedFloor
+	6, // 2: location.v1.GetBuildingResponse.building:type_name -> location.v1.ResolvedBuilding
+	1, // 3: location.v1.LocationService.GetRoom:input_type -> location.v1.GetRoomRequest
+	4, // 4: location.v1.LocationService.GetFloor:input_type -> location.v1.GetFloorRequest
+	7, // 5: location.v1.LocationService.GetBuilding:input_type -> location.v1.GetBuildingRequest
+	2, // 6: location.v1.LocationService.GetRoom:output_type -> location.v1.GetRoomResponse
+	5, // 7: location.v1.LocationService.GetFloor:output_type -> location.v1.GetFloorResponse
+	8, // 8: location.v1.LocationService.GetBuilding:output_type -> location.v1.GetBuildingResponse
+	6, // [6:9] is the sub-list for method output_type
+	3, // [3:6] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_proto_location_v1_location_proto_init() }
@@ -283,7 +651,7 @@ func file_proto_location_v1_location_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_location_v1_location_proto_rawDesc), len(file_proto_location_v1_location_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

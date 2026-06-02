@@ -32,8 +32,8 @@ func main() {
 		shippingRepo := persistence.NewShippingGormRepository(deps.DB)
 		outboxRepo := persistence.NewOutboxGormRepository(deps.DB)
 
-		// ── Location gRPC client (RoomResolver) ───────────────────────────────
-		roomResolver := buildRoomResolver(deps)
+		// ── Location gRPC client (LocationResolver) ──────────────────────────
+		roomResolver := buildLocationResolver(deps)
 
 		// ── User directory (owner name enrichment) ────────────────────────────
 		userDir := buildUserDirectory(deps)
@@ -73,7 +73,7 @@ func main() {
 		storeRepo := persistence.NewStoreGormRepository(deps.DB)
 		catalogRepo := persistence.NewCatalogGormRepository(deps.DB)
 		shippingRepo := persistence.NewShippingGormRepository(deps.DB)
-		roomResolver := buildRoomResolver(deps)
+		roomResolver := buildLocationResolver(deps)
 
 		storeForOrderUC := usecase.NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, roomResolver)
 		quotaUC := usecase.NewQuotaUsecase(catalogRepo)
@@ -96,13 +96,13 @@ func buildUserDirectory(deps app.Dependencies) usecase.UserDirectory {
 	return client
 }
 
-// buildRoomResolver dials the location service. Falls back to noopRoomResolver
+// buildLocationResolver dials the location service. Falls back to noopLocationResolver
 // so the service starts even when location-service is temporarily unavailable.
-func buildRoomResolver(deps app.Dependencies) usecase.RoomResolver {
+func buildLocationResolver(deps app.Dependencies) usecase.LocationResolver {
 	client, err := grpcclient.NewLocationClient(deps.Config.LocationService.GRPCAddr)
 	if err != nil {
 		slog.Error("store: location grpc client failed — ship fee resolution disabled", "err", err)
-		return &noopRoomResolver{}
+		return &noopLocationResolver{}
 	}
 	return client
 }
@@ -118,12 +118,20 @@ func buildUploader(deps app.Dependencies) usecase.FileUploader {
 	return client
 }
 
-// noopRoomResolver is a stand-in used when the location service is unreachable
+// noopLocationResolver is a stand-in used when the location service is unreachable
 // at startup. All fee-resolution calls will return ErrLocationNotServed.
-type noopRoomResolver struct{}
+type noopLocationResolver struct{}
 
-func (n *noopRoomResolver) GetRoom(_ context.Context, _ string) (string, bool, error) {
+func (n *noopLocationResolver) GetRoom(_ context.Context, _ string) (floorID, buildingID string, found bool, err error) {
+	return "", "", false, nil
+}
+
+func (n *noopLocationResolver) GetFloor(_ context.Context, _ string) (buildingID string, found bool, err error) {
 	return "", false, nil
+}
+
+func (n *noopLocationResolver) GetBuilding(_ context.Context, _ string) (found bool, err error) {
+	return false, nil
 }
 
 // noopUploader returns an internal error for every upload when MinIO is

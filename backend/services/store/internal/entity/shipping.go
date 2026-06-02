@@ -6,10 +6,13 @@ import (
 	"gorm.io/gorm"
 )
 
-// ShipFeeRule defines delivery fee for a store scoped to a building or room.
-// Scope values: building | room.
-// Resolve logic: room-level fee takes precedence over building-level.
-// No FK on ref_id — it references location-service buildings/rooms across service boundary.
+// ShipFeeRule defines delivery fee for a store scoped to a building, floor, or room.
+// Scope values: "building" | "floor" | "room".
+// Resolve logic (cascade from most specific): room > floor > building.
+// Building-scope rule is required before adding floor- or room-scope rules
+// for the same ancestor building (enforced in ShipFeeUsecase.CreateShipFeeRule).
+// unit_fee >= 0 is valid; 0 means free delivery to that location.
+// No FK on ref_id — it references location-service entities across service boundary.
 // Unique on (store_id, scope, ref_id).
 type ShipFeeRule struct {
 	ID        string         `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`

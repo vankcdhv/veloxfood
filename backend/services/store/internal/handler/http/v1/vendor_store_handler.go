@@ -639,6 +639,9 @@ func (h *VendorStoreHandler) RemoveComboItem(c *gin.Context) {
 // ─── Ship fee rules ───────────────────────────────────────────────────────────
 
 // CreateShipFeeRule POST /stores/:id/ship-fees
+// scope: "building" | "floor" | "room". unit_fee >= 0 (0 = free delivery).
+// When scope is "floor" or "room", a building-scope rule must already exist for
+// the ancestor building; the usecase returns ErrBuildingRuleRequired otherwise.
 func (h *VendorStoreHandler) CreateShipFeeRule(c *gin.Context) {
 	storeID := c.Param("id")
 	if _, ok := h.authorizeStoreOwner(c, storeID); !ok {
@@ -647,7 +650,8 @@ func (h *VendorStoreHandler) CreateShipFeeRule(c *gin.Context) {
 	var body struct {
 		Scope   string `json:"scope" binding:"required"`
 		RefID   string `json:"ref_id" binding:"required"`
-		UnitFee int64  `json:"unit_fee" binding:"required"`
+		// unit_fee is NOT marked binding:"required" so that 0 (free) is accepted.
+		UnitFee int64 `json:"unit_fee"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.BadRequest(c, err.Error())

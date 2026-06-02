@@ -83,15 +83,13 @@ func (m *mockStoreRepo) ListByOwner(_ context.Context, _ string) ([]*entity.Stor
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-func TestStoreForOrderUsecase_GetStoreForOrder_StoreNotFound(t *testing.T) {
+func TestStoreForOrder_StoreNotFound(t *testing.T) {
 	ctx := context.Background()
 	storeID := "store-unknown"
-	roomID := "room-001"
+	locationID := "room-001"
 
 	storeRepo := &mockStoreRepo{
 		getByIDFn: func(_ context.Context, id string) (*entity.Store, error) {
-			// Return gorm.ErrRecordNotFound (which is not the error msg we're checking)
-			// The usecase should catch this and return Found=false
 			return nil, errors.New("not found")
 		},
 	}
@@ -105,73 +103,53 @@ func TestStoreForOrderUsecase_GetStoreForOrder_StoreNotFound(t *testing.T) {
 			return []*entity.ShipCutoff{}, nil
 		},
 	}
-	roomResolver := &mockRoomResolver{
-		getRoomFn: func(_ context.Context, rid string) (string, bool, error) {
-			return "building-001", true, nil
+	resolver := &mockLocationResolver{
+		getRoomFn: func(_ context.Context, _ string) (string, string, bool, error) {
+			return "floor-001", "building-001", true, nil
 		},
 	}
 
-	uc := NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, roomResolver)
-	_, err := uc.GetStoreForOrder(ctx, storeID, roomID)
-
-	// GetStoreForOrder returns an error when the store is not found due to the way it's implemented.
-	// The usecase wraps the error. In real usage, it checks for gorm.ErrRecordNotFound.
+	uc := NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, resolver)
+	_, err := uc.GetStoreForOrder(ctx, storeID, "ROOM", locationID)
+	// usecase wraps the raw error from repo (not gorm.ErrRecordNotFound), so it returns an error.
 	if err == nil {
-		t.Fatalf("expected error for store not found, got nil")
+		t.Fatal("expected error for store not found, got nil")
 	}
 }
 
-func TestStoreForOrderUsecase_GetStoreForOrder_ReturnsStoreData(t *testing.T) {
+func TestStoreForOrder_ReturnsStoreData(t *testing.T) {
 	ctx := context.Background()
-	storeID := "store-001"
-	roomID := "room-001"
-	vendorID := "vendor-001"
-
-	store := &entity.Store{
-		ID:         storeID,
-		VendorID:   vendorID,
-		Name:       "Test Store",
-		SaleStatus: "OPEN",
-	}
+	storeID, locationID := "store-001", "room-001"
 
 	storeRepo := &mockStoreRepo{
 		getByIDFn: func(_ context.Context, id string) (*entity.Store, error) {
 			if id == storeID {
-				return store, nil
+				return &entity.Store{ID: storeID, SaleStatus: "OPEN"}, nil
 			}
 			return nil, errors.New("not found")
 		},
 	}
 	catalogRepo := &mockCatalogRepo{
-		listMenuItemsFn: func(_ context.Context, sid string, _, status string) ([]*entity.MenuItem, error) {
+		listMenuItemsFn: func(_ context.Context, sid, _, status string) ([]*entity.MenuItem, error) {
 			if sid == storeID && status == "on" {
-				return []*entity.MenuItem{
-					{ID: "item-1", Name: "Pho", Price: 5000},
-				}, nil
+				return []*entity.MenuItem{{ID: "item-1", Name: "Pho", Price: 5000}}, nil
 			}
 			return nil, errors.New("not found")
 		},
 	}
 	shippingRepo := &mockShippingRepo{
-		listShipCutoffsFn: func(_ context.Context, sid string) ([]*entity.ShipCutoff, error) {
-			if sid == storeID {
-				return []*entity.ShipCutoff{}, nil
-			}
-			return nil, errors.New("not found")
+		listShipCutoffsFn: func(_ context.Context, _ string) ([]*entity.ShipCutoff, error) {
+			return []*entity.ShipCutoff{}, nil
 		},
 	}
-	roomResolver := &mockRoomResolver{
-		getRoomFn: func(_ context.Context, rid string) (string, bool, error) {
-			if rid == roomID {
-				return "building-001", true, nil
-			}
-			return "", false, nil
+	resolver := &mockLocationResolver{
+		getRoomFn: func(_ context.Context, _ string) (string, string, bool, error) {
+			return "floor-001", "building-001", true, nil
 		},
 	}
 
-	uc := NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, roomResolver)
-	result, err := uc.GetStoreForOrder(ctx, storeID, roomID)
-
+	uc := NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, resolver)
+	result, err := uc.GetStoreForOrder(ctx, storeID, "ROOM", locationID)
 	if err != nil {
 		t.Fatalf("GetStoreForOrder: %v", err)
 	}
@@ -181,61 +159,45 @@ func TestStoreForOrderUsecase_GetStoreForOrder_ReturnsStoreData(t *testing.T) {
 	if result.SaleStatus != "OPEN" {
 		t.Errorf("expected SaleStatus=OPEN, got %s", result.SaleStatus)
 	}
-	if len(result.Items) != 1 {
-		t.Errorf("expected 1 item, got %d", len(result.Items))
-	}
-	if result.Items[0].Price != 5000 {
-		t.Errorf("expected price 5000, got %d", result.Items[0].Price)
+	if len(result.Items) != 1 || result.Items[0].Price != 5000 {
+		t.Errorf("unexpected items: %+v", result.Items)
 	}
 }
 
-func TestStoreForOrderUsecase_GetStoreForOrder_ResolveShipFee(t *testing.T) {
+func TestStoreForOrder_ResolveShipFee_Room(t *testing.T) {
 	ctx := context.Background()
-	storeID := "store-001"
-	roomID := "room-001"
-	buildingID := "building-001"
-
-	store := &entity.Store{
-		ID:         storeID,
-		SaleStatus: "OPEN",
-	}
+	storeID, roomID, floorID, buildingID := "store-001", "room-001", "floor-001", "building-001"
 
 	storeRepo := &mockStoreRepo{
-		getByIDFn: func(_ context.Context, id string) (*entity.Store, error) {
-			return store, nil
+		getByIDFn: func(_ context.Context, _ string) (*entity.Store, error) {
+			return &entity.Store{ID: storeID, SaleStatus: "OPEN"}, nil
 		},
 	}
 	catalogRepo := &mockCatalogRepo{
-		listMenuItemsFn: func(_ context.Context, _, _, status string) ([]*entity.MenuItem, error) {
-			if status == "on" {
-				return []*entity.MenuItem{}, nil
-			}
-			return nil, errors.New("not found")
+		listMenuItemsFn: func(_ context.Context, _, _, _ string) ([]*entity.MenuItem, error) {
+			return []*entity.MenuItem{}, nil
 		},
 	}
 	shippingRepo := &mockShippingRepo{
-		resolveShipFeeFn: func(_ context.Context, sid, bid, rid string) (*entity.ShipFeeRule, error) {
-			if sid == storeID && bid == buildingID && rid == roomID {
-				return &entity.ShipFeeRule{ID: "rule-1", UnitFee: 3000}, nil
+		resolveShipFeeFn: func(_ context.Context, sid string, scopes, ids []string) (*entity.ShipFeeRule, error) {
+			// First candidate is room; should match immediately.
+			if len(scopes) > 0 && scopes[0] == "room" && ids[0] == roomID {
+				return &entity.ShipFeeRule{UnitFee: 3000}, nil
 			}
 			return nil, nil
 		},
-		listShipCutoffsFn: func(_ context.Context, sid string) ([]*entity.ShipCutoff, error) {
+		listShipCutoffsFn: func(_ context.Context, _ string) ([]*entity.ShipCutoff, error) {
 			return []*entity.ShipCutoff{}, nil
 		},
 	}
-	roomResolver := &mockRoomResolver{
-		getRoomFn: func(_ context.Context, rid string) (string, bool, error) {
-			if rid == roomID {
-				return buildingID, true, nil
-			}
-			return "", false, nil
+	resolver := &mockLocationResolver{
+		getRoomFn: func(_ context.Context, _ string) (string, string, bool, error) {
+			return floorID, buildingID, true, nil
 		},
 	}
 
-	uc := NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, roomResolver)
-	result, err := uc.GetStoreForOrder(ctx, storeID, roomID)
-
+	uc := NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, resolver)
+	result, err := uc.GetStoreForOrder(ctx, storeID, "ROOM", roomID)
 	if err != nil {
 		t.Fatalf("GetStoreForOrder: %v", err)
 	}
@@ -247,27 +209,64 @@ func TestStoreForOrderUsecase_GetStoreForOrder_ResolveShipFee(t *testing.T) {
 	}
 }
 
-func TestStoreForOrderUsecase_GetStoreForOrder_NotServedLocation(t *testing.T) {
+func TestStoreForOrder_ResolveShipFee_Floor(t *testing.T) {
 	ctx := context.Background()
-	storeID := "store-001"
-	roomID := "room-unknown"
-
-	store := &entity.Store{
-		ID:         storeID,
-		SaleStatus: "OPEN",
-	}
+	storeID, floorID, buildingID := "store-001", "floor-001", "building-001"
 
 	storeRepo := &mockStoreRepo{
-		getByIDFn: func(_ context.Context, id string) (*entity.Store, error) {
-			return store, nil
+		getByIDFn: func(_ context.Context, _ string) (*entity.Store, error) {
+			return &entity.Store{ID: storeID, SaleStatus: "OPEN"}, nil
 		},
 	}
 	catalogRepo := &mockCatalogRepo{
-		listMenuItemsFn: func(_ context.Context, _, _, status string) ([]*entity.MenuItem, error) {
-			if status == "on" {
-				return []*entity.MenuItem{}, nil
+		listMenuItemsFn: func(_ context.Context, _, _, _ string) ([]*entity.MenuItem, error) {
+			return []*entity.MenuItem{}, nil
+		},
+	}
+	shippingRepo := &mockShippingRepo{
+		resolveShipFeeFn: func(_ context.Context, _ string, scopes, ids []string) (*entity.ShipFeeRule, error) {
+			for i := range scopes {
+				if scopes[i] == "floor" && ids[i] == floorID {
+					return &entity.ShipFeeRule{UnitFee: 10000}, nil
+				}
 			}
-			return nil, errors.New("not found")
+			return nil, nil
+		},
+		listShipCutoffsFn: func(_ context.Context, _ string) ([]*entity.ShipCutoff, error) {
+			return []*entity.ShipCutoff{}, nil
+		},
+	}
+	resolver := &mockLocationResolver{
+		getFloorFn: func(_ context.Context, _ string) (string, bool, error) {
+			return buildingID, true, nil
+		},
+	}
+
+	uc := NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, resolver)
+	result, err := uc.GetStoreForOrder(ctx, storeID, "FLOOR", floorID)
+	if err != nil {
+		t.Fatalf("GetStoreForOrder: %v", err)
+	}
+	if !result.Served {
+		t.Error("expected Served=true")
+	}
+	if result.UnitShipFee != 10000 {
+		t.Errorf("expected 10000, got %d", result.UnitShipFee)
+	}
+}
+
+func TestStoreForOrder_NotServedLocation(t *testing.T) {
+	ctx := context.Background()
+	storeID, roomID := "store-001", "room-unknown"
+
+	storeRepo := &mockStoreRepo{
+		getByIDFn: func(_ context.Context, _ string) (*entity.Store, error) {
+			return &entity.Store{ID: storeID, SaleStatus: "OPEN"}, nil
+		},
+	}
+	catalogRepo := &mockCatalogRepo{
+		listMenuItemsFn: func(_ context.Context, _, _, _ string) ([]*entity.MenuItem, error) {
+			return []*entity.MenuItem{}, nil
 		},
 	}
 	shippingRepo := &mockShippingRepo{
@@ -275,15 +274,14 @@ func TestStoreForOrderUsecase_GetStoreForOrder_NotServedLocation(t *testing.T) {
 			return []*entity.ShipCutoff{}, nil
 		},
 	}
-	roomResolver := &mockRoomResolver{
-		getRoomFn: func(_ context.Context, rid string) (string, bool, error) {
-			return "", false, nil // room not found
+	resolver := &mockLocationResolver{
+		getRoomFn: func(_ context.Context, _ string) (string, string, bool, error) {
+			return "", "", false, nil // room not found
 		},
 	}
 
-	uc := NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, roomResolver)
-	result, err := uc.GetStoreForOrder(ctx, storeID, roomID)
-
+	uc := NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, resolver)
+	result, err := uc.GetStoreForOrder(ctx, storeID, "ROOM", roomID)
 	if err != nil {
 		t.Fatalf("GetStoreForOrder: %v", err)
 	}
@@ -292,62 +290,81 @@ func TestStoreForOrderUsecase_GetStoreForOrder_NotServedLocation(t *testing.T) {
 	}
 }
 
-func TestStoreForOrderUsecase_ResolvesOrderDeadline(t *testing.T) {
+func TestStoreForOrder_Pickup_SkipsShipFee(t *testing.T) {
 	ctx := context.Background()
 	storeID := "store-001"
-	roomID := "room-001"
-
-	store := &entity.Store{
-		ID:         storeID,
-		SaleStatus: "OPEN",
-	}
 
 	storeRepo := &mockStoreRepo{
-		getByIDFn: func(_ context.Context, id string) (*entity.Store, error) {
-			return store, nil
+		getByIDFn: func(_ context.Context, _ string) (*entity.Store, error) {
+			return &entity.Store{ID: storeID, SaleStatus: "OPEN"}, nil
 		},
 	}
 	catalogRepo := &mockCatalogRepo{
-		listMenuItemsFn: func(_ context.Context, _, _, status string) ([]*entity.MenuItem, error) {
-			if status == "on" {
-				return []*entity.MenuItem{}, nil
-			}
-			return nil, errors.New("not found")
+		listMenuItemsFn: func(_ context.Context, _, _, _ string) ([]*entity.MenuItem, error) {
+			return []*entity.MenuItem{}, nil
+		},
+	}
+	shippingRepo := &mockShippingRepo{
+		listShipCutoffsFn: func(_ context.Context, _ string) ([]*entity.ShipCutoff, error) {
+			return []*entity.ShipCutoff{}, nil
+		},
+	}
+	// Resolver should never be called for PICKUP (empty locationID).
+	resolver := &mockLocationResolver{}
+
+	uc := NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, resolver)
+	// PICKUP: empty locationID
+	result, err := uc.GetStoreForOrder(ctx, storeID, "", "")
+	if err != nil {
+		t.Fatalf("GetStoreForOrder: %v", err)
+	}
+	if result.Served {
+		t.Error("expected Served=false for PICKUP (no location)")
+	}
+}
+
+func TestStoreForOrder_ResolvesOrderDeadline(t *testing.T) {
+	ctx := context.Background()
+	storeID, roomID := "store-001", "room-001"
+
+	storeRepo := &mockStoreRepo{
+		getByIDFn: func(_ context.Context, _ string) (*entity.Store, error) {
+			return &entity.Store{ID: storeID, SaleStatus: "OPEN"}, nil
+		},
+	}
+	catalogRepo := &mockCatalogRepo{
+		listMenuItemsFn: func(_ context.Context, _, _, _ string) ([]*entity.MenuItem, error) {
+			return []*entity.MenuItem{}, nil
 		},
 	}
 	shippingRepo := &mockShippingRepo{
 		listShipCutoffsFn: func(_ context.Context, sid string) ([]*entity.ShipCutoff, error) {
 			if sid == storeID {
 				return []*entity.ShipCutoff{
-					{ID: "cutoff-1", CutoffTime: "11:00", LeadMinutes: 30},
-					{ID: "cutoff-2", CutoffTime: "18:00", LeadMinutes: 60},
+					{ID: "c1", CutoffTime: "11:00", LeadMinutes: 30},
+					{ID: "c2", CutoffTime: "18:00", LeadMinutes: 60},
 				}, nil
 			}
 			return nil, errors.New("not found")
 		},
 	}
-	roomResolver := &mockRoomResolver{
-		getRoomFn: func(_ context.Context, rid string) (string, bool, error) {
-			return "building-001", true, nil
+	resolver := &mockLocationResolver{
+		getRoomFn: func(_ context.Context, _ string) (string, string, bool, error) {
+			return "floor-001", "building-001", true, nil
 		},
 	}
 
-	uc := NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, roomResolver)
-	result, err := uc.GetStoreForOrder(ctx, storeID, roomID)
-
+	uc := NewStoreForOrderUsecase(storeRepo, catalogRepo, shippingRepo, resolver)
+	result, err := uc.GetStoreForOrder(ctx, storeID, "ROOM", roomID)
 	if err != nil {
 		t.Fatalf("GetStoreForOrder: %v", err)
 	}
 	if result.OrderDeadline == "" {
 		t.Error("expected OrderDeadline to be set")
 	}
-	// OrderDeadline should be the earliest (11:00 - 30min = 10:30)
-	if !contains(result.OrderDeadline, "10:30") {
-		t.Logf("OrderDeadline: %s", result.OrderDeadline)
-	}
 }
 
-// Helper to check if string contains substring
-func contains(s, substr string) bool {
+// Helper used by tests
+func containsStr(s, substr string) bool {
 	return len(s) > 0 && len(substr) > 0
 }

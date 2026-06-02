@@ -23,6 +23,9 @@ type Delivery struct {
 	OrderCode   string         `gorm:"type:varchar(20)"`
 	StoreID     string         `gorm:"type:uuid;not null;index"`
 	LocationID  string         `gorm:"type:uuid;not null"`
+	// LocationLevel is the delivery granularity: "BUILDING" | "FLOOR" | "ROOM".
+	// Empty / absent ⇒ treated as "ROOM" for back-compat with old orders.
+	LocationLevel string        `gorm:"type:varchar(10);not null;default:'ROOM'"`
 	CustomerID  string         `gorm:"type:uuid;not null"`
 	ShipperID   *string        `gorm:"type:uuid;index"`
 	ShipFee     int64          `gorm:"not null;default:0"`

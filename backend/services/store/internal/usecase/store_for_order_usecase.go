@@ -40,31 +40,34 @@ type StoreForOrderResult struct {
 // StoreForOrderUsecase is called by the gRPC handler to validate a store
 // before order placement.
 type StoreForOrderUsecase interface {
-	GetStoreForOrder(ctx context.Context, storeID, roomID string) (*StoreForOrderResult, error)
+	// GetStoreForOrder assembles store availability, ship fee, and menu snapshot.
+	// locationLevel: "ROOM" | "FLOOR" | "BUILDING" (empty → ROOM).
+	// locationID: the ID at that level; empty for PICKUP orders.
+	GetStoreForOrder(ctx context.Context, storeID, locationLevel, locationID string) (*StoreForOrderResult, error)
 }
 
 type storeForOrderUsecase struct {
-	storeRepo    repository.StoreRepository
-	catalogRepo  repository.CatalogRepository
-	shippingRepo repository.ShippingRepository
-	roomResolver RoomResolver
+	storeRepo        repository.StoreRepository
+	catalogRepo      repository.CatalogRepository
+	shippingRepo     repository.ShippingRepository
+	locationResolver LocationResolver
 }
 
 func NewStoreForOrderUsecase(
 	storeRepo repository.StoreRepository,
 	catalogRepo repository.CatalogRepository,
 	shippingRepo repository.ShippingRepository,
-	roomResolver RoomResolver,
+	locationResolver LocationResolver,
 ) StoreForOrderUsecase {
 	return &storeForOrderUsecase{
-		storeRepo:    storeRepo,
-		catalogRepo:  catalogRepo,
-		shippingRepo: shippingRepo,
-		roomResolver: roomResolver,
+		storeRepo:        storeRepo,
+		catalogRepo:      catalogRepo,
+		shippingRepo:     shippingRepo,
+		locationResolver: locationResolver,
 	}
 }
 
-func (uc *storeForOrderUsecase) GetStoreForOrder(ctx context.Context, storeID, roomID string) (*StoreForOrderResult, error) {
+func (uc *storeForOrderUsecase) GetStoreForOrder(ctx context.Context, storeID, locationLevel, locationID string) (*StoreForOrderResult, error) {
 	store, err := uc.storeRepo.GetByID(ctx, storeID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return &StoreForOrderResult{Found: false}, nil
@@ -78,20 +81,20 @@ func (uc *storeForOrderUsecase) GetStoreForOrder(ctx context.Context, storeID, r
 		SaleStatus: store.SaleStatus,
 	}
 
-	// Resolve ship fee for delivery. PICKUP orders carry no room, so skip
-	// resolution entirely (an empty room id is not an error).
-	if roomID != "" {
-		buildingID, found, err := uc.roomResolver.GetRoom(ctx, roomID)
-		if err != nil {
-			return nil, fmt.Errorf("resolve room: %w", err)
+	// Resolve ship fee for delivery. PICKUP orders carry no locationID, so skip
+	// resolution entirely (empty locationID is not an error for PICKUP).
+	if locationID != "" {
+		level := locationLevel
+		if level == "" {
+			level = "ROOM"
 		}
-		if found {
-			rule, err := uc.shippingRepo.ResolveShipFee(ctx, storeID, buildingID, roomID)
-			if err == nil && rule != nil {
-				result.Served = true
-				result.UnitShipFee = rule.UnitFee
-			}
+		fee, feeErr := resolveFeeForOrder(ctx, uc.locationResolver, uc.shippingRepo, storeID, level, locationID)
+		if feeErr == nil {
+			result.Served = true
+			result.UnitShipFee = fee
 		}
+		// ErrLocationNotServed or location-not-found are silently treated as
+		// Served=false — the order service may still proceed for PICKUP.
 	}
 
 	// Load active menu items for order validation snapshot.
@@ -117,6 +120,53 @@ func (uc *storeForOrderUsecase) GetStoreForOrder(ctx context.Context, storeID, r
 	}
 
 	return result, nil
+}
+
+// resolveFeeForOrder applies the 3-level cascade to find the applicable ship fee.
+// It mirrors ResolveFee in ShipFeeUsecase but operates directly on the repo so
+// StoreForOrderUsecase does not depend on ShipFeeUsecase (avoids circular deps).
+func resolveFeeForOrder(ctx context.Context, resolver LocationResolver, repo repository.ShippingRepository, storeID, level, locationID string) (int64, error) {
+	type candidate struct{ scope, id string }
+	var candidates []candidate
+
+	switch level {
+	case "ROOM":
+		floorID, buildingID, found, err := resolver.GetRoom(ctx, locationID)
+		if err != nil || !found {
+			return 0, ErrLocationNotServed
+		}
+		candidates = []candidate{{"room", locationID}, {"floor", floorID}, {"building", buildingID}}
+	case "FLOOR":
+		buildingID, found, err := resolver.GetFloor(ctx, locationID)
+		if err != nil || !found {
+			return 0, ErrLocationNotServed
+		}
+		candidates = []candidate{{"floor", locationID}, {"building", buildingID}}
+	case "BUILDING":
+		found, err := resolver.GetBuilding(ctx, locationID)
+		if err != nil || !found {
+			return 0, ErrLocationNotServed
+		}
+		candidates = []candidate{{"building", locationID}}
+	default:
+		return 0, ErrLocationNotServed
+	}
+
+	var scopes, ids []string
+	for _, c := range candidates {
+		if c.id != "" {
+			scopes = append(scopes, c.scope)
+			ids = append(ids, c.id)
+		}
+	}
+	rule, err := repo.ResolveShipFee(ctx, storeID, scopes, ids)
+	if err != nil {
+		return 0, err
+	}
+	if rule == nil {
+		return 0, ErrLocationNotServed
+	}
+	return rule.UnitFee, nil
 }
 
 // resolveOrderDeadline computes the LATEST order deadline across all of today's

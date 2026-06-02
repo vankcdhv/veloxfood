@@ -11,4 +11,6 @@ var (
 	ErrRoomNotFound             = apperror.NotFound("room not found")
 	ErrCustomerLocationNotFound = apperror.NotFound("customer location not found")
 	ErrRoomIDRequired           = apperror.BadRequest("room_id is required")
+	ErrFloorIDRequired          = apperror.BadRequest("floor_id is required")
+	ErrBuildingIDRequired       = apperror.BadRequest("building_id is required")
 )

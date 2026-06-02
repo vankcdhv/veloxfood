@@ -37,7 +37,7 @@ func NewStoreServiceServer(
 
 // GetStoreForOrder assembles store availability, ship fee, and menu snapshot.
 func (s *StoreServiceServer) GetStoreForOrder(ctx context.Context, req *storev1.GetStoreForOrderRequest) (*storev1.GetStoreForOrderResponse, error) {
-	result, err := s.storeForOrderUC.GetStoreForOrder(ctx, req.GetStoreId(), req.GetRoomId())
+	result, err := s.storeForOrderUC.GetStoreForOrder(ctx, req.GetStoreId(), req.GetLocationLevel(), req.GetRoomId())
 	if err != nil {
 		var appErr *apperror.Error
 		if errors.As(err, &appErr) {

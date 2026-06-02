@@ -53,33 +53,25 @@ func (r *shippingGormRepository) DeleteShipFeeRule(ctx context.Context, id strin
 }
 
 // ResolveShipFee finds the most specific fee rule for the delivery location.
-// Room-scoped rule takes precedence over building-scoped. Returns nil when no
-// rule is configured (store does not serve that location).
-func (r *shippingGormRepository) ResolveShipFee(ctx context.Context, storeID, buildingID, roomID string) (*entity.ShipFeeRule, error) {
-	// Try room-level first.
-	var room entity.ShipFeeRule
-	err := r.db.WithContext(ctx).
-		Where("store_id = ? AND scope = 'room' AND ref_id = ?", storeID, roomID).
-		First(&room).Error
-	if err == nil {
-		return &room, nil
+// It walks the ordered (scope, id) candidate pairs and returns the first match,
+// so the caller controls priority by ordering most-specific first.
+// Returns nil when no rule is configured (store does not serve that location).
+func (r *shippingGormRepository) ResolveShipFee(ctx context.Context, storeID string, scopes []string, ids []string) (*entity.ShipFeeRule, error) {
+	for i := range scopes {
+		if ids[i] == "" {
+			continue
+		}
+		var rule entity.ShipFeeRule
+		err := r.db.WithContext(ctx).
+			Where("store_id = ? AND scope = ? AND ref_id = ?", storeID, scopes[i], ids[i]).
+			First(&rule).Error
+		if err == nil {
+			return &rule, nil
+		}
+		if err != gorm.ErrRecordNotFound {
+			return nil, err
+		}
 	}
-	if err != gorm.ErrRecordNotFound {
-		return nil, err
-	}
-
-	// Fall back to building-level.
-	var building entity.ShipFeeRule
-	err = r.db.WithContext(ctx).
-		Where("store_id = ? AND scope = 'building' AND ref_id = ?", storeID, buildingID).
-		First(&building).Error
-	if err == nil {
-		return &building, nil
-	}
-	if err != gorm.ErrRecordNotFound {
-		return nil, err
-	}
-
 	// No rule found — store does not serve this location.
 	return nil, nil
 }

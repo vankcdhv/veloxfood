@@ -32,9 +32,12 @@ func (h *CustomerOrderHandler) PlaceOrder(c *gin.Context) {
 	var body struct {
 		StoreID       string `json:"store_id" binding:"required"`
 		LocationID    string `json:"location_id"`
-		Fulfillment   string `json:"fulfillment" binding:"required,oneof=DELIVERY PICKUP"`
-		PaymentMethod string `json:"payment_method" binding:"required,oneof=COD MOMO WALLET"`
-		VoucherCodes  []string        `json:"voucher_codes"`
+		// LocationLevel is required for DELIVERY and must be one of BUILDING, FLOOR, ROOM.
+		// Absent / empty is treated as ROOM for back-compat.
+		LocationLevel string              `json:"location_level" binding:"omitempty,oneof=BUILDING FLOOR ROOM"`
+		Fulfillment   string              `json:"fulfillment" binding:"required,oneof=DELIVERY PICKUP"`
+		PaymentMethod string              `json:"payment_method" binding:"required,oneof=COD MOMO WALLET"`
+		VoucherCodes  []string            `json:"voucher_codes"`
 		Items         []placeOrderItemBody `json:"items" binding:"required,min=1"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -57,6 +60,7 @@ func (h *CustomerOrderHandler) PlaceOrder(c *gin.Context) {
 		CustomerID:    customerID,
 		StoreID:       body.StoreID,
 		LocationID:    body.LocationID,
+		LocationLevel: body.LocationLevel,
 		Fulfillment:   entity.Fulfillment(body.Fulfillment),
 		PaymentMethod: entity.PaymentMethod(body.PaymentMethod),
 		VoucherCodes:  body.VoucherCodes,
