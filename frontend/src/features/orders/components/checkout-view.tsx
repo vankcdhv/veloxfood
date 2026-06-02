@@ -12,6 +12,7 @@ import { Badge } from '@/shared/ui/badge';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { RoleGuard } from '@/features/auth/components/role-guard';
 import { LocationPicker } from '@/features/locations/components/location-picker';
+import type { LocationSelection } from '@/features/locations/components/location-picker';
 import { useMyLocations } from '@/features/locations/hooks/use-locations';
 import { formatRoomPath } from '@/features/locations/lib/format-room-path';
 import { publicPromotionApi } from '@/features/promotions/api/promotion-api';
@@ -65,15 +66,17 @@ function CheckoutContent() {
   const placeOrder = usePlaceOrder();
 
   const [fulfillment, setFulfillment] = useState<FulfillmentType>('DELIVERY');
-  const [locationId, setLocationId] = useState('');
+  // Tracks the selected delivery location at any level (BUILDING/FLOOR/ROOM).
+  const [locationSel, setLocationSel] = useState<LocationSelection | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
   const [voucherInput, setVoucherInput] = useState('');
   const [voucherResult, setVoucherResult] = useState<ValidatePromotionResult | null>(null);
   const [validatingVoucher, setValidatingVoucher] = useState(false);
+  // Picker rekey: incrementing remounts the flexible picker after saved-loc selection.
+  const [pickerKey, setPickerKey] = useState(0);
 
   // Delivery slot (ca giao) is chosen here at checkout — one slot per order — so
-  // the customer always sees exactly which session they're ordering for. The menu
-  // page only previews per-slot availability.
+  // the customer always sees exactly which session they're ordering for.
   const [dates] = useState(dateOptions);
   const [slotDate, setSlotDate] = useState(() => isoDate(new Date()));
   const [slotCutoff, setSlotCutoff] = useState('');
@@ -81,15 +84,20 @@ function CheckoutContent() {
   const cutoffs = [...(slots?.cutoffs ?? [])].sort((a, b) => a.CutoffTime.localeCompare(b.CutoffTime));
   const hasSlots = cutoffs.length > 0;
   // The effective slot: the user's pick if still open, else the first open slot.
-  // Sessions whose order deadline already passed for today are excluded.
   const activeCutoff = resolveActiveCutoff(cutoffs, slotCutoff, slotDate);
   const allSlotsClosed = hasSlots && !activeCutoff;
 
-  // Unit ship fee for the selected delivery room (preview only).
-  const { data: shipFeeData } = useShipFee(
+  // Unit ship fee for the selected delivery location (any level).
+  const shipFeeQuery = useShipFee(
     cart?.StoreID ?? '',
-    fulfillment === 'DELIVERY' ? locationId : '',
+    fulfillment === 'DELIVERY' && locationSel ? locationSel.level : '',
+    fulfillment === 'DELIVERY' && locationSel ? locationSel.id : '',
   );
+  // True when the shop definitively does not serve this location (HTTP 400).
+  const locationNotServed =
+    fulfillment === 'DELIVERY' &&
+    !!locationSel &&
+    shipFeeQuery.isError;
 
   if (cartLoading) {
     return (
@@ -113,9 +121,8 @@ function CheckoutContent() {
   const subtotal = items.reduce((s, it) => s + it.PriceSnapshot * it.Qty, 0);
   const itemDiscount = voucherResult?.Applicable ? voucherResult.ItemDiscount : 0;
   const shipDiscount = voucherResult?.Applicable ? voucherResult.ShipDiscount : 0;
-  // Preview the unit ship fee for the chosen room (server stays authoritative at
-  // place-order). Pickup has no ship fee.
-  const shipFee = fulfillment === 'DELIVERY' ? (shipFeeData?.unit_ship_fee ?? 0) : 0;
+  // Preview the unit ship fee for the chosen location (server stays authoritative at place-order).
+  const shipFee = fulfillment === 'DELIVERY' ? (shipFeeQuery.data?.unit_ship_fee ?? 0) : 0;
   const grandTotal = Math.max(0, subtotal + shipFee - itemDiscount - shipDiscount);
   const walletBalance = wallet?.Balance ?? 0;
   const walletInsufficient = paymentMethod === 'WALLET' && walletBalance < grandTotal;
@@ -144,10 +151,21 @@ function CheckoutContent() {
     }
   };
 
+  const handleSavedLocationSelect = (roomId: string) => {
+    // Saved locations are always ROOM level.
+    setLocationSel(roomId ? { level: 'ROOM', id: roomId } : null);
+    // Reset picker so it shows blank when saved loc is chosen separately.
+    setPickerKey((k) => k + 1);
+  };
+
   const handlePlaceOrder = async () => {
     if (!cart?.StoreID) return;
-    if (fulfillment === 'DELIVERY' && !locationId) {
+    if (fulfillment === 'DELIVERY' && !locationSel) {
       toast.error('Vui lòng chọn địa điểm giao hàng');
+      return;
+    }
+    if (fulfillment === 'DELIVERY' && locationNotServed) {
+      toast.error('Shop không giao tới đây — vui lòng chọn địa điểm khác');
       return;
     }
     if (hasSlots && !activeCutoff) {
@@ -157,7 +175,8 @@ function CheckoutContent() {
 
     const body = {
       store_id: cart.StoreID,
-      location_id: fulfillment === 'DELIVERY' ? locationId : undefined,
+      location_id: fulfillment === 'DELIVERY' ? locationSel?.id : undefined,
+      location_level: fulfillment === 'DELIVERY' ? locationSel?.level : undefined,
       fulfillment,
       payment_method: paymentMethod,
       voucher_codes: voucherResult?.Applicable && voucherInput ? [voucherInput.trim().toUpperCase()] : [],
@@ -235,11 +254,11 @@ function CheckoutContent() {
                 <MapPin className="h-4 w-4 text-primary" />
                 Địa điểm giao hàng
               </label>
-              {/* Saved locations dropdown */}
+              {/* Saved locations dropdown — always ROOM level */}
               {(savedLocs.data?.length ?? 0) > 0 && (
                 <select
-                  value={locationId}
-                  onChange={(e) => setLocationId(e.target.value)}
+                  value={locationSel?.level === 'ROOM' ? locationSel.id : ''}
+                  onChange={(e) => handleSavedLocationSelect(e.target.value)}
                   className="border-input bg-background focus-visible:ring-ring h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none"
                 >
                   <option value="">— Chọn vị trí đã lưu —</option>
@@ -250,19 +269,26 @@ function CheckoutContent() {
                   ))}
                 </select>
               )}
-              {/* Cascading picker */}
+              {/* Flexible cascading picker: customer stops at any level */}
               <details className="text-sm">
                 <summary className="text-muted-foreground cursor-pointer select-none">
-                  {(savedLocs.data?.length ?? 0) > 0 ? 'Chọn phòng khác…' : 'Chọn phòng giao hàng'}
+                  {(savedLocs.data?.length ?? 0) > 0 ? 'Chọn địa điểm khác…' : 'Chọn địa điểm giao hàng'}
                 </summary>
                 <div className="mt-2">
                   <LocationPicker
-                    level="room"
-                    value={locationId}
-                    onSelect={setLocationId}
+                    key={pickerKey}
+                    onSelectLocation={(sel) => {
+                      setLocationSel(sel);
+                    }}
                   />
                 </div>
               </details>
+              {/* Not-served warning */}
+              {locationNotServed && (
+                <p className="text-destructive text-xs font-medium flex items-center gap-1">
+                  Shop không giao tới đây
+                </p>
+              )}
             </div>
           )}
 
@@ -426,7 +452,13 @@ function CheckoutContent() {
           {fulfillment === 'DELIVERY' && (
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>Phí giao hàng</span>
-              <span>{locationId ? formatVnd(shipFee) : 'Chọn phòng để tính'}</span>
+              <span>
+                {!locationSel
+                  ? 'Chọn địa điểm để tính'
+                  : locationNotServed
+                    ? 'Không hỗ trợ'
+                    : formatVnd(shipFee)}
+              </span>
             </div>
           )}
           {itemDiscount > 0 && (
@@ -457,7 +489,7 @@ function CheckoutContent() {
           placeOrder.isPending ||
           walletInsufficient ||
           allSlotsClosed ||
-          (fulfillment === 'DELIVERY' && !locationId)
+          (fulfillment === 'DELIVERY' && (!locationSel || locationNotServed))
         }
       >
         {placeOrder.isPending ? 'Đang đặt hàng…' : 'Đặt hàng'}

@@ -3,7 +3,7 @@
 
 export type SaleStatus = 'OPEN' | 'CLOSED_TODAY' | 'PAUSED';
 export type MenuItemStatus = 'on' | 'off';
-export type ShipFeeScope = 'building' | 'room';
+export type ShipFeeScope = 'building' | 'floor' | 'room';
 
 export interface Store {
   ID: string;

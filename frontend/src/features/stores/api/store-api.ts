@@ -37,8 +37,8 @@ export const browseStoreApi = {
   menu: async (id: string) => unwrap(await http.get<ApiResponse<MenuItem[]>>(`${STORES}/${id}/menu`)),
   categories: async (id: string) =>
     unwrap(await http.get<ApiResponse<Category[]>>(`${STORES}/${id}/categories`)),
-  shipFee: async (id: string, roomId: string) =>
-    unwrap(await http.get<ApiResponse<ShipFeeResult>>(`${STORES}/${id}/ship-fee`, { params: { room_id: roomId } })),
+  shipFee: async (id: string, level: string, locationId: string) =>
+    unwrap(await http.get<ApiResponse<ShipFeeResult>>(`${STORES}/${id}/ship-fee`, { params: { level, location_id: locationId } })),
   hours: async (id: string) =>
     unwrap(await http.get<ApiResponse<StoreHoursResponse>>(`${STORES}/${id}/hours`)),
   slots: async (id: string, date: string) =>

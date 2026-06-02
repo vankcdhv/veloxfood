@@ -2,23 +2,21 @@
 
 import { useMemo, useState } from 'react';
 import { MapPin, Phone, Truck, Star, Clock, UtensilsCrossed } from 'lucide-react';
-import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
 import { Skeleton } from '@/shared/ui/skeleton';
-import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { formatVnd } from '@/shared/lib/format-vnd';
 import { useMyLocations } from '@/features/locations/hooks/use-locations';
 import { formatRoomPath } from '@/features/locations/lib/format-room-path';
 import { LocationPicker } from '@/features/locations/components/location-picker';
+import type { LocationSelection } from '@/features/locations/components/location-picker';
 import { AddToCartButton } from '@/features/cart/components/add-to-cart-button';
 import { StoreReviewsList } from '@/features/reviews/components/store-reviews-list';
 import { MenuItemDetailDialog } from '@/features/reviews/components/menu-item-detail-dialog';
 import { StarRatingDisplay } from '@/features/reviews/components/star-rating-input';
 import { useStoreRatingSummary, useItemRatingSummaries } from '@/features/reviews/hooks/use-reviews';
 import type { ItemRatingSummary } from '@/features/reviews/types/review';
-import { browseStoreApi } from '../api/store-api';
-import { useStore, useStoreMenu, useStoreSlots } from '../hooks/use-stores';
+import { useStore, useStoreMenu, useStoreSlots, useShipFee } from '../hooks/use-stores';
 import { isCutoffClosed, resolveActiveCutoff } from '../lib/slot-availability';
 import { SaleStatusBadge } from './sale-status-badge';
 import type { MenuCategory } from '../types/store';
@@ -255,44 +253,25 @@ export function StoreDetailView({ storeId }: StoreDetailViewProps) {
 }
 
 function ShipFeeLookup({ storeId }: { storeId: string }) {
-  const [roomId, setRoomId] = useState('');
-  // Human-readable label for the chosen room (from saved locations or picker).
-  const [roomLabel, setRoomLabel] = useState('');
-  const [fee, setFee] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [sel, setSel] = useState<LocationSelection | null>(null);
+  // Rekey picker after saved-location selection to clear the cascade display.
+  const [pickerKey, setPickerKey] = useState(0);
 
   const savedLocations = useMyLocations();
   const hasSavedLocations = (savedLocations.data?.length ?? 0) > 0;
 
-  const lookupFee = async (id: string) => {
-    if (!id) return;
-    setLoading(true);
-    setFee(null);
-    try {
-      const result = await browseStoreApi.shipFee(storeId, id);
-      setFee(result.unit_ship_fee);
-    } catch (e) {
-      toast.error(getApiErrorMessage(e, 'Không tra được phí giao hàng'));
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Reactive fee query — re-fires whenever sel changes, no manual loading state needed.
+  const feeQuery = useShipFee(
+    storeId,
+    sel?.level ?? '',
+    sel?.id ?? '',
+  );
 
-  const handleSavedLocationChange = (id: string) => {
-    setRoomId(id);
-    setFee(null);
-    if (!id) { setRoomLabel(''); return; }
-    const loc = savedLocations.data?.find((l) => l.RoomID === id);
-    setRoomLabel(loc ? formatRoomPath(loc) : id);
-    lookupFee(id);
-  };
+  const notServed = !!sel && feeQuery.isError;
 
-  const handlePickerSelect = (id: string) => {
-    setRoomId(id);
-    setFee(null);
-    // Label will be resolved by the picker's own display; we just store the id.
-    // Auto-lookup once a room is chosen.
-    if (id) lookupFee(id);
+  const handleSavedLocationChange = (roomId: string) => {
+    setSel(roomId ? { level: 'ROOM', id: roomId } : null);
+    setPickerKey((k) => k + 1);
   };
 
   return (
@@ -311,7 +290,7 @@ function ShipFeeLookup({ storeId }: { storeId: string }) {
               Vị trí đã lưu
             </label>
             <select
-              value={roomId}
+              value={sel?.level === 'ROOM' ? sel.id : ''}
               onChange={(e) => handleSavedLocationChange(e.target.value)}
               className="border-input bg-background focus-visible:ring-ring h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
             >
@@ -325,43 +304,42 @@ function ShipFeeLookup({ storeId }: { storeId: string }) {
           </div>
         )}
 
-        {/* Fallback / secondary: cascading picker for ad-hoc room selection */}
+        {/* Flexible cascading picker: customer can stop at any level */}
         {!hasSavedLocations && (
           <LocationPicker
-            level="room"
-            value={roomId}
-            onSelect={handlePickerSelect}
+            key={pickerKey}
+            onSelectLocation={setSel}
           />
         )}
 
-        {/* When saved locations exist, also offer the picker for ad-hoc rooms */}
         {hasSavedLocations && (
           <details className="text-sm">
             <summary className="text-muted-foreground cursor-pointer select-none">
-              Chọn phòng khác…
+              Chọn địa điểm khác…
             </summary>
             <div className="mt-2">
               <LocationPicker
-                level="room"
-                value={roomId}
-                onSelect={handlePickerSelect}
+                key={pickerKey}
+                onSelectLocation={setSel}
               />
             </div>
           </details>
         )}
 
-        {loading && (
+        {feeQuery.isFetching && (
           <p className="text-muted-foreground text-sm">Đang tra phí…</p>
         )}
-        {fee !== null && !loading && (
+        {notServed && !feeQuery.isFetching && (
+          <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive font-medium">
+            Shop không hỗ trợ giao tới đây
+          </div>
+        )}
+        {feeQuery.data && !feeQuery.isFetching && (
           <div className="rounded-md bg-muted px-3 py-2 text-sm">
-            {roomLabel && (
-              <p className="text-muted-foreground text-xs mb-0.5 truncate">{roomLabel}</p>
-            )}
             <p className="font-medium">
               Phí giao:{' '}
               <span className="text-primary font-semibold">
-                {fee.toLocaleString('vi-VN')}đ
+                {feeQuery.data.unit_ship_fee.toLocaleString('vi-VN')}đ
               </span>
             </p>
           </div>

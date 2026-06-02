@@ -54,6 +54,7 @@ export interface Order {
 export interface PlaceOrderBody {
   store_id: string;
   location_id?: string;
+  location_level?: 'BUILDING' | 'FLOOR' | 'ROOM';
   fulfillment: FulfillmentType;
   payment_method: PaymentMethod;
   voucher_codes: string[];

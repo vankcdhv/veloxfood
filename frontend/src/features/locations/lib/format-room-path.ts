@@ -1,7 +1,7 @@
 // Shared room-path formatting utilities used across features.
 // Centralised here so changes to the display convention are made once.
 
-import type { CustomerLocation, ResolvedRoom } from '../types/location';
+import type { Building, CustomerLocation, Floor, ResolvedRoom } from '../types/location';
 
 /**
  * Formats a saved CustomerLocation's human-readable path.
@@ -28,4 +28,21 @@ export function formatResolvedRoom(r: ResolvedRoom): string {
     r.RoomName ? `${r.RoomCode} · ${r.RoomName}` : r.RoomCode,
   ].filter(Boolean);
   return parts.length ? parts.join(' · ') : r.RoomID;
+}
+
+/**
+ * Formats a Building-level delivery label.
+ * Used when the customer stops at Toà level without picking a floor.
+ */
+export function formatBuildingLabel(building: Building): string {
+  return building.Name || building.ID;
+}
+
+/**
+ * Formats a Floor-level delivery label showing "BuildingName · FloorName".
+ * The building name comes from the cached browse list, floor name from browse floors.
+ */
+export function formatFloorLabel(floor: Floor, buildingName: string): string {
+  const parts = [buildingName, floor.Name].filter(Boolean);
+  return parts.length ? parts.join(' · ') : floor.ID;
 }

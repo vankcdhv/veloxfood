@@ -2,55 +2,102 @@
 
 // Cascading Building→Floor→Room picker backed by the browse hooks.
 // Manages its own internal cascade state; resets child selects when a parent changes.
-// Use level='room' for a full 3-level pick (yields roomId via onSelect).
-// Use level='building' for building-only pick (yields buildingId via onSelect).
 //
-// To fully reset this picker from a parent, pass a React key that changes (e.g. a form
-// submission counter). Internal building/floor state is intentionally kept on cascade
-// changes so the user doesn't lose context while browsing.
+// Legacy API (unchanged): use level + onSelect for callers that only need a single id.
+//   level='room'     → all 3 selects, onSelect(roomId) on room change
+//   level='building' → building select only, onSelect(buildingId)
+//
+// Flexible API: use onSelectLocation to receive {level, id} as the user stops at
+// any depth (building/floor/room). Selecting a higher level clears deeper state and
+// emits the new depth immediately.
+//
+// To fully reset this picker from a parent, pass a React key that changes (e.g. a
+// form submission counter). Internal building/floor state is intentionally kept on
+// cascade changes so the user doesn't lose context while browsing.
 
 import { useState } from 'react';
 import { cn } from '@/shared/lib/utils';
 import { useBrowseBuildings, useBrowseFloors, useBrowseRooms } from '../hooks/use-locations';
 
+export type LocationLevel = 'BUILDING' | 'FLOOR' | 'ROOM';
+
+export interface LocationSelection {
+  level: LocationLevel;
+  id: string;
+}
+
 interface LocationPickerProps {
-  /** 'room' = all 3 selects, yields roomId. 'building' = building select only, yields buildingId. */
+  /** 'room' = all 3 selects, yields roomId. 'building' = building select only, yields buildingId.
+   *  Ignored when onSelectLocation is provided (flexible mode). */
   level?: 'building' | 'room';
-  /** Controlled value for the final selection (roomId or buildingId). Pass null/'' to reset. */
+  /** Controlled value for the final selection (roomId or buildingId). Pass null/'' to reset.
+   *  Only used by the legacy onSelect API. */
   value?: string;
-  /** Called with the selected id (roomId or buildingId) when the deepest relevant select changes. */
-  onSelect: (id: string) => void;
+  /** Called with the selected id (roomId or buildingId) when the deepest relevant select changes.
+   *  Legacy callback — kept for existing callers. */
+  onSelect?: (id: string) => void;
+  /** Flexible callback: emitted whenever the user stops at any depth.
+   *  Supersedes onSelect/level when provided. Emits null on clear. */
+  onSelectLocation?: (sel: LocationSelection | null) => void;
   className?: string;
 }
 
-export function LocationPicker({ level = 'room', value, onSelect, className }: LocationPickerProps) {
+export function LocationPicker({
+  level = 'room',
+  value,
+  onSelect,
+  onSelectLocation,
+  className,
+}: LocationPickerProps) {
+  const flexible = !!onSelectLocation;
+
   const [buildingId, setBuildingId] = useState('');
   const [floorId, setFloorId] = useState('');
 
+  // In flexible mode, show all 3 levels regardless of the `level` prop.
+  const showFloor = flexible || level === 'room';
+  const showRoom = flexible || level === 'room';
+
   const buildings = useBrowseBuildings();
-  const floors = useBrowseFloors(level === 'room' ? buildingId || null : null);
-  const rooms = useBrowseRooms(level === 'room' ? floorId || null : null);
+  const floors = useBrowseFloors(showFloor ? (buildingId || null) : null);
+  const rooms = useBrowseRooms(showRoom ? (floorId || null) : null);
 
   const handleBuildingChange = (id: string) => {
     setBuildingId(id);
     setFloorId('');
+    if (flexible) {
+      onSelectLocation?.(id ? { level: 'BUILDING', id } : null);
+      return;
+    }
     if (level === 'building') {
-      onSelect(id);
+      onSelect?.(id);
     } else {
-      // Room-level: building changed, downstream not yet selected.
-      onSelect('');
+      // Room-level legacy: building changed, downstream not yet selected.
+      onSelect?.('');
     }
   };
 
   const handleFloorChange = (id: string) => {
     setFloorId(id);
-    // Room not yet selected — clear upstream selection.
-    onSelect('');
+    if (flexible) {
+      onSelectLocation?.(id ? { level: 'FLOOR', id } : (buildingId ? { level: 'BUILDING', id: buildingId } : null));
+      return;
+    }
+    // Legacy: room not yet selected — clear upstream selection.
+    onSelect?.('');
   };
 
   const handleRoomChange = (id: string) => {
-    onSelect(id);
+    if (flexible) {
+      onSelectLocation?.(id ? { level: 'ROOM', id } : (floorId ? { level: 'FLOOR', id: floorId } : (buildingId ? { level: 'BUILDING', id: buildingId } : null)));
+      return;
+    }
+    onSelect?.(id);
   };
+
+  // In legacy mode the room value is controlled externally via `value`.
+  // In flexible mode we use uncontrolled (empty string) since the parent tracks via onSelectLocation.
+  const roomValue = flexible ? '' : (value ?? '');
 
   return (
     <div className={cn('space-y-2', className)}>
@@ -62,28 +109,29 @@ export function LocationPicker({ level = 'room', value, onSelect, className }: L
         loading={buildings.isLoading}
       />
 
-      {level === 'room' && (
-        <>
-          <SelectField
-            label="Tầng"
-            value={floorId}
-            onChange={handleFloorChange}
-            options={(floors.data ?? []).map((f) => ({ value: f.ID, label: f.Name }))}
-            disabled={!buildingId}
-            loading={floors.isFetching}
-          />
-          <SelectField
-            label="Phòng"
-            value={value ?? ''}
-            onChange={handleRoomChange}
-            options={(rooms.data ?? []).map((r) => ({
-              value: r.ID,
-              label: r.Code + (r.Name ? ` · ${r.Name}` : ''),
-            }))}
-            disabled={!floorId}
-            loading={rooms.isFetching}
-          />
-        </>
+      {showFloor && (
+        <SelectField
+          label="Tầng"
+          value={floorId}
+          onChange={handleFloorChange}
+          options={(floors.data ?? []).map((f) => ({ value: f.ID, label: f.Name }))}
+          disabled={!buildingId}
+          loading={floors.isFetching}
+        />
+      )}
+
+      {showRoom && (
+        <SelectField
+          label="Phòng"
+          value={roomValue}
+          onChange={handleRoomChange}
+          options={(rooms.data ?? []).map((r) => ({
+            value: r.ID,
+            label: r.Code + (r.Name ? ` · ${r.Name}` : ''),
+          }))}
+          disabled={!floorId}
+          loading={rooms.isFetching}
+        />
       )}
     </div>
   );

@@ -11,6 +11,7 @@ import { Skeleton } from '@/shared/ui/skeleton';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import {
   useBrowseBuildings,
+  useBrowseFloors,
   useResolveRoom,
 } from '@/features/locations/hooks/use-locations';
 import { formatResolvedRoom } from '@/features/locations/lib/format-room-path';
@@ -22,6 +23,13 @@ interface Props {
   storeId: string;
 }
 
+// Maps scope value to the picker level prop used by LocationPicker legacy API.
+function pickerLevelForScope(scope: ShipFeeScope): 'building' | 'room' {
+  if (scope === 'building') return 'building';
+  // Both 'floor' and 'room' use the full cascading picker; floor stops early via onSelect.
+  return 'room';
+}
+
 export function VendorShipFeePanel({ storeId }: Props) {
   const { data: rules, isLoading } = useStoreShipFees(storeId);
   const m = useVendorStoreMutations(storeId);
@@ -31,10 +39,14 @@ export function VendorShipFeePanel({ storeId }: Props) {
   // Incrementing remounts LocationPicker, resetting its cascade after add/scope change.
   const [pickerKey, setPickerKey] = useState(0);
 
+  // For floor scope we use the flexible onSelectLocation and stop at FLOOR level.
+  // For building/room we use the legacy onSelect API.
+  const isFloorScope = scope === 'floor';
+
   const addRule = () => {
     const fee = parseInt(unitFee, 10);
     if (!refId.trim() || isNaN(fee) || fee < 0) {
-      toast.error('Vui lòng chọn vị trí và nhập phí hợp lệ.');
+      toast.error('Vui lòng chọn vị trí và nhập phí hợp lệ (0 = miễn phí).');
       return;
     }
     m.createShipFee.mutate(
@@ -71,6 +83,13 @@ export function VendorShipFeePanel({ storeId }: Props) {
         <CardTitle className="text-base">Phí giao hàng</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Helper copy explaining cascade priority */}
+        <p className="text-xs text-muted-foreground rounded-md bg-muted px-3 py-2 leading-relaxed">
+          Giá Toà áp cho mọi tầng/phòng, trừ khi có giá Tầng/Phòng riêng.
+          Phải cài giá Toà trước khi thêm giá Tầng hoặc Phòng.
+          Phí 0đ = giao miễn phí.
+        </p>
+
         {isLoading && <Skeleton className="h-16" />}
         {!isLoading && (!rules || rules.length === 0) && (
           <p className="text-muted-foreground text-sm">Chưa có quy tắc nào.</p>
@@ -82,12 +101,12 @@ export function VendorShipFeePanel({ storeId }: Props) {
               className="group flex items-center gap-3 rounded-lg border border-border px-3 py-2"
             >
               <Badge variant="outline" className="shrink-0 capitalize">
-                {rule.Scope === 'building' ? 'Toà nhà' : 'Phòng'}
+                {rule.Scope === 'building' ? 'Toà nhà' : rule.Scope === 'floor' ? 'Tầng' : 'Phòng'}
               </Badge>
-              {/* Human-readable label; falls back to raw id only while resolving */}
+              {/* Human-readable label; falls back to '—' only while resolving */}
               <ShipFeeRuleLabel rule={rule} />
               <span className="text-primary text-sm font-semibold shrink-0">
-                {rule.UnitFee.toLocaleString('vi-VN')}đ
+                {rule.UnitFee === 0 ? 'Miễn phí' : `${rule.UnitFee.toLocaleString('vi-VN')}đ`}
               </span>
               <button
                 type="button"
@@ -112,17 +131,31 @@ export function VendorShipFeePanel({ storeId }: Props) {
               className="border-input bg-background h-9 rounded-md border px-2 text-sm shrink-0"
             >
               <option value="building">Toà nhà</option>
+              <option value="floor">Tầng</option>
               <option value="room">Phòng</option>
             </select>
           </div>
 
-          {/* Cascading picker: building-only or full room picker depending on scope */}
-          <LocationPicker
-            key={pickerKey}
-            level={scope === 'building' ? 'building' : 'room'}
-            value={refId}
-            onSelect={setRefId}
-          />
+          {/* Picker adapts to scope:
+              - building → building-only (legacy level='building')
+              - floor    → flexible onSelectLocation, only accept FLOOR selections
+              - room     → full cascading (legacy level='room') */}
+          {isFloorScope ? (
+            <LocationPicker
+              key={pickerKey}
+              onSelectLocation={(sel) => {
+                // Only register the id when the user actually lands on a floor.
+                setRefId(sel?.level === 'FLOOR' ? sel.id : '');
+              }}
+            />
+          ) : (
+            <LocationPicker
+              key={pickerKey}
+              level={pickerLevelForScope(scope)}
+              value={refId}
+              onSelect={setRefId}
+            />
+          )}
 
           <div className="flex gap-2">
             <Input
@@ -130,7 +163,7 @@ export function VendorShipFeePanel({ storeId }: Props) {
               type="number"
               min={0}
               onChange={(e) => setUnitFee(e.target.value)}
-              placeholder="Phí (VNĐ)"
+              placeholder="Phí (VNĐ) — 0 = miễn phí"
               className="flex-1"
             />
             <Button
@@ -152,10 +185,14 @@ export function VendorShipFeePanel({ storeId }: Props) {
 
 // Displays a human-readable label for a ship-fee rule's RefID.
 // Building scope → building name from the cached browse list.
-// Room scope → resolves via the API and formats with formatResolvedRoom.
+// Floor scope    → "BuildingName · FloorName" from browse lists (no extra API call).
+// Room scope     → resolves via the API and formats with formatResolvedRoom.
 // Shows "—" while loading or when the name cannot be resolved — never shows raw UUIDs.
 function ShipFeeRuleLabel({ rule }: { rule: ShipFeeRule }) {
+  // Single buildings query — covers both building-scope labels and the floor resolver.
+  // React Query deduplicates the network call when the same key is used concurrently.
   const buildings = useBrowseBuildings();
+
   // Room resolve is only enabled when scope is 'room'.
   const resolved = useResolveRoom(rule.Scope === 'room' ? rule.RefID : null);
 
@@ -168,11 +205,94 @@ function ShipFeeRuleLabel({ rule }: { rule: ShipFeeRule }) {
     );
   }
 
-  // Room scope — show '—' while loading or if resolve failed.
+  if (rule.Scope === 'floor') {
+    // Floor label resolved via FloorNameResolver sub-component to keep hook rules stable.
+    return (
+      <FloorRuleLabel
+        floorId={rule.RefID}
+        buildings={buildings.data ?? []}
+      />
+    );
+  }
+
+  // Room scope — show '…' while loading, '—' on error.
   const label = resolved.data ? formatResolvedRoom(resolved.data) : (resolved.isLoading ? '…' : '—');
   return (
     <span className="text-sm flex-1 truncate text-muted-foreground">
       {label}
+    </span>
+  );
+}
+
+// Resolves a floor label by browsing floors for each building until a match is found.
+// Uses a single building's floor list at a time — the floor ID is globally unique so
+// the first match wins. We try the first building's floors; if no match we show '—'.
+// For correctness with multiple buildings this component accepts all buildings and
+// iterates via a recursive approach — but to avoid dynamic hook calls we use a
+// dedicated single-building resolver that the parent maps.
+//
+// Simpler approach: resolve the floor name by scanning already-loaded floor data
+// from the location browse cache via a targeted hook per building. Since we can't
+// call hooks inside a loop, we use a single-building subcomponent pattern.
+function FloorRuleLabel({ floorId, buildings }: {
+  floorId: string;
+  buildings: import('@/features/locations/types/location').Building[];
+}) {
+  // Try the first building; if the floor belongs to it we get the name.
+  // For a vendor store the number of buildings is typically small (1-5).
+  // We render a per-building resolver for each and show the first non-null result.
+  if (buildings.length === 0) {
+    return <span className="text-sm flex-1 truncate text-muted-foreground">…</span>;
+  }
+  return (
+    <FloorRuleLabelInner
+      floorId={floorId}
+      buildingIds={buildings.map((b) => b.ID)}
+      buildingNames={Object.fromEntries(buildings.map((b) => [b.ID, b.Name]))}
+      index={0}
+    />
+  );
+}
+
+// Recursively tries each building's floor list until the floorId is found.
+// index drives which building we're currently checking.
+function FloorRuleLabelInner({ floorId, buildingIds, buildingNames, index }: {
+  floorId: string;
+  buildingIds: string[];
+  buildingNames: Record<string, string>;
+  index: number;
+}) {
+  const buildingId = buildingIds[index] ?? '';
+  const floorsQuery = useBrowseFloors(buildingId || null);
+
+  const floor = floorsQuery.data?.find((f) => f.ID === floorId);
+
+  if (floor) {
+    const bName = buildingNames[buildingId] ?? '';
+    const label = [bName, floor.Name].filter(Boolean).join(' · ');
+    return (
+      <span className="text-sm flex-1 truncate text-muted-foreground">
+        {label || '—'}
+      </span>
+    );
+  }
+
+  // Not in this building's floors — try the next building if available.
+  if (!floorsQuery.isLoading && index + 1 < buildingIds.length) {
+    return (
+      <FloorRuleLabelInner
+        floorId={floorId}
+        buildingIds={buildingIds}
+        buildingNames={buildingNames}
+        index={index + 1}
+      />
+    );
+  }
+
+  const loading = floorsQuery.isLoading;
+  return (
+    <span className="text-sm flex-1 truncate text-muted-foreground">
+      {loading ? '…' : '—'}
     </span>
   );
 }

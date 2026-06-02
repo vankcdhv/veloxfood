@@ -11,7 +11,7 @@ export const storeKeys = {
   storeHours: (id: string) => [...storeKeys.all, 'hours', id] as const,
   storeSlots: (id: string, date: string) => [...storeKeys.all, 'slots', id, date] as const,
   shipFees: (storeId: string) => [...storeKeys.all, 'ship-fees', storeId] as const,
-  shipFee: (storeId: string, roomId: string) => [...storeKeys.all, 'ship-fee', storeId, roomId] as const,
+  shipFee: (storeId: string, level: string, locationId: string) => [...storeKeys.all, 'ship-fee', storeId, level, locationId] as const,
   adminList: () => [...storeKeys.all, 'admin', 'list'] as const,
   hoursChange: (storeId: string) => [...storeKeys.all, 'hours-change', storeId] as const,
   vendorHoursChange: (storeId: string) => [...storeKeys.all, 'vendor-hours-change', storeId] as const,
@@ -164,12 +164,20 @@ export const useStoreSlots = (storeId: string, date: string) =>
     enabled: !!storeId && !!date,
   });
 
-// Resolved unit ship fee for a specific room (checkout fee preview).
-export const useShipFee = (storeId: string, roomId: string) =>
+// Resolved unit ship fee for a specific location at any level (BUILDING | FLOOR | ROOM).
+// Returns the query so callers can inspect isError (ErrLocationNotServed → HTTP 400).
+export const useShipFee = (storeId: string, level: string, locationId: string) =>
   useQuery({
-    queryKey: storeKeys.shipFee(storeId, roomId),
-    queryFn: () => browseStoreApi.shipFee(storeId, roomId),
-    enabled: !!storeId && !!roomId,
+    queryKey: storeKeys.shipFee(storeId, level, locationId),
+    queryFn: () => browseStoreApi.shipFee(storeId, level, locationId),
+    enabled: !!storeId && !!level && !!locationId,
+    // Do not retry on 4xx — "not served" is a definitive answer.
+    retry: (failureCount, error) => {
+      // axios errors expose response status
+      const status = (error as { response?: { status?: number } }).response?.status;
+      if (status && status >= 400 && status < 500) return false;
+      return failureCount < 2;
+    },
   });
 
 // Vendor's own hours-change requests.
