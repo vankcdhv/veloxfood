@@ -1,16 +1,56 @@
 'use client';
 
 import { useState } from 'react';
-import { RefreshCw, CheckCircle, XCircle, KeyRound, ChevronRight } from 'lucide-react';
+import { RefreshCw, CheckCircle, XCircle, KeyRound, ChevronRight, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
+import { Badge } from '@/shared/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { formatVnd } from '@/shared/lib/format-vnd';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useStoreOrders, useOwnerOrderMutations, useStoreOrder } from '../hooks/use-orders';
 import { OrderStatusBadge } from './order-status-badge';
-import type { OrderStatus } from '../types/order';
+import type { Order, OrderStatus } from '../types/order';
+
+// Format an RFC3339 string to "HH:MM". Returns '' on invalid input.
+function formatHHMM(rfc3339: string | undefined): string {
+  if (!rfc3339) return '';
+  const d = new Date(rfc3339);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+// Compute lateness in minutes between two RFC3339 timestamps. Returns 0 if on time.
+function lateMinutes(deliveredAt: string | undefined, desiredTime: string | undefined): number {
+  if (!deliveredAt || !desiredTime) return 0;
+  const delivered = new Date(deliveredAt).getTime();
+  const desired = new Date(desiredTime).getTime();
+  return Math.max(0, Math.round((delivered - desired) / 60000));
+}
+
+function DesiredTimeMeta({ order }: { order: Order }) {
+  const timeStr = formatHHMM(order.DesiredTime);
+  if (!timeStr) return null;
+
+  // Only show late badge if the order has been delivered.
+  const isDelivered = order.Status === 'DELIVERED' || order.Status === 'COMPLETED';
+  // Find DeliveredAt from status history if available.
+  const deliveredEntry = order.StatusHistory?.find((h) => h.Status === 'DELIVERED');
+  const late = isDelivered ? lateMinutes(deliveredEntry?.OccurredAt, order.DesiredTime) : 0;
+
+  return (
+    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <Clock className="h-3.5 w-3.5 shrink-0" />
+      <span>Giờ mong muốn: <span className="font-medium text-foreground">{timeStr}</span></span>
+      {isDelivered && (
+        late > 0
+          ? <Badge variant="destructive" className="text-xs px-1.5 py-0">Trễ {late}&apos;</Badge>
+          : <Badge variant="success" className="text-xs px-1.5 py-0">Đúng giờ</Badge>
+      )}
+    </div>
+  );
+}
 
 interface VendorOrderPanelProps {
   storeId: string;
@@ -198,6 +238,7 @@ function OrderActions({ storeId, orderId }: { storeId: string; orderId: string }
           <p>Thanh toán: {order.PaymentMethod}</p>
           <p>Đặt lúc: {new Date(order.PlacedAt).toLocaleString('vi-VN')}</p>
         </div>
+        <DesiredTimeMeta order={order} />
 
         {/* Fulfillment badge for PICKUP */}
         {order.Fulfillment === 'PICKUP' && order.PickupPin && (

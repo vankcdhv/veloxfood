@@ -67,16 +67,6 @@ function CurrentHoursCard({ storeId }: { storeId: string }) {
               ))}
           </div>
         )}
-        {data && data.ship_cutoffs.length > 0 && (
-          <div className="mt-4 space-y-1">
-            <p className="text-xs font-medium text-muted-foreground mb-1">Giờ cắt đơn:</p>
-            {data.ship_cutoffs.map((sc) => (
-              <div key={sc.ID} className="text-sm">
-                {sc.CutoffTime} (trước {sc.LeadMinutes} phút)
-              </div>
-            ))}
-          </div>
-        )}
       </CardContent>
     </Card>
   );
@@ -127,7 +117,6 @@ function RequestRow({ req }: { req: HoursChangeRequest }) {
 
 interface PayloadLike {
   operating_hours?: Array<{ weekday: number; open_time: string; close_time: string }>;
-  ship_cutoffs?: Array<{ cutoff_time: string; lead_minutes: number }>;
   note?: string;
 }
 
@@ -146,10 +135,9 @@ export function HoursPayloadSummary({ payload }: { payload: PayloadLike | string
   }
 
   const hours = Array.isArray(p.operating_hours) ? p.operating_hours : [];
-  const cutoffs = Array.isArray(p.ship_cutoffs) ? p.ship_cutoffs : [];
   const note = typeof p.note === 'string' && p.note.trim() ? p.note : null;
 
-  if (hours.length === 0 && cutoffs.length === 0 && !note) {
+  if (hours.length === 0 && !note) {
     return <p className="text-xs text-muted-foreground">Yêu cầu cập nhật giờ hoạt động.</p>;
   }
 
@@ -166,14 +154,6 @@ export function HoursPayloadSummary({ payload }: { payload: PayloadLike | string
                 {h.open_time} – {h.close_time}
               </p>
             ))}
-        </div>
-      )}
-      {cutoffs.length > 0 && (
-        <div className="space-y-0.5 mt-1">
-          <p className="text-muted-foreground">Giờ cắt đơn:</p>
-          {cutoffs.map((c, i) => (
-            <p key={i}>{c.cutoff_time} (trước {c.lead_minutes} phút)</p>
-          ))}
         </div>
       )}
       {note && <p className="text-muted-foreground mt-0.5">Ghi chú: {note}</p>}

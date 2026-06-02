@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ImagePlus, Pencil, Plus, Sliders, Trash2, ToggleLeft, ToggleRight, BarChart2 } from 'lucide-react';
+import { ImagePlus, Pencil, Plus, Sliders, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
@@ -12,7 +12,6 @@ import { formatVnd } from '@/shared/lib/format-vnd';
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog';
 import { useStoreMenu, useVendorStoreMutations } from '../hooks/use-stores';
 import { AddMenuItemDialog, EditMenuItemDialog, ImageUploadButton } from './vendor-menu-item-dialogs';
-import { VendorMenuItemQuotaDialog } from './vendor-menu-item-quota-dialog';
 import { VendorMenuItemOptionGroupsDialog } from './vendor-menu-item-option-groups-dialog';
 import type { Category, MenuItem } from '../types/store';
 
@@ -25,7 +24,6 @@ export function VendorMenuPanel({ storeId }: Props) {
   const m = useVendorStoreMutations(storeId);
   const [addTarget, setAddTarget] = useState<Category | null>(null);
   const [editTarget, setEditTarget] = useState<MenuItem | null>(null);
-  const [quotaTarget, setQuotaTarget] = useState<MenuItem | null>(null);
   const [optGroupTarget, setOptGroupTarget] = useState<MenuItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MenuItem | null>(null);
 
@@ -86,7 +84,6 @@ export function VendorMenuPanel({ storeId }: Props) {
                   onToggle={() => toggleStatus(item)}
                   onEdit={() => setEditTarget(item)}
                   onDelete={() => setDeleteTarget(item)}
-                  onQuota={() => setQuotaTarget(item)}
                   onOptionGroups={() => setOptGroupTarget(item)}
                   toggling={m.setMenuItemStatus.isPending}
                   deleting={m.deleteMenuItem.isPending}
@@ -108,12 +105,6 @@ export function VendorMenuPanel({ storeId }: Props) {
         storeId={storeId}
         item={editTarget}
         onClose={() => setEditTarget(null)}
-      />
-      <VendorMenuItemQuotaDialog
-        key={quotaTarget?.ID ?? 'quota-none'}
-        storeId={storeId}
-        item={quotaTarget}
-        onClose={() => setQuotaTarget(null)}
       />
       <VendorMenuItemOptionGroupsDialog
         key={optGroupTarget?.ID ?? 'og-none'}
@@ -142,14 +133,13 @@ export function VendorMenuPanel({ storeId }: Props) {
 // ---------- Menu item row ----------
 
 function MenuItemRow({
-  storeId, item, onToggle, onEdit, onDelete, onQuota, onOptionGroups, toggling, deleting,
+  storeId, item, onToggle, onEdit, onDelete, onOptionGroups, toggling, deleting,
 }: {
   storeId: string;
   item: MenuItem;
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  onQuota: () => void;
   onOptionGroups: () => void;
   toggling: boolean;
   deleting: boolean;
@@ -194,15 +184,6 @@ function MenuItemRow({
         className="text-muted-foreground hover:text-primary shrink-0 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
       >
         <Sliders className="h-4 w-4" />
-      </button>
-
-      <button
-        type="button"
-        aria-label="Số lượng"
-        onClick={onQuota}
-        className="text-muted-foreground hover:text-primary shrink-0 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        <BarChart2 className="h-4 w-4" />
       </button>
 
       <ImageUploadButton storeId={storeId} itemId={item.ID} />

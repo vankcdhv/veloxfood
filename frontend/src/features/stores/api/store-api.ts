@@ -11,10 +11,8 @@ import type {
   OptionGroup,
   ShipFeeResult,
   ShipFeeRule,
-  SlotQuota,
   Store,
   StoreHoursResponse,
-  StoreSlotsResponse,
 } from '../types/store';
 
 const STORES = `${API_PREFIX}/stores`;
@@ -41,15 +39,13 @@ export const browseStoreApi = {
     unwrap(await http.get<ApiResponse<ShipFeeResult>>(`${STORES}/${id}/ship-fee`, { params: { level, location_id: locationId } })),
   hours: async (id: string) =>
     unwrap(await http.get<ApiResponse<StoreHoursResponse>>(`${STORES}/${id}/hours`)),
-  slots: async (id: string, date: string) =>
-    unwrap(await http.get<ApiResponse<StoreSlotsResponse>>(`${STORES}/${id}/slots`, { params: { date } })),
 };
 
 // ---- Vendor (store owner) ----
 export const vendorStoreApi = {
   updateProfile: async (
     id: string,
-    body: Partial<{ name: string; business_type: string; address: string; phone: string }>,
+    body: Partial<{ name: string; business_type: string; address: string; phone: string; prep_minutes: number }>,
   ) => unwrap(await http.patch<ApiResponse<Store>>(`${STORES}/${id}`, body)),
 
   setSaleStatus: async (id: string, saleStatus: string) =>
@@ -168,11 +164,6 @@ export const vendorStoreApi = {
     await http.delete<ApiResponse>(`${STORES}/${storeId}/combos/${comboId}/items/${menuItemId}`);
   },
 
-  // ---- Slot quota ----
-  listSlotQuota: async (storeId: string, itemId: string, date: string) =>
-    unwrap(await http.get<ApiResponse<SlotQuota[]>>(`${STORES}/${storeId}/menu/${itemId}/quota`, { params: { date } })),
-  createSlotQuota: async (storeId: string, itemId: string, body: { date: string; cutoff_id: string; quota: number }) =>
-    unwrap(await http.post<ApiResponse<SlotQuota>>(`${STORES}/${storeId}/menu/${itemId}/quota`, body)),
 };
 
 // ---- Admin ----

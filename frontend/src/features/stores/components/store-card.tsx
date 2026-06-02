@@ -1,12 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { Clock, Package, Truck, UtensilsCrossed } from 'lucide-react';
+import { Package, Truck, UtensilsCrossed } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
 import { StarRatingDisplay } from '@/features/reviews/components/star-rating-input';
 import { useStoreRatingSummary } from '@/features/reviews/hooks/use-reviews';
-import { SaleStatusBadge } from './sale-status-badge';
+import { StoreOpenBadge } from './sale-status-badge';
 import type { Store } from '../types/store';
 
 interface StoreCardProps {
@@ -16,10 +16,6 @@ interface StoreCardProps {
 
 export function StoreCard({ store, href }: StoreCardProps) {
   const { data: rating } = useStoreRatingSummary(store.ID);
-  // Ca giao times, sorted (e.g. "11:00 · 17:30 · 22:00").
-  const cutoffs = [...(store.ShipCutoffs ?? [])]
-    .sort((a, b) => a.CutoffTime.localeCompare(b.CutoffTime))
-    .map((c) => c.CutoffTime);
 
   // h-full + flex column so every card fills its grid cell and lines up evenly;
   // the footer is pinned to the bottom (mt-auto) regardless of body length.
@@ -39,7 +35,7 @@ export function StoreCard({ store, href }: StoreCardProps) {
               <p className="text-muted-foreground text-xs line-clamp-1 mt-0.5">{store.BusinessType}</p>
             )}
           </div>
-          <SaleStatusBadge status={store.SaleStatus} />
+          <StoreOpenBadge openNow={store.OpenNow} status={store.SaleStatus} />
         </div>
 
         {/* Rating row — always reserved so cards stay uniform */}
@@ -54,14 +50,6 @@ export function StoreCard({ store, href }: StoreCardProps) {
             <span className="text-muted-foreground/60">Chưa có đánh giá</span>
           )}
         </div>
-
-        {/* Ca giao */}
-        {cutoffs.length > 0 && (
-          <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Clock className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">Ca giao: {cutoffs.join(' · ')}</span>
-          </p>
-        )}
 
         {/* Footer chips pinned to the bottom */}
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">

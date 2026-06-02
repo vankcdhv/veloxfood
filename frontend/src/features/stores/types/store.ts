@@ -17,7 +17,11 @@ export interface Store {
   SaleStatus: SaleStatus;
   PickupEnabled: boolean;
   CreatedAt: string;
-  ShipCutoffs?: ShipCutoff[]; // Ca giao, attached by the store list/detail endpoints
+  // Prep-time + open-now fields returned by browse/detail endpoints.
+  PrepMinutes?: number;
+  OpenNow?: boolean;
+  OpenTimeToday?: string;  // "HH:MM" or ""
+  CloseTimeToday?: string; // "HH:MM" or ""
 }
 
 export interface Category {
@@ -69,38 +73,14 @@ export interface OperatingHour {
   CloseTime: string;
 }
 
-// Ship cut-off time slot. CutoffTime: "HH:MM".
-export interface ShipCutoff {
-  ID: string;
-  StoreID: string;
-  CutoffTime: string;
-  LeadMinutes: number;
-}
 
 export interface StoreHoursResponse {
   operating_hours: OperatingHour[];
-  ship_cutoffs: ShipCutoff[];
-}
-
-// Remaining slot quota for one (menu item, cutoff) on a given date.
-export interface StoreSlotQuota {
-  MenuItemID: string;
-  CutoffID: string;
-  Quota: number;
-  SoldCount: number;
-  Remaining: number;
-}
-
-// GET /stores/:id/slots?date= — cutoffs + per-item remaining quota for the date.
-export interface StoreSlotsResponse {
-  cutoffs: ShipCutoff[];
-  quotas: StoreSlotQuota[];
 }
 
 // Structured payload inside an hours-change request.
 export interface HoursChangePayload {
   operating_hours: Array<{ weekday: number; open_time: string; close_time: string }>;
-  ship_cutoffs: Array<{ cutoff_time: string; lead_minutes: number }>;
   note?: string;
 }
 
@@ -148,13 +128,3 @@ export interface ComboItem {
   Quantity: number;
 }
 
-// ---- Slot quota ----
-
-export interface SlotQuota {
-  ID: string;
-  MenuItemID: string;
-  Date: string;        // "YYYY-MM-DD"
-  CutoffID: string;
-  Quota: number;
-  SoldCount: number;
-}

@@ -45,6 +45,7 @@ export interface Order {
   PaymentStatus: PaymentStatus;
   PickupPin?: string;
   PlacedAt: string;
+  DesiredTime?: string; // RFC3339 — customer's requested receive time
   Items: OrderItem[];
   StatusHistory?: StatusHistoryEntry[];
   VoucherCodes?: string[];
@@ -58,11 +59,10 @@ export interface PlaceOrderBody {
   fulfillment: FulfillmentType;
   payment_method: PaymentMethod;
   voucher_codes: string[];
+  desired_time?: string; // RFC3339 — customer's requested receive time (today only)
   items: Array<{
     menu_item_id: string;
     qty: number;
-    cutoff_id?: string;
-    date?: string;
   }>;
 }
 

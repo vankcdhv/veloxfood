@@ -11,6 +11,12 @@ import { useVendorStoreMutations } from '../hooks/use-stores';
 import { SaleStatusBadge } from './sale-status-badge';
 import type { SaleStatus, Store } from '../types/store';
 
+// Clamp prep minutes: must be a non-negative integer.
+function parsePrepMinutes(raw: string): number {
+  const n = parseInt(raw, 10);
+  return Number.isNaN(n) || n < 0 ? 0 : n;
+}
+
 const SALE_STATUSES: { value: SaleStatus; label: string }[] = [
   { value: 'OPEN', label: 'Mở cửa' },
   { value: 'CLOSED_TODAY', label: 'Đóng hôm nay' },
@@ -27,10 +33,11 @@ export function VendorStoreProfilePanel({ store }: Props) {
   const [address, setAddress] = useState(store.Address);
   const [phone, setPhone] = useState(store.Phone);
   const [businessType, setBusinessType] = useState(store.BusinessType);
+  const [prepMinutesRaw, setPrepMinutesRaw] = useState(String(store.PrepMinutes ?? 15));
 
   const saveProfile = () => {
     m.updateProfile.mutate(
-      { name, address, phone, business_type: businessType },
+      { name, address, phone, business_type: businessType, prep_minutes: parsePrepMinutes(prepMinutesRaw) },
       {
         onSuccess: () => toast.success('Đã lưu thông tin cửa hàng.'),
         onError: (e) => toast.error(getApiErrorMessage(e, 'Lưu thất bại')),
@@ -64,6 +71,21 @@ export function VendorStoreProfilePanel({ store }: Props) {
           <Field label="Loại hình" value={businessType} onChange={setBusinessType} />
           <Field label="Địa chỉ" value={address} onChange={setAddress} />
           <Field label="Số điện thoại" value={phone} onChange={setPhone} />
+          <div>
+            <label className="text-foreground mb-1.5 block text-sm font-medium">
+              Thời gian chuẩn bị (phút)
+            </label>
+            <Input
+              type="number"
+              min={0}
+              value={prepMinutesRaw}
+              onChange={(e) => setPrepMinutesRaw(e.target.value)}
+              placeholder="VD: 15"
+            />
+            <p className="text-muted-foreground mt-1 text-xs">
+              Khách chọn giờ nhận sớm nhất = giờ đặt + thời gian chuẩn bị, làm tròn lên 15&apos;.
+            </p>
+          </div>
           <Button onClick={saveProfile} disabled={m.updateProfile.isPending} className="w-full">
             {m.updateProfile.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Lưu thông tin'}
           </Button>

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { RefreshCw, AlertTriangle, TrendingUp } from 'lucide-react';
+import { RefreshCw, AlertTriangle, TrendingUp, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
+import { Badge } from '@/shared/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { formatVnd } from '@/shared/lib/format-vnd';
@@ -12,6 +13,14 @@ import { useMyDeliveries, useUpdateDeliveryStatus } from '../hooks/use-deliverie
 import { DeliveryStatusBadge } from './delivery-status-badge';
 import { ReportIncidentDialog } from './report-incident-dialog';
 import type { MyDelivery, UpdateStatusBody } from '../types/delivery';
+
+// Format RFC3339 to "HH:MM". Returns '' on invalid input.
+function formatHHMM(rfc3339: string | undefined): string {
+  if (!rfc3339) return '';
+  const d = new Date(rfc3339);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 // Status transitions a shipper can trigger manually.
 const NEXT_STATUS: Partial<Record<string, UpdateStatusBody['status']>> = {
@@ -164,6 +173,15 @@ function ActiveDeliveryCard({
       </CardHeader>
       <CardContent className="px-3 pb-3 space-y-2">
         <p className="text-sm font-semibold text-primary">{formatVnd(delivery.ShipFee)}</p>
+        {delivery.DesiredTime && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Clock className="h-3 w-3 shrink-0" />
+            <span>
+              Giờ mong muốn:{' '}
+              <span className="font-medium text-foreground">{formatHHMM(delivery.DesiredTime)}</span>
+            </span>
+          </div>
+        )}
         {delivery.ClaimedAt && (
           <p className="text-xs text-muted-foreground">
             Nhận lúc: {new Date(delivery.ClaimedAt).toLocaleString('vi-VN')}
@@ -196,21 +214,37 @@ function ActiveDeliveryCard({
 }
 
 function HistoryDeliveryRow({ delivery }: { delivery: MyDelivery }) {
+  const lateBy = delivery.LateByMinutes ?? 0;
+  const desiredTimeStr = formatHHMM(delivery.DesiredTime);
+
   return (
     <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
-      <div className="min-w-0">
+      <div className="min-w-0 space-y-0.5">
         <p className="font-mono text-xs text-muted-foreground truncate">
           {delivery.OrderCode || `#${delivery.OrderID.slice(0, 8)}…`}
         </p>
         <p className="font-medium">{formatVnd(delivery.ShipFee)}</p>
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {delivery.DeliveredAt && (
-          <span className="text-xs text-muted-foreground hidden sm:inline">
-            {new Date(delivery.DeliveredAt).toLocaleDateString('vi-VN')}
-          </span>
+        {desiredTimeStr && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Clock className="h-3 w-3 shrink-0" />
+            <span>Giờ mong muốn: {desiredTimeStr}</span>
+          </div>
         )}
-        <DeliveryStatusBadge status={delivery.Status} />
+      </div>
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        <div className="flex items-center gap-2">
+          {delivery.DeliveredAt && (
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              {new Date(delivery.DeliveredAt).toLocaleDateString('vi-VN')}
+            </span>
+          )}
+          <DeliveryStatusBadge status={delivery.Status} />
+        </div>
+        {delivery.Status === 'DELIVERED' && desiredTimeStr && (
+          lateBy > 0
+            ? <Badge variant="destructive" className="text-xs px-1.5 py-0">Trễ {lateBy}&apos;</Badge>
+            : <Badge variant="success" className="text-xs px-1.5 py-0">Đúng giờ</Badge>
+        )}
       </div>
     </div>
   );

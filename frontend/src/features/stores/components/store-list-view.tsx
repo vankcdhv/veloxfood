@@ -23,7 +23,7 @@ export function StoreListView() {
     const q = query.trim().toLowerCase();
     return (data ?? []).filter((s) => {
       if (q && !`${s.Name} ${s.BusinessType ?? ''}`.toLowerCase().includes(q)) return false;
-      if (mode === 'open' && s.SaleStatus !== 'OPEN') return false;
+      if (mode === 'open' && !s.OpenNow) return false;
       if (mode === 'pickup' && !s.PickupEnabled) return false;
       return true;
     });

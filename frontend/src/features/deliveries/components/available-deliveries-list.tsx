@@ -1,6 +1,6 @@
 'use client';
 
-import { RefreshCw, MapPin, Package } from 'lucide-react';
+import { RefreshCw, MapPin, Package, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
@@ -10,6 +10,13 @@ import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useStore } from '@/features/stores/hooks/use-stores';
 import { useAvailableDeliveries, useClaimDelivery } from '../hooks/use-deliveries';
 import type { AvailableDelivery } from '../types/delivery';
+
+// Format RFC3339 desired_time to "HH:MM". Returns '' on invalid input.
+function formatDesiredTime(rfc3339: string): string {
+  const d = new Date(rfc3339);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 export function AvailableDeliveriesList() {
   const { data: deliveries, isLoading, isError, refetch, isFetching } = useAvailableDeliveries();
@@ -110,6 +117,17 @@ function AvailableDeliveryCard({
               <Package className="h-3 w-3 shrink-0" />
               <StoreNameLabel storeId={delivery.store_id} />
             </div>
+            {delivery.desired_time && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Clock className="h-3 w-3 shrink-0" />
+                <span>
+                  Giờ mong muốn:{' '}
+                  <span className="font-medium text-foreground">
+                    {formatDesiredTime(delivery.desired_time)}
+                  </span>
+                </span>
+              </div>
+            )}
             <p className="text-sm font-semibold text-primary">
               Phí ship: {formatVnd(delivery.ship_fee)}
             </p>

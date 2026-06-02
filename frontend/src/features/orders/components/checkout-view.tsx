@@ -20,29 +20,73 @@ import { formatVnd } from '@/shared/lib/format-vnd';
 import { useMyWallet } from '@/features/wallet/hooks/use-wallet';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useMyCart, useCartMutations } from '@/features/cart/hooks/use-cart';
-import { useStoreSlots, useShipFee } from '@/features/stores/hooks/use-stores';
-import { isCutoffClosed, resolveActiveCutoff } from '@/features/stores/lib/slot-availability';
+import { useStore, useShipFee } from '@/features/stores/hooks/use-stores';
 import { clearActiveStoreId } from '@/shared/lib/active-store';
 import { usePlaceOrder } from '../hooks/use-orders';
 import type { FulfillmentType, PaymentMethod } from '../types/order';
 import type { ValidatePromotionResult } from '@/features/promotions/types/promotion';
 
-// Local YYYY-MM-DD for a Date.
-function isoDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// ---- Desired-time helpers ----
+
+// Round a minute-value up to the next multiple of 15.
+function ceilToQuarter(minutes: number): number {
+  return Math.ceil(minutes / 15) * 15;
 }
 
-// Next 8 days as {value, label} for the delivery-slot date picker.
-function dateOptions(): { value: string; label: string }[] {
-  const base = new Date();
-  return Array.from({ length: 8 }, (_, i) => {
-    const d = new Date(base);
-    d.setDate(base.getDate() + i);
-    const label = i === 0 ? 'Hôm nay' : i === 1 ? 'Ngày mai'
-      : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-    return { value: isoDate(d), label };
-  });
+// Parse "HH:MM" into total minutes since midnight. Returns NaN on bad input.
+function parseHHMM(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return NaN;
+  return h * 60 + m;
 }
+
+// Format total minutes since midnight as "HH:MM".
+function formatHHMM(totalMinutes: number): string {
+  const h = Math.floor(totalMinutes / 60) % 24;
+  const m = totalMinutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// Build RFC3339 string for today at a given "HH:MM" time in local time.
+function todayRFC3339(hhmm: string): string {
+  const d = new Date();
+  const [h, m] = hhmm.split(':').map(Number);
+  d.setHours(h, m, 0, 0);
+  return d.toISOString();
+}
+
+interface TimeSlot {
+  value: string; // "HH:MM"
+  label: string;
+}
+
+const EARLIEST_LABEL = 'Sớm nhất có thể';
+const EARLIEST_VALUE = '__earliest__';
+
+/**
+ * Build the desired-time select options.
+ *
+ * Earliest slot = ceil15(now + prepMinutes).
+ * Steps: every 15 minutes from earliest to CloseTimeToday.
+ * First option is always "Sớm nhất có thể" (sends earliest RFC3339).
+ * Returns [] when the store is closed or prep time pushes past closing.
+ */
+function buildTimeSlots(prepMinutes: number, closeHHMM: string): TimeSlot[] {
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const earliestMinutes = ceilToQuarter(nowMinutes + prepMinutes);
+  const closeMinutes = parseHHMM(closeHHMM);
+
+  if (Number.isNaN(closeMinutes) || earliestMinutes > closeMinutes) return [];
+
+  const slots: TimeSlot[] = [];
+  for (let t = earliestMinutes; t <= closeMinutes; t += 15) {
+    slots.push({ value: formatHHMM(t), label: formatHHMM(t) });
+  }
+  return slots;
+}
+
+// ---- Component ----
 
 export function CheckoutView() {
   return (
@@ -65,39 +109,48 @@ function CheckoutContent() {
   const savedLocs = useMyLocations();
   const placeOrder = usePlaceOrder();
 
+  // Fetch store to read prep-time + open/close info.
+  const { data: store } = useStore(cart?.StoreID ?? '');
+
   const [fulfillment, setFulfillment] = useState<FulfillmentType>('DELIVERY');
-  // Tracks the selected delivery location at any level (BUILDING/FLOOR/ROOM).
   const [locationSel, setLocationSel] = useState<LocationSelection | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
   const [voucherInput, setVoucherInput] = useState('');
   const [voucherResult, setVoucherResult] = useState<ValidatePromotionResult | null>(null);
   const [validatingVoucher, setValidatingVoucher] = useState(false);
-  // Picker rekey: incrementing remounts the flexible picker after saved-loc selection.
   const [pickerKey, setPickerKey] = useState(0);
 
-  // Delivery slot (ca giao) is chosen here at checkout — one slot per order — so
-  // the customer always sees exactly which session they're ordering for.
-  const [dates] = useState(dateOptions);
-  const [slotDate, setSlotDate] = useState(() => isoDate(new Date()));
-  const [slotCutoff, setSlotCutoff] = useState('');
-  const { data: slots } = useStoreSlots(cart?.StoreID ?? '', slotDate);
-  const cutoffs = [...(slots?.cutoffs ?? [])].sort((a, b) => a.CutoffTime.localeCompare(b.CutoffTime));
-  const hasSlots = cutoffs.length > 0;
-  // The effective slot: the user's pick if still open, else the first open slot.
-  const activeCutoff = resolveActiveCutoff(cutoffs, slotCutoff, slotDate);
-  const allSlotsClosed = hasSlots && !activeCutoff;
+  // Desired-time selection: EARLIEST_VALUE = "Sớm nhất có thể" (default).
+  const [desiredTimeSlot, setDesiredTimeSlot] = useState<string>(EARLIEST_VALUE);
 
-  // Unit ship fee for the selected delivery location (any level).
+  // Derive store open/close state and slot list.
+  const prepMinutes = store?.PrepMinutes ?? 15;
+  const openNow = store?.OpenNow ?? false;
+  const closeHHMM = store?.CloseTimeToday ?? '';
+  const openHHMM = store?.OpenTimeToday ?? '';
+
+  const timeSlots = buildTimeSlots(prepMinutes, closeHHMM);
+  // Store is orderable when it's open and there's at least one reachable slot today.
+  const storeOrderable = openNow && timeSlots.length > 0;
+
+  // Earliest reachable slot HH:MM (first item in timeSlots).
+  const earliestHHMM = timeSlots[0]?.value ?? '';
+
+  // Resolved desired_time to send: when "earliest", use the first slot RFC3339.
+  function resolveDesiredTimeRFC3339(): string | undefined {
+    if (!earliestHHMM) return undefined;
+    const slot = desiredTimeSlot === EARLIEST_VALUE ? earliestHHMM : desiredTimeSlot;
+    return todayRFC3339(slot);
+  }
+
+  // Unit ship fee for the selected delivery location.
   const shipFeeQuery = useShipFee(
     cart?.StoreID ?? '',
     fulfillment === 'DELIVERY' && locationSel ? locationSel.level : '',
     fulfillment === 'DELIVERY' && locationSel ? locationSel.id : '',
   );
-  // True when the shop definitively does not serve this location (HTTP 400).
   const locationNotServed =
-    fulfillment === 'DELIVERY' &&
-    !!locationSel &&
-    shipFeeQuery.isError;
+    fulfillment === 'DELIVERY' && !!locationSel && shipFeeQuery.isError;
 
   if (cartLoading) {
     return (
@@ -121,7 +174,6 @@ function CheckoutContent() {
   const subtotal = items.reduce((s, it) => s + it.PriceSnapshot * it.Qty, 0);
   const itemDiscount = voucherResult?.Applicable ? voucherResult.ItemDiscount : 0;
   const shipDiscount = voucherResult?.Applicable ? voucherResult.ShipDiscount : 0;
-  // Preview the unit ship fee for the chosen location (server stays authoritative at place-order).
   const shipFee = fulfillment === 'DELIVERY' ? (shipFeeQuery.data?.unit_ship_fee ?? 0) : 0;
   const grandTotal = Math.max(0, subtotal + shipFee - itemDiscount - shipDiscount);
   const walletBalance = wallet?.Balance ?? 0;
@@ -152,9 +204,7 @@ function CheckoutContent() {
   };
 
   const handleSavedLocationSelect = (roomId: string) => {
-    // Saved locations are always ROOM level.
     setLocationSel(roomId ? { level: 'ROOM', id: roomId } : null);
-    // Reset picker so it shows blank when saved loc is chosen separately.
     setPickerKey((k) => k + 1);
   };
 
@@ -168,8 +218,8 @@ function CheckoutContent() {
       toast.error('Shop không giao tới đây — vui lòng chọn địa điểm khác');
       return;
     }
-    if (hasSlots && !activeCutoff) {
-      toast.error('Hôm nay đã hết ca giao — vui lòng chọn ngày khác.');
+    if (!storeOrderable) {
+      toast.error('Cửa hàng hiện không nhận đơn');
       return;
     }
 
@@ -180,18 +230,15 @@ function CheckoutContent() {
       fulfillment,
       payment_method: paymentMethod,
       voucher_codes: voucherResult?.Applicable && voucherInput ? [voucherInput.trim().toUpperCase()] : [],
-      // The whole order ships in the slot chosen here; apply it to every item.
+      desired_time: resolveDesiredTimeRFC3339(),
       items: items.map((it) => ({
         menu_item_id: it.MenuItemID,
         qty: it.Qty,
-        cutoff_id: hasSlots ? activeCutoff : undefined,
-        date: hasSlots ? slotDate : undefined,
       })),
     };
 
     try {
       const result = await placeOrder.mutateAsync(body);
-      // Order captured the items — empty the cart so it doesn't linger.
       await clear.mutateAsync(cart.StoreID).catch(() => {});
       clearActiveStoreId();
       if (paymentMethod === 'MOMO' && result.pay_url) {
@@ -254,7 +301,6 @@ function CheckoutContent() {
                 <MapPin className="h-4 w-4 text-primary" />
                 Địa điểm giao hàng
               </label>
-              {/* Saved locations dropdown — always ROOM level */}
               {(savedLocs.data?.length ?? 0) > 0 && (
                 <select
                   value={locationSel?.level === 'ROOM' ? locationSel.id : ''}
@@ -269,7 +315,6 @@ function CheckoutContent() {
                   ))}
                 </select>
               )}
-              {/* Flexible cascading picker: customer stops at any level */}
               <details className="text-sm">
                 <summary className="text-muted-foreground cursor-pointer select-none">
                   {(savedLocs.data?.length ?? 0) > 0 ? 'Chọn địa điểm khác…' : 'Chọn địa điểm giao hàng'}
@@ -277,13 +322,10 @@ function CheckoutContent() {
                 <div className="mt-2">
                   <LocationPicker
                     key={pickerKey}
-                    onSelectLocation={(sel) => {
-                      setLocationSel(sel);
-                    }}
+                    onSelectLocation={(sel) => { setLocationSel(sel); }}
                   />
                 </div>
               </details>
-              {/* Not-served warning */}
               {locationNotServed && (
                 <p className="text-destructive text-xs font-medium flex items-center gap-1">
                   Shop không giao tới đây
@@ -300,62 +342,44 @@ function CheckoutContent() {
         </CardContent>
       </Card>
 
-      {/* Delivery slot (ca giao) — only for stores that run sessions */}
-      {hasSlots && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="h-4 w-4 text-primary" />
-              Ca giao
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <label className="text-foreground mb-1.5 block text-sm font-medium">Ngày</label>
+      {/* Desired receive time */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Clock className="h-4 w-4 text-primary" />
+            Giờ nhận hàng
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!store ? (
+            <Skeleton className="h-9 w-full" />
+          ) : !storeOrderable ? (
+            <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive font-medium">
+              {!openNow
+                ? 'Cửa hàng đang đóng cửa'
+                : `Hôm nay đã hết giờ nhận đơn${closeHHMM ? ` (đóng lúc ${closeHHMM})` : ''}`}
+            </div>
+          ) : (
+            <div className="space-y-1.5">
               <select
-                value={slotDate}
-                onChange={(e) => setSlotDate(e.target.value)}
+                value={desiredTimeSlot}
+                onChange={(e) => setDesiredTimeSlot(e.target.value)}
                 className="border-input bg-background focus-visible:ring-ring h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none"
               >
-                {dates.map((d) => (
-                  <option key={d.value} value={d.value}>{d.label}</option>
+                <option value={EARLIEST_VALUE}>{EARLIEST_LABEL} ({earliestHHMM})</option>
+                {timeSlots.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
-            </div>
-            <div>
-              <label className="text-foreground mb-1.5 block text-sm font-medium">Ca</label>
-              <div className="flex flex-wrap gap-2">
-                {cutoffs.map((c) => {
-                  const closed = isCutoffClosed(c, slotDate);
-                  return (
-                    <button
-                      key={c.ID}
-                      type="button"
-                      disabled={closed}
-                      title={closed ? 'Đã quá giờ cắt đơn cho ca này' : undefined}
-                      onClick={() => setSlotCutoff(c.ID)}
-                      className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
-                        closed
-                          ? 'border-border text-muted-foreground/40 line-through cursor-not-allowed'
-                          : activeCutoff === c.ID
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-border text-muted-foreground hover:border-primary/50'
-                      }`}
-                    >
-                      Ca {c.CutoffTime}
-                    </button>
-                  );
-                })}
-              </div>
-              {allSlotsClosed && (
-                <p className="text-destructive mt-2 text-xs">
-                  Hôm nay đã hết ca giao. Vui lòng chọn ngày khác ở trên.
+              {openHHMM && closeHHMM && (
+                <p className="text-xs text-muted-foreground">
+                  Giờ hoạt động hôm nay: {openHHMM}–{closeHHMM}
                 </p>
               )}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       {/* Voucher */}
       <Card>
@@ -488,7 +512,7 @@ function CheckoutContent() {
         disabled={
           placeOrder.isPending ||
           walletInsufficient ||
-          allSlotsClosed ||
+          !storeOrderable ||
           (fulfillment === 'DELIVERY' && (!locationSel || locationNotServed))
         }
       >

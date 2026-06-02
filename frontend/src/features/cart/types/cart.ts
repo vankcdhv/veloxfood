@@ -7,9 +7,6 @@ export interface CartItem {
   NameSnapshot: string;
   PriceSnapshot: number;
   Qty: number;
-  // These may be empty for stores without slot-based ordering.
-  CutoffID?: string;
-  Date?: string;
 }
 
 export interface Cart {
@@ -25,7 +22,5 @@ export interface AddOrUpdateCartItemBody {
   name_snapshot: string;
   price_snapshot: number;
   qty: number;
-  cutoff_id?: string;
-  date?: string;
   options_snapshot?: unknown;
 }

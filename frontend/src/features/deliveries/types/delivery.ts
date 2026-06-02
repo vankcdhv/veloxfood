@@ -18,6 +18,7 @@ export interface AvailableDelivery {
   location_id: string;
   room_path: string; // resolved by grpcclient/location; fallback = raw UUID
   ship_fee: number;
+  desired_time?: string; // RFC3339
   created_at: string;
 }
 
@@ -33,6 +34,8 @@ export interface MyDelivery {
   BatchID?: string;
   ClaimedAt?: string;
   DeliveredAt?: string;
+  DesiredTime?: string;    // RFC3339 — customer's requested receive time
+  LateByMinutes?: number;  // > 0 means delivery was late (backend snake_case: late_by_minutes)
   CreatedAt: string;
   UpdatedAt: string;
 }

@@ -9,7 +9,6 @@ export const storeKeys = {
   browseDetail: (id: string) => [...storeKeys.all, 'browse', 'detail', id] as const,
   browseMenu: (id: string) => [...storeKeys.all, 'browse', 'menu', id] as const,
   storeHours: (id: string) => [...storeKeys.all, 'hours', id] as const,
-  storeSlots: (id: string, date: string) => [...storeKeys.all, 'slots', id, date] as const,
   shipFees: (storeId: string) => [...storeKeys.all, 'ship-fees', storeId] as const,
   shipFee: (storeId: string, level: string, locationId: string) => [...storeKeys.all, 'ship-fee', storeId, level, locationId] as const,
   adminList: () => [...storeKeys.all, 'admin', 'list'] as const,
@@ -20,7 +19,6 @@ export const storeKeys = {
   menuItemOptionGroups: (storeId: string, itemId: string) => [...storeKeys.all, 'item-option-groups', storeId, itemId] as const,
   combos: (storeId: string) => [...storeKeys.all, 'combos', storeId] as const,
   comboItems: (storeId: string, comboId: string) => [...storeKeys.all, 'combo-items', storeId, comboId] as const,
-  slotQuota: (storeId: string, itemId: string, date: string) => [...storeKeys.all, 'slot-quota', storeId, itemId, date] as const,
 };
 
 // ---- Public browse ----
@@ -148,20 +146,12 @@ export const useStoreShipFees = (storeId: string) =>
     enabled: !!storeId,
   });
 
-// Fetch current operating hours + ship cutoffs for a store.
+// Fetch current operating hours for a store.
 export const useStoreHours = (storeId: string) =>
   useQuery({
     queryKey: storeKeys.storeHours(storeId),
     queryFn: () => browseStoreApi.hours(storeId),
     enabled: !!storeId,
-  });
-
-// Cutoffs (ca giao) + remaining slot quota per item for a date (storefront picker).
-export const useStoreSlots = (storeId: string, date: string) =>
-  useQuery({
-    queryKey: storeKeys.storeSlots(storeId, date),
-    queryFn: () => browseStoreApi.slots(storeId, date),
-    enabled: !!storeId && !!date,
   });
 
 // Resolved unit ship fee for a specific location at any level (BUILDING | FLOOR | ROOM).
@@ -356,24 +346,3 @@ export function useComboMutations(storeId: string) {
   };
 }
 
-// ---- Slot quota ----
-
-export const useSlotQuota = (storeId: string, itemId: string, date: string) =>
-  useQuery({
-    queryKey: storeKeys.slotQuota(storeId, itemId, date),
-    queryFn: () => vendorStoreApi.listSlotQuota(storeId, itemId, date),
-    enabled: !!storeId && !!itemId && !!date,
-  });
-
-export function useSlotQuotaMutations(storeId: string, itemId: string) {
-  const qc = useQueryClient();
-
-  return {
-    createQuota: useMutation({
-      mutationFn: (body: { date: string; cutoff_id: string; quota: number }) =>
-        vendorStoreApi.createSlotQuota(storeId, itemId, body),
-      onSuccess: (_data, v) =>
-        qc.invalidateQueries({ queryKey: storeKeys.slotQuota(storeId, itemId, v.date) }),
-    }),
-  };
-}

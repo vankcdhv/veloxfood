@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
@@ -18,11 +18,6 @@ interface WeekdayRow {
   close_time: string;
 }
 
-interface CutoffRow {
-  cutoff_time: string;
-  lead_minutes: string;
-}
-
 function makeDefaultRows(): WeekdayRow[] {
   return Array.from({ length: 7 }, () => ({ enabled: false, open_time: '08:00', close_time: '21:00' }));
 }
@@ -30,7 +25,6 @@ function makeDefaultRows(): WeekdayRow[] {
 export function VendorHoursSubmitForm({ storeId }: { storeId: string }) {
   const m = useVendorStoreMutations(storeId);
   const [rows, setRows] = useState<WeekdayRow[]>(makeDefaultRows);
-  const [cutoffs, setCutoffs] = useState<CutoffRow[]>([]);
   const [note, setNote] = useState('');
 
   const toggleDay = (i: number) => {
@@ -41,41 +35,23 @@ export function VendorHoursSubmitForm({ storeId }: { storeId: string }) {
     setRows((prev) => prev.map((r, idx) => idx === i ? { ...r, [field]: val } : r));
   };
 
-  const addCutoff = () => {
-    setCutoffs((prev) => [...prev, { cutoff_time: '11:00', lead_minutes: '30' }]);
-  };
-
-  const removeCutoff = (i: number) => {
-    setCutoffs((prev) => prev.filter((_, idx) => idx !== i));
-  };
-
-  const updateCutoff = (i: number, field: keyof CutoffRow, val: string) => {
-    setCutoffs((prev) => prev.map((c, idx) => idx === i ? { ...c, [field]: val } : c));
-  };
-
   const submit = () => {
     const operating_hours = rows
       .map((r, weekday) => ({ weekday, ...r }))
       .filter((r) => r.enabled)
       .map(({ weekday, open_time, close_time }) => ({ weekday, open_time, close_time }));
 
-    const ship_cutoffs = cutoffs.map((c) => ({
-      cutoff_time: c.cutoff_time,
-      lead_minutes: parseInt(c.lead_minutes, 10) || 0,
-    }));
-
-    if (operating_hours.length === 0 && ship_cutoffs.length === 0) {
-      toast.error('Vui lòng chọn ít nhất một ngày hoạt động hoặc một giờ cắt đơn.');
+    if (operating_hours.length === 0) {
+      toast.error('Vui lòng chọn ít nhất một ngày hoạt động.');
       return;
     }
 
     m.requestHoursChange.mutate(
-      { operating_hours, ship_cutoffs, note: note.trim() },
+      { operating_hours, note: note.trim() },
       {
         onSuccess: () => {
           toast.success('Đã gửi yêu cầu — chờ admin duyệt.');
           setRows(makeDefaultRows());
-          setCutoffs([]);
           setNote('');
         },
         onError: (e) => toast.error(getApiErrorMessage(e, 'Gửi yêu cầu thất bại')),
@@ -121,48 +97,6 @@ export function VendorHoursSubmitForm({ storeId }: { storeId: string }) {
               ) : (
                 <span className="text-muted-foreground text-xs">Đóng cửa</span>
               )}
-            </div>
-          ))}
-        </div>
-
-        {/* Ship cutoffs */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Giờ cắt đơn</p>
-            <Button type="button" size="sm" variant="outline" onClick={addCutoff} className="h-7 gap-1 text-xs">
-              <Plus className="h-3.5 w-3.5" />
-              Thêm
-            </Button>
-          </div>
-          {cutoffs.length === 0 && (
-            <p className="text-muted-foreground text-xs">Chưa có giờ cắt đơn.</p>
-          )}
-          {cutoffs.map((c, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <Input
-                type="time"
-                value={c.cutoff_time}
-                onChange={(e) => updateCutoff(i, 'cutoff_time', e.target.value)}
-                className="h-8 w-28 text-sm"
-              />
-              <span className="text-muted-foreground text-xs shrink-0">trước</span>
-              <Input
-                type="number"
-                min="0"
-                value={c.lead_minutes}
-                onChange={(e) => updateCutoff(i, 'lead_minutes', e.target.value)}
-                className="h-8 w-20 text-sm"
-                placeholder="phút"
-              />
-              <span className="text-muted-foreground text-xs shrink-0">phút</span>
-              <button
-                type="button"
-                onClick={() => removeCutoff(i)}
-                className="text-muted-foreground hover:text-destructive p-1"
-                aria-label="Xoá giờ cắt"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
             </div>
           ))}
         </div>
