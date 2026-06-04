@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+
 type catalogGormRepository struct {
 	db *gorm.DB
 }
@@ -243,4 +244,32 @@ func (r *catalogGormRepository) ListComboItems(ctx context.Context, comboID stri
 	return rows, r.db.WithContext(ctx).
 		Where("combo_id = ?", comboID).
 		Find(&rows).Error
+}
+
+// SearchMenuItems performs accent-insensitive fuzzy search on menu item names
+// across all non-deleted stores with status='on'. Ordered by trigram similarity
+// descending so the best match appears first.
+func (r *catalogGormRepository) SearchMenuItems(ctx context.Context, q string, limit int) ([]repository.SearchMenuItemRow, error) {
+	var rows []repository.SearchMenuItemRow
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT
+			menu_items.id          AS id,
+			menu_items.name        AS name,
+			menu_items.price       AS price,
+			menu_items.image_url   AS image_url,
+			menu_items.description AS description,
+			stores.id              AS store_id,
+			stores.name            AS store_name,
+			stores.sale_status     AS sale_status
+		FROM menu_items
+		JOIN stores ON stores.id = menu_items.store_id
+		WHERE menu_items.deleted_at IS NULL
+		  AND menu_items.status = 'on'
+		  AND stores.deleted_at IS NULL
+		  AND f_unaccent(lower(menu_items.name)) ILIKE '%' || f_unaccent(lower(?)) || '%'
+		ORDER BY similarity(f_unaccent(lower(menu_items.name)), f_unaccent(lower(?))) DESC,
+		         menu_items.name
+		LIMIT ?
+	`, q, q, limit).Scan(&rows).Error
+	return rows, err
 }

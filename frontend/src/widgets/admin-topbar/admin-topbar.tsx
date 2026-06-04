@@ -1,10 +1,10 @@
 'use client';
 
-import { Bell, Search } from 'lucide-react';
-import { Button } from '@/shared/ui/button';
+import { Search } from 'lucide-react';
 import { Input } from '@/shared/ui/input';
 import { ThemeToggle } from '@/shared/ui/theme-toggle';
 import { UserMenu } from '@/features/auth/components/user-menu';
+import { NotificationBell } from '@/features/notifications/components/notification-bell';
 
 interface AdminTopbarProps {
   title?: string;
@@ -32,9 +32,7 @@ export function AdminTopbar({ title, description }: AdminTopbarProps) {
       </div>
 
       <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon" aria-label="Thông báo">
-          <Bell className="h-4 w-4" />
-        </Button>
+        <NotificationBell />
         <ThemeToggle />
         <UserMenu />
       </div>

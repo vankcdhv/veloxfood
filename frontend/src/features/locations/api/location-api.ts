@@ -51,8 +51,15 @@ export const browseLocationApi = {
 // ---- Customer: saved locations ----
 export const myLocationApi = {
   list: async () => unwrap(await http.get<ApiResponse<CustomerLocation[]>>(ME)),
-  add: async (roomId: string, label: string, isDefault: boolean) =>
-    unwrap(await http.post<ApiResponse<CustomerLocation>>(ME, { room_id: roomId, label, is_default: isDefault })),
+  add: async (locationId: string, locationLevel: string, label: string, isDefault: boolean) =>
+    unwrap(
+      await http.post<ApiResponse<CustomerLocation>>(ME, {
+        location_id: locationId,
+        location_level: locationLevel,
+        label,
+        is_default: isDefault,
+      }),
+    ),
   remove: async (id: string) => { await http.delete<ApiResponse>(`${ME}/${id}`); },
   setDefault: async (id: string) => { await http.patch<ApiResponse>(`${ME}/${id}/default`, {}); },
 };

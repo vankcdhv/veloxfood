@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { LogOut, LayoutDashboard, User as UserIcon, Wallet, Package, Truck } from 'lucide-react';
+import { LogOut, LayoutDashboard, User as UserIcon, Wallet, Package, Truck, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar';
 import {
@@ -85,6 +85,10 @@ export function UserMenu({ showAdminLink = false, align = 'end' }: UserMenuProps
         <DropdownMenuItem onClick={() => router.push(ROUTES.account.orders)} className="cursor-pointer">
           <Package className="mr-2 h-4 w-4" />
           Đơn hàng của tôi
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push(ROUTES.account.locations)} className="cursor-pointer">
+          <MapPin className="mr-2 h-4 w-4" />
+          Vị trí đã lưu
         </DropdownMenuItem>
         {isShipper && (
           <DropdownMenuItem

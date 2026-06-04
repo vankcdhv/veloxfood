@@ -153,6 +153,13 @@ services:
   - name: store-service
     url: http://host.docker.internal:8082
     routes:
+      # /api/v1/menu-items/* — public search endpoint (no auth required)
+      - name: store-menu-items
+        paths:
+          - ~/api/v1/menu-items(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
       # /api/v1/categories/*
       - name: store-categories
         paths:
@@ -207,10 +214,10 @@ services:
         strip_path: false
         regex_priority: 100
 
-      # /api/v1/me/cart/* (must beat user-me at 10)
+      # /api/v1/me/cart/* and /api/v1/me/carts (must beat user-me at 10)
       - name: order-me-cart
         paths:
-          - ~/api/v1/me/cart(/.*)?$
+          - ~/api/v1/me/carts?(/.*)?$
         strip_path: false
         regex_priority: 80
 

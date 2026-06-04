@@ -14,8 +14,12 @@ type CartUsecase interface {
 	// GetCart returns the customer's cart for a specific store, or nil if none.
 	GetCart(ctx context.Context, customerID, storeID string) (*entity.Cart, error)
 
-	// AddOrUpdateItem adds a menu item to the cart or updates its quantity.
-	// Cross-store: rejected when customer already has a cart at a different store.
+	// ListCarts returns all of the customer's carts (one per store), each with
+	// its items preloaded. Carts may span multiple stores.
+	ListCarts(ctx context.Context, customerID string) ([]*entity.Cart, error)
+
+	// AddOrUpdateItem adds a menu item to the cart or updates its quantity. The
+	// cart is per (customer, store); items from multiple stores may coexist.
 	AddOrUpdateItem(ctx context.Context, req AddCartItemRequest) (*entity.Cart, error)
 
 	// RemoveItem removes a single item from the cart.
@@ -49,18 +53,11 @@ func (uc *cartUsecase) GetCart(ctx context.Context, customerID, storeID string) 
 	return uc.cartRepo.GetByCustomerAndStore(ctx, customerID, storeID)
 }
 
-func (uc *cartUsecase) AddOrUpdateItem(ctx context.Context, req AddCartItemRequest) (*entity.Cart, error) {
-	// Enforce single-store constraint: customer may not mix stores in one session.
-	existing, err := uc.cartRepo.GetByCustomer(ctx, req.CustomerID)
-	if err != nil {
-		return nil, err
-	}
-	for _, c := range existing {
-		if c.StoreID != req.StoreID && len(c.Items) > 0 {
-			return nil, ErrCartCrossStore
-		}
-	}
+func (uc *cartUsecase) ListCarts(ctx context.Context, customerID string) ([]*entity.Cart, error) {
+	return uc.cartRepo.GetByCustomer(ctx, customerID)
+}
 
+func (uc *cartUsecase) AddOrUpdateItem(ctx context.Context, req AddCartItemRequest) (*entity.Cart, error) {
 	cart, err := uc.cartRepo.GetOrCreate(ctx, req.CustomerID, req.StoreID)
 	if err != nil {
 		return nil, err

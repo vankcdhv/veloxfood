@@ -185,8 +185,9 @@ function ShipFeeLookup({ storeId }: { storeId: string }) {
 
   const notServed = !!sel && feeQuery.isError;
 
-  const handleSavedLocationChange = (roomId: string) => {
-    setSel(roomId ? { level: 'ROOM', id: roomId } : null);
+  const handleSavedLocationChange = (locationId: string) => {
+    const loc = savedLocations.data?.find((l) => l.LocationID === locationId);
+    setSel(loc ? { level: loc.LocationLevel, id: loc.LocationID } : null);
     setPickerKey((k) => k + 1);
   };
 
@@ -205,13 +206,13 @@ function ShipFeeLookup({ storeId }: { storeId: string }) {
               Vị trí đã lưu
             </label>
             <select
-              value={sel?.level === 'ROOM' ? sel.id : ''}
+              value={sel?.id ?? ''}
               onChange={(e) => handleSavedLocationChange(e.target.value)}
               className="border-input bg-background focus-visible:ring-ring h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
             >
               <option value="">— Chọn vị trí —</option>
               {savedLocations.data?.map((loc) => (
-                <option key={loc.ID} value={loc.RoomID}>
+                <option key={loc.ID} value={loc.LocationID}>
                   {loc.Label ? `${loc.Label} – ${formatRoomPath(loc)}` : formatRoomPath(loc)}
                 </option>
               ))}

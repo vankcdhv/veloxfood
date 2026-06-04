@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { ROUTES } from '@/shared/config/constants';
 import { Tag, MapPin, Wallet, CreditCard, Smartphone, Clock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -19,9 +20,8 @@ import { publicPromotionApi } from '@/features/promotions/api/promotion-api';
 import { formatVnd } from '@/shared/lib/format-vnd';
 import { useMyWallet } from '@/features/wallet/hooks/use-wallet';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
-import { useMyCart, useCartMutations } from '@/features/cart/hooks/use-cart';
+import { useStoreCart, cartKeys } from '@/features/cart/hooks/use-cart';
 import { useStore, useShipFee } from '@/features/stores/hooks/use-stores';
-import { clearActiveStoreId } from '@/shared/lib/active-store';
 import { usePlaceOrder } from '../hooks/use-orders';
 import type { FulfillmentType, PaymentMethod } from '../types/order';
 import type { ValidatePromotionResult } from '@/features/promotions/types/promotion';
@@ -94,7 +94,9 @@ export function CheckoutView() {
       <main className="bg-background min-h-dvh px-4 py-10">
         <div className="mx-auto w-full max-w-2xl space-y-6">
           <h1 className="font-serif text-2xl font-bold">Thanh toán</h1>
-          <CheckoutContent />
+          <Suspense fallback={<Skeleton className="h-24 rounded-xl" />}>
+            <CheckoutContent />
+          </Suspense>
         </div>
       </main>
     </RoleGuard>
@@ -103,14 +105,24 @@ export function CheckoutView() {
 
 function CheckoutContent() {
   const router = useRouter();
-  const { data: cart, isLoading: cartLoading } = useMyCart();
-  const { clear } = useCartMutations();
+  const qc = useQueryClient();
+  const searchParams = useSearchParams();
+  // Checkout is single-store: the store + the chosen item ids come from the cart
+  // page via query params. `items` absent ⇒ checkout the whole store cart.
+  const storeId = searchParams.get('store_id') ?? '';
+  const itemsParam = searchParams.get('items');
+  const selectedIds = useMemo(
+    () => (itemsParam ? new Set(itemsParam.split(',').filter(Boolean)) : null),
+    [itemsParam],
+  );
+
+  const { data: cart, isLoading: cartLoading } = useStoreCart(storeId);
   const { data: wallet } = useMyWallet();
   const savedLocs = useMyLocations();
   const placeOrder = usePlaceOrder();
 
   // Fetch store to read prep-time + open/close info.
-  const { data: store } = useStore(cart?.StoreID ?? '');
+  const { data: store } = useStore(storeId);
 
   const [fulfillment, setFulfillment] = useState<FulfillmentType>('DELIVERY');
   const [locationSel, setLocationSel] = useState<LocationSelection | null>(null);
@@ -145,7 +157,7 @@ function CheckoutContent() {
 
   // Unit ship fee for the selected delivery location.
   const shipFeeQuery = useShipFee(
-    cart?.StoreID ?? '',
+    storeId,
     fulfillment === 'DELIVERY' && locationSel ? locationSel.level : '',
     fulfillment === 'DELIVERY' && locationSel ? locationSel.id : '',
   );
@@ -162,11 +174,13 @@ function CheckoutContent() {
     );
   }
 
-  const items = cart?.Items ?? [];
+  const allItems = cart?.Items ?? [];
+  // Only the items selected on the cart page (when `items` is provided).
+  const items = selectedIds ? allItems.filter((it) => selectedIds.has(it.MenuItemID)) : allItems;
   if (items.length === 0) {
     return (
       <p className="text-muted-foreground text-sm text-center py-20">
-        Giỏ hàng trống. Hãy thêm món trước khi thanh toán.
+        Không có món nào để thanh toán. Hãy chọn món trong giỏ hàng.
       </p>
     );
   }
@@ -180,13 +194,13 @@ function CheckoutContent() {
   const walletInsufficient = paymentMethod === 'WALLET' && walletBalance < grandTotal;
 
   const validateVoucher = async () => {
-    if (!voucherInput.trim() || !cart?.StoreID) return;
+    if (!voucherInput.trim() || !storeId) return;
     setValidatingVoucher(true);
     setVoucherResult(null);
     try {
       const result = await publicPromotionApi.validate({
         code: voucherInput.trim().toUpperCase(),
-        store_id: cart.StoreID,
+        store_id: storeId,
         subtotal,
         item_count: items.reduce((s, it) => s + it.Qty, 0),
       });
@@ -203,13 +217,14 @@ function CheckoutContent() {
     }
   };
 
-  const handleSavedLocationSelect = (roomId: string) => {
-    setLocationSel(roomId ? { level: 'ROOM', id: roomId } : null);
+  const handleSavedLocationSelect = (locationId: string) => {
+    const loc = savedLocs.data?.find((l) => l.LocationID === locationId);
+    setLocationSel(loc ? { level: loc.LocationLevel, id: loc.LocationID } : null);
     setPickerKey((k) => k + 1);
   };
 
   const handlePlaceOrder = async () => {
-    if (!cart?.StoreID) return;
+    if (!storeId) return;
     if (fulfillment === 'DELIVERY' && !locationSel) {
       toast.error('Vui lòng chọn địa điểm giao hàng');
       return;
@@ -224,7 +239,7 @@ function CheckoutContent() {
     }
 
     const body = {
-      store_id: cart.StoreID,
+      store_id: storeId,
       location_id: fulfillment === 'DELIVERY' ? locationSel?.id : undefined,
       location_level: fulfillment === 'DELIVERY' ? locationSel?.level : undefined,
       fulfillment,
@@ -239,9 +254,10 @@ function CheckoutContent() {
 
     try {
       const result = await placeOrder.mutateAsync(body);
-      await clear.mutateAsync(cart.StoreID).catch(() => {});
-      clearActiveStoreId();
+      // Backend already removed the ordered items from the cart; just refresh.
+      qc.invalidateQueries({ queryKey: cartKeys.all });
       if (paymentMethod === 'MOMO' && result.pay_url) {
+        toast.info('Đang chuyển tới MoMo để thanh toán…');
         window.location.assign(result.pay_url);
       } else {
         toast.success(`Đặt hàng thành công! Mã đơn: ${result.code}`);
@@ -303,13 +319,13 @@ function CheckoutContent() {
               </label>
               {(savedLocs.data?.length ?? 0) > 0 && (
                 <select
-                  value={locationSel?.level === 'ROOM' ? locationSel.id : ''}
+                  value={locationSel?.id ?? ''}
                   onChange={(e) => handleSavedLocationSelect(e.target.value)}
                   className="border-input bg-background focus-visible:ring-ring h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none"
                 >
                   <option value="">— Chọn vị trí đã lưu —</option>
                   {savedLocs.data?.map((loc) => (
-                    <option key={loc.ID} value={loc.RoomID}>
+                    <option key={loc.ID} value={loc.LocationID}>
                       {loc.Label ? `${loc.Label} – ${formatRoomPath(loc)}` : formatRoomPath(loc)}
                     </option>
                   ))}

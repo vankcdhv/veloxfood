@@ -70,7 +70,7 @@ export function useMyLocationMutations() {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: locationKeys.mine() });
   return {
-    add: useMutation({ mutationFn: (v: { roomId: string; label: string; isDefault: boolean }) => myLocationApi.add(v.roomId, v.label, v.isDefault), onSuccess: invalidate }),
+    add: useMutation({ mutationFn: (v: { locationId: string; level: string; label: string; isDefault: boolean }) => myLocationApi.add(v.locationId, v.level, v.label, v.isDefault), onSuccess: invalidate }),
     remove: useMutation({ mutationFn: (id: string) => myLocationApi.remove(id), onSuccess: invalidate }),
     setDefault: useMutation({ mutationFn: (id: string) => myLocationApi.setDefault(id), onSuccess: invalidate }),
   };

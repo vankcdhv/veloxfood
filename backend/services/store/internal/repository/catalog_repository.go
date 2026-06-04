@@ -6,6 +6,19 @@ import (
 	"project/services/store/internal/entity"
 )
 
+// SearchMenuItemRow is the flat projection returned by cross-store menu-item search.
+// Fields are PascalCase to match the store service JSON envelope convention.
+type SearchMenuItemRow struct {
+	ID          string `json:"ID"`
+	Name        string `json:"Name"`
+	Price       int64  `json:"Price"`
+	ImageURL    string `json:"ImageURL"`
+	Description string `json:"Description"`
+	StoreID     string `json:"StoreID"`
+	StoreName   string `json:"StoreName"`
+	SaleStatus  string `json:"SaleStatus"`
+}
+
 // CatalogRepository manages Categories, MenuItems, OptionGroups,
 // Options, MenuItemOptions, Combos, and ComboItems.
 type CatalogRepository interface {
@@ -73,4 +86,10 @@ type CatalogRepository interface {
 	AddComboItem(ctx context.Context, ci *entity.ComboItem) error
 	RemoveComboItem(ctx context.Context, comboID string, menuItemID string) error
 	ListComboItems(ctx context.Context, comboID string) ([]*entity.ComboItem, error)
+
+	// ---- Global search ----
+
+	// SearchMenuItems performs accent-insensitive fuzzy name search across all
+	// active stores. Results are ordered by trigram similarity desc, then name.
+	SearchMenuItems(ctx context.Context, q string, limit int) ([]SearchMenuItemRow, error)
 }

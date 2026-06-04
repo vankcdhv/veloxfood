@@ -7,10 +7,13 @@ export type OrderStatus =
   | 'CONFIRMED'
   | 'PREPARING'
   | 'READY'
+  | 'READY_PICKUP'
+  | 'SHIPPER_ASSIGNED'
   | 'DELIVERING'
   | 'DELIVERED'
   | 'COMPLETED'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  | 'REJECTED';
 
 export type FulfillmentType = 'DELIVERY' | 'PICKUP';
 export type PaymentMethod = 'COD' | 'MOMO' | 'WALLET';

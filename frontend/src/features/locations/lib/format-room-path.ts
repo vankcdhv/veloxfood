@@ -14,7 +14,7 @@ export function formatRoomPath(loc: CustomerLocation): string {
     loc.FloorName,
     loc.RoomName ? `${loc.RoomCode} · ${loc.RoomName}` : loc.RoomCode,
   ].filter(Boolean);
-  return parts.length ? parts.join(' · ') : loc.RoomID;
+  return parts.length ? parts.join(' · ') : loc.LocationID;
 }
 
 /**

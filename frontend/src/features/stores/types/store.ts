@@ -128,3 +128,17 @@ export interface ComboItem {
   Quantity: number;
 }
 
+// ---- Search ----
+
+// Returned by GET /api/v1/menu-items/search. Fields are PascalCase to match Go JSON.
+export interface MenuItemSearchResult {
+  ID: string;
+  Name: string;
+  Price: number;
+  ImageURL: string;
+  Description: string;
+  StoreID: string;
+  StoreName: string;
+  SaleStatus: SaleStatus;
+}
+

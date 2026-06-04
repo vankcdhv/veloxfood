@@ -135,6 +135,13 @@ func (uc *orderLifecycleUsecase) CancelByCustomer(ctx context.Context, orderID, 
 		if err := uc.orderRepo.UpdateStatus(ctx, tx, orderID, entity.StatusCancelled, strPtr(customerID), strPtr("cancelled by customer")); err != nil {
 			return err
 		}
+		// Online-paid orders are refunded to the wallet (handled async by payment);
+		// reflect that on the order so the customer doesn't still see "đã thanh toán".
+		if isPaidOnline(order) {
+			if err := uc.orderRepo.UpdatePaymentStatus(ctx, tx, orderID, entity.PaymentRefunded); err != nil {
+				return err
+			}
+		}
 
 		evt := cancelledEvent(order, "customer", traceID)
 		return uc.outboxRepo.Append(ctx, tx, evt)
@@ -161,6 +168,11 @@ func (uc *orderLifecycleUsecase) RejectByStore(ctx context.Context, orderID, sto
 
 		if err := uc.orderRepo.UpdateStatus(ctx, tx, orderID, entity.StatusRejected, strPtr(storeID), strPtr("rejected by store")); err != nil {
 			return err
+		}
+		if isPaidOnline(order) {
+			if err := uc.orderRepo.UpdatePaymentStatus(ctx, tx, orderID, entity.PaymentRefunded); err != nil {
+				return err
+			}
 		}
 
 		evt := cancelledEvent(order, "store", traceID)
@@ -334,10 +346,17 @@ func statusEventSuffix(s entity.OrderStatus) string {
 	}
 }
 
+// isPaidOnline reports whether the order's money has already moved (so a cancel
+// must trigger a refund): WALLET captures synchronously at placement; MoMo only
+// once its IPN marked the order PAID. COD never pre-pays.
+func isPaidOnline(order *entity.Order) bool {
+	return order.PaymentMethod == entity.MethodWallet ||
+		(order.PaymentMethod == entity.MethodMoMo && order.PaymentStatus == entity.PaymentPaid)
+}
+
 // cancelledEvent builds the frozen order.cancelled payload (§2bis).
 func cancelledEvent(order *entity.Order, cancelledBy string, traceID string) *entity.OutboxEvent {
-	wasPaidOnline := order.PaymentMethod == entity.MethodWallet ||
-		order.PaymentMethod == entity.MethodMoMo && order.PaymentStatus == entity.PaymentPaid
+	wasPaidOnline := isPaidOnline(order)
 
 	items := make([]map[string]any, len(order.Items))
 	for i, it := range order.Items {

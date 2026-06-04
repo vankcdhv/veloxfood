@@ -13,4 +13,6 @@ var (
 	ErrRoomIDRequired           = apperror.BadRequest("room_id is required")
 	ErrFloorIDRequired          = apperror.BadRequest("floor_id is required")
 	ErrBuildingIDRequired       = apperror.BadRequest("building_id is required")
+	ErrLocationIDRequired       = apperror.BadRequest("location_id is required")
+	ErrInvalidLocationLevel     = apperror.BadRequest("location_level must be BUILDING, FLOOR or ROOM")
 )

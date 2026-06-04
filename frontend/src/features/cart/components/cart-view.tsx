@@ -1,18 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
+import { Minus, Plus, Trash2, ShoppingBag, ArrowRight, Store as StoreIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { RoleGuard } from '@/features/auth/components/role-guard';
+import { StoreOpenBadge } from '@/features/stores/components/sale-status-badge';
 import { formatVnd } from '@/shared/lib/format-vnd';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { ROUTES } from '@/shared/config/constants';
-import { useMyCart, useCartMutations } from '../hooks/use-cart';
-import type { CartItem } from '../types/cart';
+import { useStores } from '@/features/stores/hooks/use-stores';
+import type { SaleStatus } from '@/features/stores/types/store';
+import { useMyCarts, useCartMutations } from '../hooks/use-cart';
+import type { Cart, CartItem } from '../types/cart';
 
 export function CartView() {
   return (
@@ -27,18 +30,51 @@ export function CartView() {
   );
 }
 
-function CartContent() {
-  const { data: cart, isLoading, isError } = useMyCart();
-  const { removeItem, clear } = useCartMutations();
-  const storeId = cart?.StoreID ?? '';
+interface StoreMeta {
+  name: string;
+  openNow: boolean;
+  status: SaleStatus;
+}
 
-  const handleClear = async () => {
-    if (!storeId) return;
-    try {
-      await clear.mutateAsync(storeId);
-      toast.success('Đã xoá giỏ hàng');
-    } catch (e) {
-      toast.error(getApiErrorMessage(e, 'Không xoá được giỏ hàng'));
+function CartContent() {
+  const { data: carts, isLoading, isError } = useMyCarts();
+  const { data: stores } = useStores();
+  const { removeItem } = useCartMutations();
+
+  // Store name + open-now lookup, reused from the public browse list.
+  const storeMeta = useMemo(() => {
+    const m = new Map<string, StoreMeta>();
+    (stores ?? []).forEach((s) => m.set(s.ID, { name: s.Name, openNow: !!s.OpenNow, status: s.SaleStatus }));
+    return m;
+  }, [stores]);
+
+  // Carts that actually have items, grouped per store.
+  const groups = useMemo(() => (carts ?? []).filter((c) => (c.Items?.length ?? 0) > 0), [carts]);
+
+  // Checkout selection is locked to a single store: picking an item from store A
+  // disables every other store until the selection is cleared.
+  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleItem = (storeId: string, menuItemId: string) => {
+    if (selectedStoreId && selectedStoreId !== storeId) return; // other store locked
+    const next = new Set(selectedStoreId === storeId ? selectedIds : []);
+    if (next.has(menuItemId)) next.delete(menuItemId);
+    else next.add(menuItemId);
+    setSelectedIds(next);
+    setSelectedStoreId(next.size === 0 ? null : storeId);
+  };
+
+  const handleRemove = (storeId: string, menuItemId: string) => {
+    removeItem.mutate(
+      { menuItemId, storeId },
+      { onError: (e) => toast.error(getApiErrorMessage(e, 'Không xoá được món')) },
+    );
+    if (selectedIds.has(menuItemId)) {
+      const next = new Set(selectedIds);
+      next.delete(menuItemId);
+      setSelectedIds(next);
+      if (next.size === 0) setSelectedStoreId(null);
     }
   };
 
@@ -56,9 +92,7 @@ function CartContent() {
     return <p className="text-destructive text-sm text-center py-12">Không tải được giỏ hàng.</p>;
   }
 
-  const items = cart?.Items ?? [];
-
-  if (items.length === 0) {
+  if (groups.length === 0) {
     return (
       <div className="flex flex-col items-center gap-4 py-20 text-muted-foreground">
         <ShoppingBag className="h-12 w-12 opacity-30" />
@@ -70,69 +104,140 @@ function CartContent() {
     );
   }
 
-  const subtotal = items.reduce((s, it) => s + it.PriceSnapshot * it.Qty, 0);
+  // Selected store summary (drives the checkout bar).
+  const selectedGroup = groups.find((g) => g.StoreID === selectedStoreId);
+  const selectedItems = selectedGroup
+    ? selectedGroup.Items.filter((it) => selectedIds.has(it.MenuItemID))
+    : [];
+  const selectedSubtotal = selectedItems.reduce((s, it) => s + it.PriceSnapshot * it.Qty, 0);
+  const selectedStoreName = selectedStoreId ? storeMeta.get(selectedStoreId)?.name : undefined;
+  const checkoutHref =
+    selectedGroup && selectedItems.length > 0
+      ? `${ROUTES.checkout}?store_id=${selectedGroup.StoreID}&items=${selectedItems
+          .map((it) => it.MenuItemID)
+          .join(',')}`
+      : '';
 
   return (
     <div className="space-y-4">
-      {cart?.StoreName && (
-        <p className="text-sm text-muted-foreground">
-          Cửa hàng: <span className="font-medium text-foreground">{cart.StoreName}</span>
-        </p>
+      <p className="text-muted-foreground text-sm">
+        Tích chọn các món của <span className="font-medium text-foreground">một cửa hàng</span> để thanh
+        toán. Mỗi đơn hàng thuộc về một cửa hàng.
+      </p>
+
+      {groups.map((group) => (
+        <StoreCartGroup
+          key={group.StoreID}
+          group={group}
+          meta={storeMeta.get(group.StoreID)}
+          locked={selectedStoreId !== null && selectedStoreId !== group.StoreID}
+          selectedIds={selectedIds}
+          onToggle={(menuItemId) => toggleItem(group.StoreID, menuItemId)}
+          onRemove={(menuItemId) => handleRemove(group.StoreID, menuItemId)}
+        />
+      ))}
+
+      {/* Sticky checkout bar — only when a store has items selected */}
+      {checkoutHref && (
+        <div className="bg-background/90 sticky bottom-0 -mx-4 border-t border-border px-4 py-3 backdrop-blur-md">
+          <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{selectedStoreName}</p>
+              <p className="text-muted-foreground text-xs">
+                {selectedItems.length} món · {formatVnd(selectedSubtotal)}
+              </p>
+            </div>
+            <Button asChild>
+              <Link href={checkoutHref}>
+                Thanh toán
+                <ArrowRight className="ml-1.5 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        </div>
       )}
-
-      <Card>
-        <CardContent className="divide-y divide-border p-0">
-          {items.map((item) => (
-            <CartItemRow
-              key={item.MenuItemID}
-              item={item}
-              storeId={storeId}
-              onRemove={() => {
-                removeItem.mutate(
-                  { menuItemId: item.MenuItemID, storeId },
-                  { onError: (e) => toast.error(getApiErrorMessage(e, 'Không xoá được món')) },
-                );
-              }}
-            />
-          ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="flex items-center justify-between py-4">
-          <span className="font-medium">Tạm tính</span>
-          <span className="font-semibold text-primary">{formatVnd(subtotal)}</span>
-        </CardContent>
-      </Card>
-
-      <div className="flex gap-3">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleClear}
-          disabled={clear.isPending}
-          className="text-destructive border-destructive/50 hover:bg-destructive/5"
-        >
-          <Trash2 className="h-4 w-4 mr-1.5" />
-          Xoá giỏ
-        </Button>
-        <Button asChild className="flex-1">
-          <Link href={ROUTES.checkout}>
-            Thanh toán
-            <ArrowRight className="h-4 w-4 ml-1.5" />
-          </Link>
-        </Button>
-      </div>
     </div>
   );
 }
 
-function CartItemRow({ item, storeId, onRemove }: { item: CartItem; storeId: string; onRemove: () => void }) {
+function StoreCartGroup({
+  group,
+  meta,
+  locked,
+  selectedIds,
+  onToggle,
+  onRemove,
+}: {
+  group: Cart;
+  meta?: StoreMeta;
+  locked: boolean;
+  selectedIds: Set<string>;
+  onToggle: (menuItemId: string) => void;
+  onRemove: (menuItemId: string) => void;
+}) {
+  const subtotal = group.Items.reduce((s, it) => s + it.PriceSnapshot * it.Qty, 0);
+
+  return (
+    <Card className={locked ? 'opacity-50' : ''}>
+      <CardContent className="p-0">
+        {/* Store header */}
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <StoreIcon className="text-muted-foreground h-4 w-4 shrink-0" />
+          <Link
+            href={ROUTES.stores.detail(group.StoreID)}
+            className="truncate text-sm font-semibold hover:underline"
+          >
+            {meta?.name ?? 'Cửa hàng'}
+          </Link>
+          {meta && <StoreOpenBadge openNow={meta.openNow} status={meta.status} />}
+        </div>
+
+        <div className="divide-y divide-border">
+          {group.Items.map((item) => (
+            <CartItemRow
+              key={item.MenuItemID}
+              item={item}
+              storeId={group.StoreID}
+              checked={selectedIds.has(item.MenuItemID)}
+              disabled={locked}
+              onToggle={() => onToggle(item.MenuItemID)}
+              onRemove={() => onRemove(item.MenuItemID)}
+            />
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+          <span className="text-muted-foreground">Tạm tính cửa hàng</span>
+          <span className="text-primary font-semibold">{formatVnd(subtotal)}</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CartItemRow({
+  item,
+  storeId,
+  checked,
+  disabled,
+  onToggle,
+  onRemove,
+}: {
+  item: CartItem;
+  storeId: string;
+  checked: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+  onRemove: () => void;
+}) {
   const { updateItem } = useCartMutations();
   const [qty, setQty] = useState(item.Qty);
 
   const changeQty = async (next: number) => {
-    if (next < 1) { onRemove(); return; }
+    if (next < 1) {
+      onRemove();
+      return;
+    }
     setQty(next);
     try {
       await updateItem.mutateAsync({
@@ -150,12 +255,21 @@ function CartItemRow({ item, storeId, onRemove }: { item: CartItem; storeId: str
 
   return (
     <div className="flex items-center gap-3 px-4 py-3">
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={onToggle}
+        aria-label={`Chọn ${item.NameSnapshot}`}
+        className="accent-primary h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
+      />
+
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium leading-snug">{item.NameSnapshot}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{formatVnd(item.PriceSnapshot)} / món</p>
+        <p className="text-muted-foreground mt-0.5 text-xs">{formatVnd(item.PriceSnapshot)} / món</p>
       </div>
 
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex shrink-0 items-center gap-1.5">
         <Button
           variant="outline"
           size="icon"
@@ -179,14 +293,14 @@ function CartItemRow({ item, storeId, onRemove }: { item: CartItem; storeId: str
         </Button>
       </div>
 
-      <p className="w-20 text-right text-sm font-semibold text-primary shrink-0">
+      <p className="text-primary w-20 shrink-0 text-right text-sm font-semibold">
         {formatVnd(item.PriceSnapshot * qty)}
       </p>
 
       <Button
         variant="ghost"
         size="icon"
-        className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+        className="text-muted-foreground hover:text-destructive h-7 w-7 shrink-0"
         onClick={onRemove}
         aria-label="Xoá món"
       >

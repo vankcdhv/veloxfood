@@ -20,6 +20,11 @@ type RouterConfig struct {
 func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 	api := r.Group("/api/v1")
 
+	// ── Unauthenticated public endpoints ─────────────────────────────────────
+	if cfg.BrowseHandler != nil {
+		api.GET("/menu-items/search", cfg.BrowseHandler.SearchMenuItems)
+	}
+
 	if cfg.AuthMiddleware == nil || cfg.PermChecker == nil {
 		// Auth not configured — skip all protected routes (dev without JWT).
 		return

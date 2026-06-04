@@ -105,16 +105,18 @@ export default function ShopHomePage() {
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {COLLECTIONS.map((c) => (
-            <Card key={c.name} className="group cursor-pointer overflow-hidden">
-              <div className="from-primary/15 to-secondary/10 aspect-[4/3] bg-gradient-to-br transition-transform duration-300 group-hover:scale-[1.02]" />
-              <CardContent className="space-y-1 p-5">
-                <div className="flex items-center justify-between">
-                  <p className="font-serif text-lg font-semibold">{c.name}</p>
-                  <Badge variant="accent">{c.tag}</Badge>
-                </div>
-                <p className="text-muted-foreground text-sm">{c.subtitle}</p>
-              </CardContent>
-            </Card>
+            <Link key={c.name} href={ROUTES.stores.root} className="group block">
+              <Card className="cursor-pointer overflow-hidden transition-shadow hover:shadow-md">
+                <div className="from-primary/15 to-secondary/10 aspect-[4/3] bg-gradient-to-br transition-transform duration-300 group-hover:scale-[1.02]" />
+                <CardContent className="space-y-1 p-5">
+                  <div className="flex items-center justify-between">
+                    <p className="font-serif text-lg font-semibold">{c.name}</p>
+                    <Badge variant="accent">{c.tag}</Badge>
+                  </div>
+                  <p className="text-muted-foreground text-sm">{c.subtitle}</p>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
       </section>

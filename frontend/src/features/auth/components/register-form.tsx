@@ -150,11 +150,11 @@ export function RegisterForm() {
           />
           <span className="text-muted-foreground">
             Tôi đồng ý với{' '}
-            <a href="#" className="text-primary hover:underline">
+            <a href={ROUTES.support.help} className="text-primary hover:underline">
               Điều khoản sử dụng
             </a>{' '}
             và{' '}
-            <a href="#" className="text-primary hover:underline">
+            <a href={ROUTES.support.help} className="text-primary hover:underline">
               Chính sách bảo mật
             </a>
             .

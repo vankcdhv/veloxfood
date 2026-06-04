@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Bell, CheckCheck } from 'lucide-react';
 import { toast } from 'sonner';
+import { ROUTES } from '@/shared/config/constants';
 import { Button } from '@/shared/ui/button';
 import { Badge } from '@/shared/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/shared/ui/sheet';
@@ -43,9 +45,14 @@ export function NotificationBell() {
   );
 }
 
-// onClose is reserved for future sheet dismissal on notification click.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// Extract an order id from a notification's Data payload, if present.
+function orderIdOf(n: Notification): string | null {
+  const id = n.Data?.order_id ?? n.Data?.orderId;
+  return typeof id === 'string' && id ? id : null;
+}
+
 function NotificationSheetBody({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
   const { data, isLoading, isError } = useNotifications(0, 30);
   const markRead = useMarkNotificationRead();
   const markAll = useMarkAllNotificationsRead();
@@ -67,6 +74,16 @@ function NotificationSheetBody({ onClose }: { onClose: () => void }) {
       await markRead.mutateAsync(id);
     } catch {
       // Silent – non-critical action.
+    }
+  };
+
+  // Open a notification: mark it read, then jump to the linked order if any.
+  const handleOpen = (n: Notification) => {
+    if (!n.ReadAt) handleMarkOne(n.ID);
+    const oid = orderIdOf(n);
+    if (oid) {
+      onClose();
+      router.push(ROUTES.account.orderDetail(oid));
     }
   };
 
@@ -116,7 +133,8 @@ function NotificationSheetBody({ onClose }: { onClose: () => void }) {
           <NotificationItem
             key={n.ID}
             notification={n}
-            onRead={handleMarkOne}
+            hasLink={!!orderIdOf(n)}
+            onOpen={() => handleOpen(n)}
           />
         ))}
       </div>
@@ -126,20 +144,22 @@ function NotificationSheetBody({ onClose }: { onClose: () => void }) {
 
 function NotificationItem({
   notification,
-  onRead,
+  hasLink,
+  onOpen,
 }: {
   notification: Notification;
-  onRead: (id: string) => void;
+  hasLink: boolean;
+  onOpen: () => void;
 }) {
   const isUnread = !notification.ReadAt;
 
   return (
     <button
       type="button"
-      onClick={() => isUnread && onRead(notification.ID)}
-      className={`w-full text-left px-4 py-3 border-b border-border last:border-0 hover:bg-muted/50 transition-colors ${
-        isUnread ? 'bg-primary/5' : ''
-      }`}
+      onClick={onOpen}
+      className={`w-full text-left px-4 py-3 border-b border-border last:border-0 transition-colors ${
+        hasLink ? 'hover:bg-muted cursor-pointer' : 'hover:bg-muted/50'
+      } ${isUnread ? 'bg-primary/5' : ''}`}
     >
       <div className="flex items-start gap-2">
         {isUnread && (

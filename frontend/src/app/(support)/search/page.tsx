@@ -1,0 +1,292 @@
+'use client';
+
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Search, UtensilsCrossed } from 'lucide-react';
+import { useQueries } from '@tanstack/react-query';
+import { Skeleton } from '@/shared/ui/skeleton';
+import { formatVnd } from '@/shared/lib/format-vnd';
+import { ROUTES } from '@/shared/config/constants';
+import { useMenuItemSearch } from '@/features/stores/hooks/use-stores';
+import { AddToCartButton } from '@/features/cart/components/add-to-cart-button';
+import { MenuItemDetailDialog } from '@/features/reviews/components/menu-item-detail-dialog';
+import { reviewApi } from '@/features/reviews/api/review-api';
+import { reviewKeys } from '@/features/reviews/hooks/use-reviews';
+import type { MenuItem, MenuItemSearchResult, SaleStatus } from '@/features/stores/types/store';
+import type { ItemRatingSummary } from '@/features/reviews/types/review';
+
+// Map a search result to the MenuItem shape expected by reused components.
+// Search only returns currently sellable items, so Status is always 'on'.
+function toMenuItem(r: MenuItemSearchResult): MenuItem {
+  return {
+    ID: r.ID,
+    StoreID: r.StoreID,
+    CategoryID: '',
+    Name: r.Name,
+    Description: r.Description,
+    Price: r.Price,
+    ImageURL: r.ImageURL,
+    Status: 'on',
+    Tags: '',
+  };
+}
+
+// Outer page shell — wraps inner client component in Suspense (required for
+// useSearchParams under Next.js App Router).
+export default function SearchPage() {
+  return (
+    <div className="mx-auto w-full max-w-3xl px-4 py-10">
+      <div className="mb-6 flex items-center gap-3">
+        <div className="bg-primary/10 text-primary flex h-11 w-11 items-center justify-center rounded-xl">
+          <Search className="h-6 w-6" />
+        </div>
+        <div>
+          <h1 className="font-serif text-2xl font-bold">Tìm món ăn</h1>
+          <p className="text-muted-foreground text-sm">Tìm kiếm món ăn từ tất cả cửa hàng.</p>
+        </div>
+      </div>
+      <Suspense fallback={<SearchSkeleton />}>
+        <SearchContent />
+      </Suspense>
+    </div>
+  );
+}
+
+function SearchContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialQ = searchParams.get('q') ?? '';
+
+  const [inputValue, setInputValue] = useState(initialQ);
+  const [debouncedQ, setDebouncedQ] = useState(initialQ);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Autofocus on mount
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const handleInput = useCallback(
+    (value: string) => {
+      setInputValue(value);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        setDebouncedQ(value);
+        const params = new URLSearchParams(searchParams.toString());
+        if (value.trim()) {
+          params.set('q', value);
+        } else {
+          params.delete('q');
+        }
+        router.replace(`${ROUTES.search}?${params.toString()}`);
+      }, 300);
+    },
+    [router, searchParams],
+  );
+
+  const { data: results, isLoading, isError } = useMenuItemSearch(debouncedQ);
+
+  return (
+    <div className="space-y-5">
+      {/* Search input */}
+      <div className="relative">
+        <Search className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+        <input
+          ref={inputRef}
+          type="search"
+          value={inputValue}
+          onChange={(e) => handleInput(e.target.value)}
+          placeholder="Nhập tên món để tìm…"
+          className="border-input bg-background focus-visible:ring-ring h-11 w-full rounded-xl border py-2 pl-10 pr-4 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2"
+        />
+      </div>
+
+      {/* Result area */}
+      <SearchResults
+        q={debouncedQ}
+        results={results}
+        isLoading={isLoading}
+        isError={isError}
+      />
+    </div>
+  );
+}
+
+interface SearchResultsProps {
+  q: string;
+  results: ReturnType<typeof useMenuItemSearch>['data'];
+  isLoading: boolean;
+  isError: boolean;
+}
+
+function SearchResults({ q, results, isLoading, isError }: SearchResultsProps) {
+  // Collect distinct store IDs from current results so we can batch-fetch
+  // per-item rating summaries across all stores in parallel.
+  const storeIds = useMemo(
+    () => [...new Set((results ?? []).map((r) => r.StoreID))],
+    [results],
+  );
+
+  // Fire one query per distinct store. useQueries with an empty array is safe
+  // and returns [] — hooks are always called unconditionally.
+  const ratingQueries = useQueries({
+    queries: storeIds.map((sid) => ({
+      queryKey: reviewKeys.itemSummaries(sid),
+      // Return a Map to match useItemRatingSummaries (shares this queryKey; the
+      // cache value must be the same shape or store-detail's .get() breaks).
+      queryFn: async () =>
+        new Map((await reviewApi.itemSummaries(sid) ?? []).map((s) => [s.TargetID, s])),
+      enabled: storeIds.length > 0,
+    })),
+  });
+
+  // Merge all per-store summary maps into a single map keyed by menu-item ID.
+  const ratingsMap = useMemo<Map<string, ItemRatingSummary>>(() => {
+    const map = new Map<string, ItemRatingSummary>();
+    ratingQueries.forEach((q) => {
+      (q.data as Map<string, ItemRatingSummary> | undefined)?.forEach((s) => map.set(s.TargetID, s));
+    });
+    return map;
+  }, [ratingQueries]);
+
+  // --- Early returns (after all hooks) ---
+
+  // Empty query — prompt
+  if (!q.trim()) {
+    return (
+      <p className="text-muted-foreground py-10 text-center text-sm">
+        Nhập tên món để tìm kiếm trên tất cả cửa hàng.
+      </p>
+    );
+  }
+
+  // Loading state — skeleton rows
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 rounded-xl border border-border p-3">
+            <Skeleton className="h-16 w-16 shrink-0 rounded-lg" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+              <Skeleton className="h-3 w-1/4" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Error state
+  if (isError) {
+    return (
+      <p className="text-destructive py-10 text-center text-sm">
+        Đã có lỗi khi tìm kiếm. Vui lòng thử lại.
+      </p>
+    );
+  }
+
+  // No results
+  if (!results || results.length === 0) {
+    return (
+      <div className="py-10 text-center">
+        <UtensilsCrossed className="text-muted-foreground/40 mx-auto mb-3 h-10 w-10" />
+        <p className="text-muted-foreground text-sm">
+          Không tìm thấy món nào khớp với &ldquo;{q}&rdquo;.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-muted-foreground text-xs">
+        {results.length} kết quả cho &ldquo;{q}&rdquo;
+      </p>
+      {results.map((r) => {
+        const mapped = toMenuItem(r);
+        const summary = ratingsMap.get(r.ID);
+        return (
+          <div
+            key={r.ID}
+            className="flex items-start gap-3 rounded-xl border border-border p-3 transition hover:border-orange-500/50 hover:bg-orange-50/50 dark:hover:bg-orange-950/20"
+          >
+            {/* Thumbnail */}
+            {r.ImageURL ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={r.ImageURL}
+                alt={r.Name}
+                className="h-16 w-16 shrink-0 rounded-lg object-cover"
+              />
+            ) : (
+              <div className="bg-muted text-muted-foreground/40 flex h-16 w-16 shrink-0 items-center justify-center rounded-lg">
+                <UtensilsCrossed className="h-6 w-6" />
+              </div>
+            )}
+
+            {/* Info */}
+            <div className="min-w-0 flex-1 space-y-1">
+              {/* Name + star rating line; opens detail dialog with reviews on click */}
+              <MenuItemDetailDialog
+                storeId={r.StoreID}
+                item={mapped}
+                avg={summary?.Avg ?? 0}
+                count={summary?.Count ?? 0}
+              />
+
+              {/* Description */}
+              {r.Description && (
+                <p className="text-muted-foreground text-xs line-clamp-2">{r.Description}</p>
+              )}
+
+              {/* Price row: price left, add-to-cart right */}
+              <div className="flex items-center justify-between gap-2 pt-0.5">
+                <div>
+                  <p className="text-primary font-semibold text-sm">{formatVnd(r.Price)}</p>
+                  <p className="text-muted-foreground text-xs">
+                    <Link
+                      href={ROUTES.stores.detail(r.StoreID)}
+                      className="hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {r.StoreName}
+                    </Link>
+                    <SaleStatusHint status={r.SaleStatus} />
+                  </p>
+                </div>
+                <AddToCartButton item={mapped} />
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SaleStatusHint({ status }: { status: SaleStatus }) {
+  if (status === 'OPEN') {
+    return <span className="ml-1 text-green-600">· Đang mở</span>;
+  }
+  if (status === 'PAUSED') {
+    return <span className="ml-1 text-yellow-600">· Tạm dừng</span>;
+  }
+  return <span className="ml-1 text-destructive">· Đóng</span>;
+}
+
+function SearchSkeleton() {
+  return (
+    <div className="space-y-5">
+      <Skeleton className="h-11 w-full rounded-xl" />
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-[88px] rounded-xl" />
+        ))}
+      </div>
+    </div>
+  );
+}

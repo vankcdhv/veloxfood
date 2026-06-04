@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ShoppingBag, Search, Menu } from 'lucide-react';
+import { ShoppingBag, Menu } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
 import { Badge } from '@/shared/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/shared/ui/sheet';
@@ -13,19 +13,21 @@ import { cn } from '@/shared/lib/utils';
 import { useAuth } from '@/features/auth/context/auth-provider';
 import { UserMenu } from '@/features/auth/components/user-menu';
 import { NotificationBell } from '@/features/notifications/components/notification-bell';
-import { useMyCart } from '@/features/cart/hooks/use-cart';
+import { useMyCarts } from '@/features/cart/hooks/use-cart';
 
 const NAV_ITEMS = [
   { label: 'Trang chủ', href: ROUTES.shop.root },
   { label: 'Cửa hàng', href: ROUTES.stores.root },
+  { label: 'Tìm món', href: ROUTES.search },
   { label: 'Giỏ hàng', href: ROUTES.cart },
 ];
 
 export function ShopHeader() {
   const pathname = usePathname();
   const { isAuthenticated, isLoading } = useAuth();
-  const { data: cart } = useMyCart();
-  const cartCount = cart?.Items?.reduce((s, it) => s + it.Qty, 0) ?? 0;
+  const { data: carts } = useMyCarts();
+  const cartCount =
+    carts?.reduce((sum, c) => sum + (c.Items?.reduce((s, it) => s + it.Qty, 0) ?? 0), 0) ?? 0;
 
   return (
     <header className="border-border bg-background/80 sticky top-0 z-40 border-b backdrop-blur-md">
@@ -54,15 +56,6 @@ export function ShopHeader() {
         </nav>
 
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Tìm kiếm món ăn"
-            className="hidden sm:inline-flex"
-          >
-            <Search className="h-4 w-4" />
-          </Button>
-
           <Button variant="ghost" size="icon" aria-label="Giỏ hàng" className="relative" asChild>
             <Link href={ROUTES.cart}>
               <ShoppingBag className="h-4 w-4" />

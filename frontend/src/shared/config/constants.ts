@@ -41,4 +41,5 @@ export const ROUTES = {
     help: '/help',
     contact: '/contact',
   },
+  search: '/search',
 } as const;

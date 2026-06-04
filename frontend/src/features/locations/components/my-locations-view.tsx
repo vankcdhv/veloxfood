@@ -11,6 +11,7 @@ import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useMyLocations, useMyLocationMutations } from '../hooks/use-locations';
 import { formatRoomPath } from '../lib/format-room-path';
 import { LocationPicker } from './location-picker';
+import type { LocationSelection } from './location-picker';
 
 export function MyLocationsView() {
   return (
@@ -22,7 +23,9 @@ export function MyLocationsView() {
 }
 
 function AddLocationCard() {
-  const [roomId, setRoomId] = useState('');
+  // Flexible: the customer may stop at Toà / Tầng / Phòng — whatever they pick
+  // becomes the saved location's level + id.
+  const [sel, setSel] = useState<LocationSelection | null>(null);
   const [label, setLabel] = useState('');
   const [makeDefault, setMakeDefault] = useState(false);
   // Incrementing this key remounts the LocationPicker, resetting its internal
@@ -31,16 +34,16 @@ function AddLocationCard() {
   const { add } = useMyLocationMutations();
 
   const submit = () => {
-    if (!roomId) {
-      toast.error('Vui lòng chọn phòng.');
+    if (!sel) {
+      toast.error('Vui lòng chọn địa điểm.');
       return;
     }
     add.mutate(
-      { roomId, label: label.trim(), isDefault: makeDefault },
+      { locationId: sel.id, level: sel.level, label: label.trim(), isDefault: makeDefault },
       {
         onSuccess: () => {
           toast.success('Đã lưu vị trí.');
-          setRoomId('');
+          setSel(null);
           setLabel('');
           setMakeDefault(false);
           setPickerKey((k) => k + 1);
@@ -56,7 +59,10 @@ function AddLocationCard() {
         <CardTitle>Thêm vị trí giao</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <LocationPicker key={pickerKey} level="room" value={roomId} onSelect={setRoomId} />
+        <LocationPicker key={pickerKey} onSelectLocation={setSel} />
+        <p className="text-muted-foreground text-xs">
+          Có thể lưu ở cấp Toà, Tầng hoặc Phòng — chọn tới đâu lưu tới đó.
+        </p>
         <div>
           <label className="text-foreground mb-1.5 block text-sm font-medium">Nhãn (tuỳ chọn)</label>
           <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="VD: Văn phòng, Phòng họp" />

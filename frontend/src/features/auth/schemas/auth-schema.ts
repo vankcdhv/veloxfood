@@ -8,9 +8,10 @@ const strongPassword = z
   .regex(/[A-Z]/, 'Cần ít nhất 1 chữ hoa')
   .regex(/[0-9]/, 'Cần ít nhất 1 chữ số');
 
-// Login chỉ check non-empty để không block password cũ (rule có thể đã đổi).
+// Login identifier can be an email OR a phone number (backend accepts both);
+// only require non-empty here and let the server validate the credential.
 export const loginSchema = z.object({
-  email: emailField,
+  email: z.string().min(1, 'Vui lòng nhập email hoặc số điện thoại'),
   password: z.string().min(1, 'Vui lòng nhập mật khẩu'),
   remember: z.boolean(),
 });

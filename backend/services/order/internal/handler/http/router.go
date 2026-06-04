@@ -26,6 +26,7 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 	// ── Customer: cart ────────────────────────────────────────────────────────
 	if cfg.CartHandler != nil {
 		h := cfg.CartHandler
+		api.GET("/me/carts", h.GetAllCarts)
 		api.GET("/me/cart", h.GetCart)
 		api.PUT("/me/cart/items", h.AddOrUpdateItem)
 		api.DELETE("/me/cart/items/:menuItemId", h.RemoveItem)

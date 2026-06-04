@@ -1,19 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useActiveStoreId } from '@/shared/lib/active-store';
 import { cartApi } from '../api/cart-api';
 import type { AddOrUpdateCartItemBody } from '../types/cart';
 
 export const cartKeys = {
   all: ['cart'] as const,
   mine: (storeId: string | null) => [...cartKeys.all, 'mine', storeId] as const,
+  mineAll: () => [...cartKeys.all, 'mine-all'] as const,
 };
 
-export function useMyCart() {
-  const storeId = useActiveStoreId();
+// All of the customer's carts across every store (account-bound, multi-store).
+export function useMyCarts() {
+  return useQuery({
+    queryKey: cartKeys.mineAll(),
+    queryFn: () => cartApi.getAll(),
+    staleTime: 30_000,
+  });
+}
+
+// One store's cart. Used where a single store is in scope (add-to-cart, checkout).
+export function useStoreCart(storeId: string) {
   return useQuery({
     queryKey: cartKeys.mine(storeId),
-    queryFn: () => cartApi.get(storeId as string),
-    // No active store → no cart to load (shows empty state, not an error).
+    queryFn: () => cartApi.get(storeId),
     enabled: !!storeId,
     staleTime: 30_000,
   });

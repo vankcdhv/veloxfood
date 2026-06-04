@@ -46,15 +46,25 @@ type Room struct {
 
 func (Room) TableName() string { return "rooms" }
 
-// CustomerLocation is a customer's saved/favorite delivery location.
+// Delivery-address tree levels a saved location may be pinned at.
+const (
+	LocationLevelBuilding = "BUILDING"
+	LocationLevelFloor    = "FLOOR"
+	LocationLevelRoom     = "ROOM"
+)
+
+// CustomerLocation is a customer's saved/favorite delivery location. It may be
+// pinned at any tree level: LocationID points at a building, floor, or room as
+// indicated by LocationLevel (BUILDING | FLOOR | ROOM).
 type CustomerLocation struct {
-	ID         string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	CustomerID string    `gorm:"type:uuid;not null;index"`
-	RoomID     string    `gorm:"type:uuid;not null"`
-	Label      string    `gorm:"type:varchar(100)"`
-	IsDefault  bool      `gorm:"not null;default:false"`
-	CreatedAt  time.Time `gorm:"type:timestamptz;not null;default:now()"`
-	UpdatedAt  time.Time `gorm:"type:timestamptz;not null;default:now()"`
+	ID            string    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	CustomerID    string    `gorm:"type:uuid;not null;index"`
+	LocationLevel string    `gorm:"type:varchar(10);not null;default:ROOM"`
+	LocationID    string    `gorm:"type:uuid;not null"`
+	Label         string    `gorm:"type:varchar(100)"`
+	IsDefault     bool      `gorm:"not null;default:false"`
+	CreatedAt     time.Time `gorm:"type:timestamptz;not null;default:now()"`
+	UpdatedAt     time.Time `gorm:"type:timestamptz;not null;default:now()"`
 }
 
 func (CustomerLocation) TableName() string { return "customer_locations" }

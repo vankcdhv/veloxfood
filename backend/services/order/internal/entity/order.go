@@ -26,8 +26,9 @@ const (
 type PaymentStatus string
 
 const (
-	PaymentUnpaid PaymentStatus = "UNPAID"
-	PaymentPaid   PaymentStatus = "PAID"
+	PaymentUnpaid   PaymentStatus = "UNPAID"
+	PaymentPaid     PaymentStatus = "PAID"
+	PaymentRefunded PaymentStatus = "REFUNDED"
 )
 
 // Fulfillment mode for the order.

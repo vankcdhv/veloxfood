@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"project/services/store/internal/entity"
+	"project/services/store/internal/repository"
 )
 
 // ── mockStoreRepo ─────────────────────────────────────────────────────────────
@@ -177,6 +178,9 @@ func (m *mockCatalogRepo) RemoveComboItem(ctx context.Context, comboID string, m
 	return errors.New("not implemented")
 }
 func (m *mockCatalogRepo) ListComboItems(ctx context.Context, comboID string) ([]*entity.ComboItem, error) {
+	return nil, errors.New("not implemented")
+}
+func (m *mockCatalogRepo) SearchMenuItems(ctx context.Context, q string, limit int) ([]repository.SearchMenuItemRow, error) {
 	return nil, errors.New("not implemented")
 }
 

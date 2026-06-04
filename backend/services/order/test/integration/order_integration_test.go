@@ -425,15 +425,42 @@ func TestCart_GetCart_Empty(t *testing.T) {
 	}
 }
 
-func TestCart_CrossStore_Rejected(t *testing.T) {
+// A customer may hold items from several stores at once; the per-store carts
+// coexist and GET /me/carts returns all of them.
+func TestCart_MultiStore_Allowed(t *testing.T) {
 	env := setupEnv(t)
 	other := "cccccccc-3333-3333-3333-333333333333"
-	env.do(t, "PUT", "/api/v1/me/cart/items",
+	w1 := env.do(t, "PUT", "/api/v1/me/cart/items",
 		`{"store_id":"`+testStoreID+`","menu_item_id":"`+testItemID+`","name_snapshot":"Pho","price_snapshot":50000,"qty":1}`)
-	w := env.do(t, "PUT", "/api/v1/me/cart/items",
+	if w1.Code != http.StatusOK {
+		t.Fatalf("add store A: expected 200, got %d — %s", w1.Code, w1.Body.String())
+	}
+	w2 := env.do(t, "PUT", "/api/v1/me/cart/items",
 		`{"store_id":"`+other+`","menu_item_id":"`+testItemID+`","name_snapshot":"Com","price_snapshot":40000,"qty":1}`)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("cross-store: expected 400, got %d — %s", w.Code, w.Body.String())
+	if w2.Code != http.StatusOK {
+		t.Fatalf("add store B (cross-store): expected 200, got %d — %s", w2.Code, w2.Body.String())
+	}
+
+	w := env.do(t, "GET", "/api/v1/me/carts", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("list carts: expected 200, got %d — %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Data struct {
+			Carts []struct {
+				StoreID string `json:"StoreID"`
+			} `json:"carts"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("parse carts: %v", err)
+	}
+	stores := map[string]bool{}
+	for _, c := range resp.Data.Carts {
+		stores[c.StoreID] = true
+	}
+	if !stores[testStoreID] || !stores[other] {
+		t.Errorf("carts must contain both stores, got %d carts: %s", len(resp.Data.Carts), w.Body.String())
 	}
 }
 

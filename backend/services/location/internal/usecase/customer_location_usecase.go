@@ -20,7 +20,7 @@ type CustomerLocationView struct {
 // CustomerLocationUsecase manages a customer's saved delivery locations.
 type CustomerLocationUsecase interface {
 	List(ctx context.Context, customerID string) ([]*CustomerLocationView, error)
-	Add(ctx context.Context, customerID, roomID, label string, makeDefault bool) (*entity.CustomerLocation, error)
+	Add(ctx context.Context, customerID, locationID, level, label string, makeDefault bool) (*entity.CustomerLocation, error)
 	Remove(ctx context.Context, customerID, id string) error
 	SetDefault(ctx context.Context, customerID, id string) error
 }
@@ -42,9 +42,30 @@ func (uc *customerLocationUsecase) List(ctx context.Context, customerID string) 
 	views := make([]*CustomerLocationView, 0, len(locs))
 	for _, loc := range locs {
 		v := &CustomerLocationView{CustomerLocation: loc}
-		// Resolve the readable path; tolerate a missing node (e.g. soft-deleted
-		// building) by leaving the corresponding name blank.
-		if room, err := uc.locRepo.GetRoom(ctx, loc.RoomID); err == nil {
+		uc.resolvePath(ctx, v)
+		views = append(views, v)
+	}
+	return views, nil
+}
+
+// resolvePath fills the readable building/floor/room names according to the
+// saved location's level. A missing node (e.g. soft-deleted) leaves the
+// corresponding name blank rather than failing.
+func (uc *customerLocationUsecase) resolvePath(ctx context.Context, v *CustomerLocationView) {
+	switch v.LocationLevel {
+	case entity.LocationLevelBuilding:
+		if b, err := uc.locRepo.GetBuilding(ctx, v.LocationID); err == nil {
+			v.BuildingName = b.Name
+		}
+	case entity.LocationLevelFloor:
+		if floor, err := uc.locRepo.GetFloor(ctx, v.LocationID); err == nil {
+			v.FloorName = floor.Name
+			if b, err := uc.locRepo.GetBuilding(ctx, floor.BuildingID); err == nil {
+				v.BuildingName = b.Name
+			}
+		}
+	default: // ROOM
+		if room, err := uc.locRepo.GetRoom(ctx, v.LocationID); err == nil {
 			v.RoomCode, v.RoomName = room.Code, room.Name
 			if floor, err := uc.locRepo.GetFloor(ctx, room.FloorID); err == nil {
 				v.FloorName = floor.Name
@@ -53,20 +74,31 @@ func (uc *customerLocationUsecase) List(ctx context.Context, customerID string) 
 				}
 			}
 		}
-		views = append(views, v)
 	}
-	return views, nil
 }
 
-func (uc *customerLocationUsecase) Add(ctx context.Context, customerID, roomID, label string, makeDefault bool) (*entity.CustomerLocation, error) {
-	if roomID == "" {
-		return nil, ErrRoomIDRequired
+func (uc *customerLocationUsecase) Add(ctx context.Context, customerID, locationID, level, label string, makeDefault bool) (*entity.CustomerLocation, error) {
+	if locationID == "" {
+		return nil, ErrLocationIDRequired
 	}
-	// Validate the room exists (and is a real delivery target).
-	if _, err := uc.locRepo.GetRoom(ctx, roomID); err != nil {
-		return nil, mapNotFound(err, ErrRoomNotFound)
+	// Validate the referenced node exists at the claimed level.
+	switch level {
+	case entity.LocationLevelBuilding:
+		if _, err := uc.locRepo.GetBuilding(ctx, locationID); err != nil {
+			return nil, mapNotFound(err, ErrBuildingNotFound)
+		}
+	case entity.LocationLevelFloor:
+		if _, err := uc.locRepo.GetFloor(ctx, locationID); err != nil {
+			return nil, mapNotFound(err, ErrFloorNotFound)
+		}
+	case entity.LocationLevelRoom:
+		if _, err := uc.locRepo.GetRoom(ctx, locationID); err != nil {
+			return nil, mapNotFound(err, ErrRoomNotFound)
+		}
+	default:
+		return nil, ErrInvalidLocationLevel
 	}
-	loc := &entity.CustomerLocation{CustomerID: customerID, RoomID: roomID, Label: label}
+	loc := &entity.CustomerLocation{CustomerID: customerID, LocationLevel: level, LocationID: locationID, Label: label}
 	if err := uc.repo.Create(ctx, loc); err != nil {
 		return nil, err
 	}

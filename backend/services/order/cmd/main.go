@@ -37,7 +37,7 @@ func main() {
 
 		// ── Usecases ──────────────────────────────────────────────────────────
 		cartUC := usecase.NewCartUsecase(cartRepo)
-		placeOrderUC := usecase.NewPlaceOrderUsecase(deps.DB, orderRepo, outboxRepo, storeClient, promoClient, paymentClient)
+		placeOrderUC := usecase.NewPlaceOrderUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, storeClient, promoClient, paymentClient)
 		lifecycleUC := usecase.NewOrderLifecycleUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, storeClient, promoClient, paymentClient)
 
 		// ── HTTP router ───────────────────────────────────────────────────────

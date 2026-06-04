@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { Skeleton } from '@/shared/ui/skeleton';
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { cn } from '@/shared/lib/utils';
 import {
@@ -15,10 +16,24 @@ import {
   useLocationMutations,
 } from '../hooks/use-locations';
 
+type DeleteKind = 'building' | 'floor' | 'room';
+interface PendingDelete {
+  kind: DeleteKind;
+  id: string;
+  label: string;
+}
+
+const DELETE_DESC: Record<DeleteKind, string> = {
+  building: 'Xoá toà nhà sẽ xoá toàn bộ tầng và phòng bên trong.',
+  floor: 'Xoá tầng sẽ xoá toàn bộ phòng bên trong.',
+  room: 'Phòng này sẽ bị xoá khỏi hệ thống.',
+};
+
 // Master-detail manager: Buildings → Floors → Rooms (3 selectable columns).
 export function LocationTreeManager() {
   const [buildingId, setBuildingId] = useState<string | null>(null);
   const [floorId, setFloorId] = useState<string | null>(null);
+  const [pending, setPending] = useState<PendingDelete | null>(null);
 
   const buildings = useAdminBuildings();
   const floors = useAdminFloors(buildingId);
@@ -26,8 +41,28 @@ export function LocationTreeManager() {
   const m = useLocationMutations();
 
   const err = (e: unknown) => toast.error(getApiErrorMessage(e, 'Thao tác thất bại'));
+  const deleting =
+    m.deleteBuilding.isPending || m.deleteFloor.isPending || m.deleteRoom.isPending;
+
+  const confirmDelete = () => {
+    if (!pending) return;
+    const opts = {
+      onSuccess: () => { toast.success('Đã xoá.'); setPending(null); },
+      onError: (e: unknown) => { err(e); setPending(null); },
+    };
+    if (pending.kind === 'building') {
+      m.deleteBuilding.mutate(pending.id, opts);
+      if (buildingId === pending.id) { setBuildingId(null); setFloorId(null); }
+    } else if (pending.kind === 'floor') {
+      m.deleteFloor.mutate(pending.id, opts);
+      if (floorId === pending.id) setFloorId(null);
+    } else {
+      m.deleteRoom.mutate(pending.id, opts);
+    }
+  };
 
   return (
+    <>
     <div className="grid gap-4 lg:grid-cols-3">
       {/* Buildings */}
       <Column
@@ -43,7 +78,7 @@ export function LocationTreeManager() {
             label={b.Name}
             active={buildingId === b.ID}
             onSelect={() => { setBuildingId(b.ID); setFloorId(null); }}
-            onDelete={() => m.deleteBuilding.mutate(b.ID, { onError: err })}
+            onDelete={() => setPending({ kind: 'building', id: b.ID, label: b.Name })}
             chevron
           />
         ))}
@@ -66,7 +101,7 @@ export function LocationTreeManager() {
             label={f.Name}
             active={floorId === f.ID}
             onSelect={() => setFloorId(f.ID)}
-            onDelete={() => m.deleteFloor.mutate(f.ID, { onError: err })}
+            onDelete={() => setPending({ kind: 'floor', id: f.ID, label: f.Name })}
             chevron
           />
         ))}
@@ -87,12 +122,24 @@ export function LocationTreeManager() {
           <Row
             key={r.ID}
             label={r.Code + (r.Name ? ` · ${r.Name}` : '')}
-            onDelete={() => m.deleteRoom.mutate(r.ID, { onError: err })}
+            onDelete={() => setPending({ kind: 'room', id: r.ID, label: r.Code })}
           />
         ))}
         {floorId && rooms.data?.length === 0 && <Empty>Chưa có phòng</Empty>}
       </Column>
     </div>
+
+    <ConfirmDialog
+      open={!!pending}
+      onOpenChange={(o) => !o && setPending(null)}
+      title={`Xoá "${pending?.label ?? ''}"?`}
+      description={pending ? DELETE_DESC[pending.kind] : ''}
+      confirmLabel="Xoá"
+      destructive
+      loading={deleting}
+      onConfirm={confirmDelete}
+    />
+    </>
   );
 }
 
@@ -167,7 +214,7 @@ function Row({
         type="button"
         onClick={onDelete}
         aria-label="Xoá"
-        className="text-muted-foreground hover:text-destructive shrink-0 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100"
+        className="text-muted-foreground hover:text-destructive shrink-0 rounded p-1 opacity-60 transition-opacity group-hover:opacity-100"
       >
         <Trash2 className="h-4 w-4" />
       </button>

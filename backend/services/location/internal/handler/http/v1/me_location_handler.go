@@ -28,9 +28,10 @@ func (h *MeLocationHandler) List(c *gin.Context) {
 }
 
 type addLocationRequest struct {
-	RoomID    string `json:"room_id"`
-	Label     string `json:"label"`
-	IsDefault bool   `json:"is_default"`
+	LocationID    string `json:"location_id"`
+	LocationLevel string `json:"location_level"`
+	Label         string `json:"label"`
+	IsDefault     bool   `json:"is_default"`
 }
 
 func (h *MeLocationHandler) Add(c *gin.Context) {
@@ -39,8 +40,12 @@ func (h *MeLocationHandler) Add(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	level := req.LocationLevel
+	if level == "" {
+		level = "ROOM" // back-compat default
+	}
 	userID := authmw.UserIDFromContext(c.Request.Context())
-	loc, err := h.uc.Add(c.Request.Context(), userID, req.RoomID, req.Label, req.IsDefault)
+	loc, err := h.uc.Add(c.Request.Context(), userID, req.LocationID, level, req.Label, req.IsDefault)
 	if err != nil {
 		response.HandleError(c, err)
 		return

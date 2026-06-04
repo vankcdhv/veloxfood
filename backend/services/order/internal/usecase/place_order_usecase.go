@@ -53,6 +53,7 @@ type PlaceOrderUsecase interface {
 type placeOrderUsecase struct {
 	db            *gorm.DB
 	orderRepo     repository.OrderRepository
+	cartRepo      repository.CartRepository
 	outboxRepo    repository.OutboxRepository
 	storeClient   *grpcclient.StoreClient
 	promoClient   *grpcclient.PromotionClient
@@ -63,6 +64,7 @@ type placeOrderUsecase struct {
 func NewPlaceOrderUsecase(
 	db *gorm.DB,
 	orderRepo repository.OrderRepository,
+	cartRepo repository.CartRepository,
 	outboxRepo repository.OutboxRepository,
 	storeClient *grpcclient.StoreClient,
 	promoClient *grpcclient.PromotionClient,
@@ -71,6 +73,7 @@ func NewPlaceOrderUsecase(
 	return &placeOrderUsecase{
 		db:            db,
 		orderRepo:     orderRepo,
+		cartRepo:      cartRepo,
 		outboxRepo:    outboxRepo,
 		storeClient:   storeClient,
 		promoClient:   promoClient,
@@ -371,6 +374,12 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 	slog.InfoContext(ctx, "order placed",
 		"order_id", orderID, "code", code,
 		"grand_total", grandTotal, "desired_time", desiredTimeStr)
+
+	// Best-effort: drop the ordered items from the customer's cart for this store
+	// (leaving items from other stores intact). A failure here must not fail the
+	// order — the order is already committed — so we only log.
+	uc.removeOrderedItemsFromCart(ctx, req.CustomerID, req.StoreID, req.Items)
+
 	return &PlaceOrderResult{
 		OrderID:    orderID,
 		Code:       code,
@@ -379,10 +388,33 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 	}, nil
 }
 
+// removeOrderedItemsFromCart deletes the just-ordered menu items from the
+// customer's per-store cart. Best-effort: any error is logged, never returned.
+func (uc *placeOrderUsecase) removeOrderedItemsFromCart(ctx context.Context, customerID, storeID string, items []PlaceOrderItem) {
+	if uc.cartRepo == nil || len(items) == 0 {
+		return
+	}
+	cart, err := uc.cartRepo.GetByCustomerAndStore(ctx, customerID, storeID)
+	if err != nil || cart == nil {
+		if err != nil {
+			slog.WarnContext(ctx, "place order: load cart for cleanup failed", "err", err)
+		}
+		return
+	}
+	for _, it := range items {
+		if rmErr := uc.cartRepo.RemoveItem(ctx, cart.ID, it.MenuItemID); rmErr != nil {
+			slog.WarnContext(ctx, "place order: cart item cleanup failed",
+				"cart_id", cart.ID, "menu_item_id", it.MenuItemID, "err", rmErr)
+		}
+	}
+}
+
 // apperrorPayment converts a payment capture error to a user-facing error.
+// When the gateway reported FAILED without a transport error, surface a payment
+// failure (not a misleading "store closed").
 func apperrorPayment(err error) error {
 	if err != nil {
 		return err
 	}
-	return ErrStoreClosed // fallback — caller checks capResult.Status == FAILED
+	return ErrPaymentFailed
 }

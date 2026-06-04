@@ -7,6 +7,7 @@ import type {
   ComboItem,
   HoursChangeRequest,
   MenuItem,
+  MenuItemSearchResult,
   Option,
   OptionGroup,
   ShipFeeResult,
@@ -24,6 +25,21 @@ function unwrap<T>(res: { data: ApiResponse<T> }): T {
   }
   return res.data.data;
 }
+
+const MENU_ITEMS = `${API_PREFIX}/menu-items`;
+
+// ---- Global search ----
+export const searchApi = {
+  // Returns best-match dish results across all active stores. Blank q → empty [].
+  menuItems: async (q: string, limit = 24): Promise<MenuItemSearchResult[]> => {
+    if (!q.trim()) return [];
+    const res = await http.get<ApiResponse<MenuItemSearchResult[]>>(`${MENU_ITEMS}/search`, {
+      params: { q, limit },
+    });
+    if (res.data.data === undefined || res.data.data === null) return [];
+    return res.data.data;
+  },
+};
 
 // ---- Public browse ----
 export const browseStoreApi = {

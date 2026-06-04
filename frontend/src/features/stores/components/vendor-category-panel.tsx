@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useStoreMenu, useVendorStoreMutations } from '../hooks/use-stores';
 import type { Category } from '../types/store';
@@ -19,12 +20,16 @@ export function VendorCategoryPanel({ storeId }: Props) {
   const { data: menu, isLoading } = useStoreMenu(storeId);
   const m = useVendorStoreMutations(storeId);
   const [newName, setNewName] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<Category | null>(null);
 
   const categories: Category[] = menu?.map((mc) => mc.Category) ?? [];
 
   const addCategory = () => {
     const name = newName.trim();
-    if (!name) return;
+    if (!name) {
+      toast.error('Vui lòng nhập tên danh mục.');
+      return;
+    }
     m.createCategory.mutate(
       { name, sortOrder: categories.length },
       {
@@ -34,10 +39,11 @@ export function VendorCategoryPanel({ storeId }: Props) {
     );
   };
 
-  const deleteCategory = (catId: string) => {
-    m.deleteCategory.mutate(catId, {
-      onSuccess: () => toast.success('Đã xoá danh mục.'),
-      onError: (e) => toast.error(getApiErrorMessage(e, 'Xoá thất bại')),
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    m.deleteCategory.mutate(pendingDelete.ID, {
+      onSuccess: () => { toast.success('Đã xoá danh mục.'); setPendingDelete(null); },
+      onError: (e) => { toast.error(getApiErrorMessage(e, 'Xoá thất bại')); setPendingDelete(null); },
     });
   };
 
@@ -56,7 +62,7 @@ export function VendorCategoryPanel({ storeId }: Props) {
             <CategoryRow
               key={cat.ID}
               category={cat}
-              onDelete={() => deleteCategory(cat.ID)}
+              onDelete={() => setPendingDelete(cat)}
               deleting={m.deleteCategory.isPending}
             />
           ))}
@@ -82,6 +88,17 @@ export function VendorCategoryPanel({ storeId }: Props) {
           </Button>
         </div>
       </CardContent>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onOpenChange={(o) => !o && setPendingDelete(null)}
+        title="Xoá danh mục?"
+        description={`Xoá danh mục "${pendingDelete?.Name ?? ''}". Các món trong danh mục sẽ chuyển về nhóm "Khác".`}
+        confirmLabel="Xoá"
+        destructive
+        loading={m.deleteCategory.isPending}
+        onConfirm={confirmDelete}
+      />
     </Card>
   );
 }
@@ -101,7 +118,7 @@ function CategoryRow({
         aria-label="Xoá danh mục"
         onClick={onDelete}
         disabled={deleting}
-        className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded disabled:opacity-30"
+        className="text-muted-foreground hover:text-destructive opacity-60 group-hover:opacity-100 transition-opacity p-1 rounded disabled:opacity-30"
       >
         <Trash2 className="h-4 w-4" />
       </button>

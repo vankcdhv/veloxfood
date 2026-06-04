@@ -38,11 +38,15 @@ export interface Room {
 export interface CustomerLocation {
   ID: string;
   CustomerID: string;
-  RoomID: string;
+  // A saved location may be pinned at any tree level; LocationID points at a
+  // building, floor, or room as indicated by LocationLevel.
+  LocationLevel: 'BUILDING' | 'FLOOR' | 'ROOM';
+  LocationID: string;
   Label: string;
   IsDefault: boolean;
   CreatedAt: string;
-  // Human-readable delivery path enriched by the location service List endpoint.
+  // Human-readable delivery path enriched by the location service List endpoint
+  // (only the names relevant to the level are populated).
   BuildingName: string;
   FloorName: string;
   RoomCode: string;

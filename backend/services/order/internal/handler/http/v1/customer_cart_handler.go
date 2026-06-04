@@ -6,6 +6,7 @@ import (
 
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/response"
+	"project/services/order/internal/entity"
 	"project/services/order/internal/usecase"
 
 	"github.com/gin-gonic/gin"
@@ -39,6 +40,22 @@ func (h *CustomerCartHandler) GetCart(c *gin.Context) {
 		return
 	}
 	response.Success(c, cart)
+}
+
+// GetAllCarts GET /api/v1/me/carts
+// Returns every cart the customer holds (one per store), each with its items.
+func (h *CustomerCartHandler) GetAllCarts(c *gin.Context) {
+	customerID := authmw.UserIDFromContext(c.Request.Context())
+
+	carts, err := h.cartUC.ListCarts(c.Request.Context(), customerID)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	if carts == nil {
+		carts = []*entity.Cart{}
+	}
+	response.Success(c, gin.H{"carts": carts})
 }
 
 // AddOrUpdateItem PUT /api/v1/me/cart/items

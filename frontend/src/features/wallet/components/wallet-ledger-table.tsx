@@ -93,8 +93,8 @@ export function WalletLedgerTable({ entries, isLoading, isError }: Props) {
 
 function LedgerRow({ entry }: { entry: LedgerEntry }) {
   const credit = isCredit(entry.EntryType);
-  const label = ENTRY_LABELS[entry.EntryType] ?? entry.EntryType;
-  const icon = ENTRY_ICONS[entry.EntryType];
+  const label = ENTRY_LABELS[entry.EntryType] ?? 'Giao dịch khác';
+  const icon = ENTRY_ICONS[entry.EntryType] ?? <RefreshCw className="h-4 w-4 text-muted-foreground" />;
 
   return (
     <tr className="hover:bg-muted/40 transition-colors">

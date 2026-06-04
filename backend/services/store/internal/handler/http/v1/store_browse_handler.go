@@ -2,6 +2,7 @@ package v1
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	authmw "project/pkg/auth/middleware"
@@ -145,4 +146,23 @@ func (h *StoreBrowseHandler) ListMyStores(c *gin.Context) {
 		return
 	}
 	response.Success(c, stores)
+}
+
+// SearchMenuItems GET /api/v1/menu-items/search?q=<text>&limit=<int>
+// Public endpoint — no auth required. Returns sellable menu items whose name
+// matches q accent-insensitively across all active stores. Empty q → [].
+func (h *StoreBrowseHandler) SearchMenuItems(c *gin.Context) {
+	q := c.Query("q")
+	limit := 0
+	if raw := c.Query("limit"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil {
+			limit = n
+		}
+	}
+	items, err := h.catalogUC.SearchMenuItems(c.Request.Context(), q, limit)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.Success(c, items)
 }

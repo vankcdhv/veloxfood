@@ -8,7 +8,6 @@ import (
 
 // Domain errors returned by usecases and mapped to HTTP status codes.
 var (
-	ErrCartCrossStore       = apperror.New(http.StatusBadRequest, "cart already belongs to a different store; clear it first")
 	ErrCartEmpty            = apperror.New(http.StatusBadRequest, "cart is empty")
 	ErrStoreNotFound        = apperror.New(http.StatusBadRequest, "store not found")
 	ErrStoreClosed          = apperror.New(http.StatusBadRequest, "cửa hàng đang đóng")
@@ -18,6 +17,7 @@ var (
 	ErrDesiredTimeNotToday  = apperror.New(http.StatusBadRequest, "desired_time must be today")
 	ErrDesiredTimeAfterClose = apperror.New(http.StatusBadRequest, "desired_time is after store closing time today")
 	ErrPromotionInvalid     = apperror.New(http.StatusBadRequest, "promotion code is invalid or expired")
+	ErrPaymentFailed        = apperror.New(http.StatusBadRequest, "thanh toán thất bại — vui lòng thử lại hoặc chọn phương thức khác")
 	ErrGrandTotalNegative   = apperror.New(http.StatusBadRequest, "grand total must be ≥ 0 after discounts")
 	ErrOrderNotFound        = apperror.New(http.StatusNotFound, "order not found")
 	ErrCancelNotAllowed     = apperror.New(http.StatusBadRequest, "order can only be cancelled before it is confirmed")

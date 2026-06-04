@@ -10,7 +10,7 @@ import { Skeleton } from '@/shared/ui/skeleton';
 import { formatVnd } from '@/shared/lib/format-vnd';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useStoreOrders, useOwnerOrderMutations, useStoreOrder } from '../hooks/use-orders';
-import { OrderStatusBadge } from './order-status-badge';
+import { OrderStatusBadge, orderStatusLabel } from './order-status-badge';
 import type { Order, OrderStatus } from '../types/order';
 
 // Format an RFC3339 string to "HH:MM". Returns '' on invalid input.
@@ -283,7 +283,7 @@ function OrderActions({ storeId, orderId }: { storeId: string; orderId: string }
               disabled={mutations.advanceStatus.isPending}
               className="flex-1"
             >
-              Chuyển sang: {nextStatus}
+              Chuyển sang: {orderStatusLabel(nextStatus)}
             </Button>
           )}
 
@@ -307,8 +307,9 @@ function OrderActions({ storeId, orderId }: { storeId: string; orderId: string }
             <div className="flex gap-2">
               <input
                 type="text"
+                inputMode="numeric"
                 value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
+                onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
                 placeholder="Mã PIN"
                 className="border-input bg-background focus-visible:ring-ring h-9 flex-1 rounded-md border px-3 text-sm font-mono tracking-widest focus-visible:ring-2 focus-visible:outline-none"
                 maxLength={8}

@@ -57,13 +57,12 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-      <AuthFormField id="login-email" label="Email" required error={errors.email?.message}>
+      <AuthFormField id="login-email" label="Email hoặc số điện thoại" required error={errors.email?.message}>
         <Input
           id="login-email"
-          type="email"
-          autoComplete="email"
-          inputMode="email"
-          placeholder="ban@veloxfood.vn"
+          type="text"
+          autoComplete="username"
+          placeholder="ban@veloxfood.vn hoặc 09xxxxxxxx"
           aria-invalid={!!errors.email}
           aria-describedby={errors.email ? 'login-email-error' : undefined}
           {...register('email')}

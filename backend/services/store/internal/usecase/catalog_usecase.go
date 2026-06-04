@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"project/services/store/internal/entity"
 	"project/services/store/internal/repository"
@@ -55,6 +56,10 @@ type CatalogUsecase interface {
 	RemoveComboItem(ctx context.Context, comboID, menuItemID string) error
 	ListComboItems(ctx context.Context, comboID string) ([]*entity.ComboItem, error)
 
+	// Global search
+	// SearchMenuItems finds sellable items by name (accent-insensitive, fuzzy).
+	// Empty q returns an empty slice. limit is clamped to [1, 50]; default 24.
+	SearchMenuItems(ctx context.Context, q string, limit int) ([]repository.SearchMenuItemRow, error)
 }
 
 type catalogUsecase struct {
@@ -309,5 +314,26 @@ func (uc *catalogUsecase) RemoveComboItem(ctx context.Context, comboID, menuItem
 
 func (uc *catalogUsecase) ListComboItems(ctx context.Context, comboID string) ([]*entity.ComboItem, error) {
 	return uc.catalogRepo.ListComboItems(ctx, comboID)
+}
+
+// ─── Global search ────────────────────────────────────────────────────────────
+
+const (
+	searchDefaultLimit = 24
+	searchMaxLimit     = 50
+)
+
+func (uc *catalogUsecase) SearchMenuItems(ctx context.Context, q string, limit int) ([]repository.SearchMenuItemRow, error) {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return []repository.SearchMenuItemRow{}, nil
+	}
+	if limit <= 0 {
+		limit = searchDefaultLimit
+	}
+	if limit > searchMaxLimit {
+		limit = searchMaxLimit
+	}
+	return uc.catalogRepo.SearchMenuItems(ctx, q, limit)
 }
 

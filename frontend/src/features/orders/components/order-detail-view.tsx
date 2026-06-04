@@ -8,7 +8,9 @@ import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
 import { Skeleton } from '@/shared/ui/skeleton';
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog';
 import { RoleGuard } from '@/features/auth/components/role-guard';
+import { ROUTES } from '@/shared/config/constants';
 import { formatVnd } from '@/shared/lib/format-vnd';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useAuth } from '@/features/auth/context/auth-provider';
@@ -88,6 +90,7 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
   }, [user?.id, orderId]);
 
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   if (isLoading) {
     return (
@@ -107,8 +110,11 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
   const liveStatus: OrderStatus = realtimeStatus ?? order.Status;
   const displayOrder = realtimeStatus ? { ...order, Status: realtimeStatus } : order;
   const canCancel = liveStatus === 'PENDING';
+  // CANCELLED and REJECTED both end the order — no timeline, show a closed note.
+  const isClosed = liveStatus === 'CANCELLED' || liveStatus === 'REJECTED';
 
   const handleCancel = async () => {
+    setConfirmCancel(false);
     try {
       await cancelOrder.mutateAsync();
       toast.success('Đã hủy đơn hàng');
@@ -117,11 +123,13 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
     }
   };
 
+  // Reorder re-populates the cart (it does NOT place a new order); send the
+  // customer to the cart to review + check out.
   const handleReorder = async () => {
     try {
-      const result = await reorder.mutateAsync(orderId);
-      toast.success(`Đã đặt lại! Mã đơn: ${result.code}`);
-      router.push(`/account/orders/${result.order_id}`);
+      await reorder.mutateAsync(orderId);
+      toast.success('Đã thêm các món vào giỏ hàng');
+      router.push(ROUTES.cart);
     } catch (e) {
       toast.error(getApiErrorMessage(e, 'Không đặt lại được'));
     }
@@ -164,15 +172,13 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
       </div>
 
       {/* Status timeline */}
-      {liveStatus !== 'CANCELLED' && (
-        <StatusTimeline order={displayOrder} />
-      )}
+      {!isClosed && <StatusTimeline order={displayOrder} />}
 
-      {liveStatus === 'CANCELLED' && (
+      {isClosed && (
         <Card className="border-destructive/50">
           <CardContent className="flex items-center gap-2 py-4 text-destructive text-sm">
             <XCircle className="h-5 w-5 shrink-0" />
-            Đơn hàng đã bị hủy.
+            {liveStatus === 'REJECTED' ? 'Đơn hàng đã bị cửa hàng từ chối.' : 'Đơn hàng đã bị hủy.'}
           </CardContent>
         </Card>
       )}
@@ -246,14 +252,18 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
             <span>{displayOrder.Fulfillment === 'DELIVERY' ? 'Giao tận nơi' : 'Tự lấy'}</span>
           </div>
           <div className="flex justify-between">
+            <span className="text-muted-foreground">Giờ nhận mong muốn</span>
+            <span>{desiredTimeLabel(displayOrder.DesiredTime)}</span>
+          </div>
+          <div className="flex justify-between">
             <span className="text-muted-foreground">Đặt lúc</span>
             <span>{new Date(displayOrder.PlacedAt).toLocaleString('vi-VN')}</span>
           </div>
           {displayOrder.PaymentStatus && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Trạng thái TT</span>
-              <Badge variant={displayOrder.PaymentStatus === 'PAID' ? 'success' : 'outline'} className="text-xs">
-                {displayOrder.PaymentStatus}
+              <Badge variant={paymentStatusVariant(displayOrder.PaymentStatus)} className="text-xs">
+                {paymentStatusLabel(displayOrder.PaymentStatus)}
               </Badge>
             </div>
           )}
@@ -284,7 +294,7 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
           <Button
             variant="outline"
             className="flex-1 text-destructive border-destructive/50 hover:bg-destructive/5"
-            onClick={handleCancel}
+            onClick={() => setConfirmCancel(true)}
             disabled={cancelOrder.isPending}
           >
             <XCircle className="h-4 w-4 mr-1.5" />
@@ -301,15 +311,65 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
           {reorder.isPending ? 'Đang đặt lại…' : 'Đặt lại'}
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={confirmCancel}
+        onOpenChange={setConfirmCancel}
+        title="Hủy đơn hàng?"
+        description="Đơn sẽ bị hủy và không thể khôi phục. Nếu đã thanh toán online, tiền sẽ được hoàn về ví."
+        confirmLabel="Hủy đơn"
+        cancelLabel="Không"
+        destructive
+        loading={cancelOrder.isPending}
+        onConfirm={handleCancel}
+      />
     </div>
   );
+}
+
+// "Giờ nhận mong muốn": a stored RFC3339 → "HH:MM hôm nay"; empty ⇒ ASAP.
+function desiredTimeLabel(rfc3339?: string): string {
+  if (!rfc3339) return 'Sớm nhất có thể';
+  const d = new Date(rfc3339);
+  if (Number.isNaN(d.getTime())) return 'Sớm nhất có thể';
+  return `${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} hôm nay`;
+}
+
+function paymentStatusLabel(status: string): string {
+  const MAP: Record<string, string> = {
+    UNPAID: 'Chưa thanh toán',
+    PENDING: 'Chưa thanh toán',
+    PAID: 'Đã thanh toán',
+    REFUNDED: 'Đã hoàn tiền',
+    FAILED: 'Thanh toán thất bại',
+  };
+  return MAP[status] ?? status;
+}
+
+function paymentStatusVariant(status: string): 'success' | 'warning' | 'destructive' | 'accent' | 'outline' {
+  switch (status) {
+    case 'PAID':
+      return 'success';
+    case 'REFUNDED':
+      return 'accent';
+    case 'FAILED':
+      return 'destructive';
+    default:
+      return 'warning'; // UNPAID / PENDING
+  }
 }
 
 function StatusTimeline({ order }: { order: Order }) {
   // Pickup orders never go through a delivery leg — drop that step from the timeline.
   const pipeline =
     order.Fulfillment === 'PICKUP' ? PIPELINE.filter((s) => s !== 'DELIVERING') : PIPELINE;
-  const currentIdx = pipeline.indexOf(order.Status);
+  // Map intermediate statuses that aren't their own pipeline step onto one.
+  const NORMALIZE: Partial<Record<OrderStatus, OrderStatus>> = {
+    READY_PICKUP: 'READY',
+    SHIPPER_ASSIGNED: 'READY',
+  };
+  const normStatus = NORMALIZE[order.Status] ?? order.Status;
+  const currentIdx = pipeline.indexOf(normStatus);
   const historySet = new Set(order.StatusHistory?.map((h) => h.Status) ?? []);
 
   return (
@@ -318,7 +378,7 @@ function StatusTimeline({ order }: { order: Order }) {
         <ol className="relative space-y-3 pl-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-border">
           {pipeline.map((step, idx) => {
             const done = idx < currentIdx || historySet.has(step);
-            const active = step === order.Status;
+            const active = step === normStatus;
             return (
               <li key={step} className="flex items-center gap-3 relative">
                 <span className="absolute -left-6 flex h-5 w-5 items-center justify-center rounded-full bg-background">

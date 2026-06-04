@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { adminStoreApi, browseStoreApi, vendorStoreApi } from '../api/store-api';
+import { adminStoreApi, browseStoreApi, searchApi, vendorStoreApi } from '../api/store-api';
 import type { MenuCategory } from '../types/store';
 
 export const storeKeys = {
   all: ['stores'] as const,
+  menuItemSearch: (q: string) => ['menu-items', 'search', q] as const,
   browseList: () => [...storeKeys.all, 'browse', 'list'] as const,
   myList: () => [...storeKeys.all, 'mine'] as const,
   browseDetail: (id: string) => [...storeKeys.all, 'browse', 'detail', id] as const,
@@ -61,6 +62,14 @@ export const useStoreMenu = (id: string) =>
       }
       return groups;
     },
+  });
+
+// Search dishes by name across all active stores. Debounce in the caller.
+export const useMenuItemSearch = (q: string) =>
+  useQuery({
+    queryKey: storeKeys.menuItemSearch(q),
+    queryFn: () => searchApi.menuItems(q),
+    enabled: q.trim().length >= 1,
   });
 
 // ---- Vendor mutations ----

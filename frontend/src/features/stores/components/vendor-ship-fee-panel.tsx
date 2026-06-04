@@ -8,6 +8,7 @@ import { Input } from '@/shared/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
 import { Skeleton } from '@/shared/ui/skeleton';
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import {
   useBrowseBuildings,
@@ -38,6 +39,7 @@ export function VendorShipFeePanel({ storeId }: Props) {
   const [unitFee, setUnitFee] = useState('');
   // Incrementing remounts LocationPicker, resetting its cascade after add/scope change.
   const [pickerKey, setPickerKey] = useState(0);
+  const [pendingDelete, setPendingDelete] = useState<ShipFeeRule | null>(null);
 
   // For floor scope we use the flexible onSelectLocation and stop at FLOOR level.
   // For building/room we use the legacy onSelect API.
@@ -63,10 +65,11 @@ export function VendorShipFeePanel({ storeId }: Props) {
     );
   };
 
-  const deleteRule = (ruleId: string) => {
-    m.deleteShipFee.mutate(ruleId, {
-      onSuccess: () => toast.success('Đã xoá quy tắc.'),
-      onError: (e) => toast.error(getApiErrorMessage(e, 'Xoá thất bại')),
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    m.deleteShipFee.mutate(pendingDelete.ID, {
+      onSuccess: () => { toast.success('Đã xoá quy tắc.'); setPendingDelete(null); },
+      onError: (e) => { toast.error(getApiErrorMessage(e, 'Xoá thất bại')); setPendingDelete(null); },
     });
   };
 
@@ -111,9 +114,9 @@ export function VendorShipFeePanel({ storeId }: Props) {
               <button
                 type="button"
                 aria-label="Xoá quy tắc"
-                onClick={() => deleteRule(rule.ID)}
+                onClick={() => setPendingDelete(rule)}
                 disabled={m.deleteShipFee.isPending}
-                className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 p-1 transition-opacity disabled:opacity-30"
+                className="text-muted-foreground hover:text-destructive opacity-60 group-hover:opacity-100 p-1 transition-opacity disabled:opacity-30"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -179,6 +182,17 @@ export function VendorShipFeePanel({ storeId }: Props) {
           </div>
         </div>
       </CardContent>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onOpenChange={(o) => !o && setPendingDelete(null)}
+        title="Xoá quy tắc phí giao?"
+        description="Vị trí áp quy tắc này sẽ quay về dùng giá cấp cao hơn (hoặc không hỗ trợ giao nếu không còn quy tắc nào)."
+        confirmLabel="Xoá"
+        destructive
+        loading={m.deleteShipFee.isPending}
+        onConfirm={confirmDelete}
+      />
     </Card>
   );
 }

@@ -61,8 +61,10 @@ export function useReorder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => customerOrderApi.reorder(id),
+    // Reorder re-populates the cart — refresh cart (and orders) views.
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: orderKeys.all });
+      qc.invalidateQueries({ queryKey: ['cart'] });
     },
   });
 }

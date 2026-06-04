@@ -164,7 +164,7 @@ func TestLocationTree_AdminAndCustomer(t *testing.T) {
 	}
 
 	w = env.do(t, "POST", "/api/v1/me/locations",
-		`{"room_id":"`+roomID+`","label":"Văn phòng","is_default":true}`)
+		`{"location_id":"`+roomID+`","location_level":"ROOM","label":"Văn phòng","is_default":true}`)
 	if w.Code != http.StatusOK {
 		t.Fatalf("add location: %d — %s", w.Code, w.Body.String())
 	}
