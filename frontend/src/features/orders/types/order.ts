@@ -52,6 +52,10 @@ export interface Order {
   Items: OrderItem[];
   StatusHistory?: StatusHistoryEntry[];
   VoucherCodes?: string[];
+  // Owner-facing enrichment (store order list/detail): customer contact + path.
+  CustomerName?: string;
+  CustomerPhone?: string;
+  LocationPath?: string;
 }
 
 // POST /api/v1/orders

@@ -47,6 +47,8 @@ outbox:
 # Cross-service gRPC endpoints.
 user_service:
   grpc_addr: localhost:50051
+location_service:
+  grpc_addr: localhost:50052
 store_service:
   grpc_addr: localhost:50053
 promotion_service:

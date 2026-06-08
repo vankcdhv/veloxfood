@@ -34,6 +34,8 @@ func main() {
 		storeClient := buildStoreClient(deps)
 		promoClient := buildPromotionClient(deps)
 		paymentClient := buildPaymentClient(deps)
+		userClient := buildUserClient(deps)
+		locationClient := buildLocationClient(deps)
 
 		// ── Usecases ──────────────────────────────────────────────────────────
 		cartUC := usecase.NewCartUsecase(cartRepo)
@@ -48,7 +50,7 @@ func main() {
 			cfg.AuthMiddleware = authMW
 			cfg.CartHandler = v1.NewCustomerCartHandler(cartUC)
 			cfg.CustomerHandler = v1.NewCustomerOrderHandler(placeOrderUC, lifecycleUC)
-			cfg.OwnerHandler = v1.NewOwnerOrderHandler(lifecycleUC)
+			cfg.OwnerHandler = v1.NewOwnerOrderHandler(lifecycleUC, userClient, locationClient)
 		}
 		handlerhttp.RegisterRoutes(r, cfg)
 
@@ -111,6 +113,28 @@ func buildPaymentClient(deps app.Dependencies) *grpcclient.PaymentClient {
 	client, err := grpcclient.NewPaymentClient(deps.Config.PaymentService.GRPCAddr)
 	if err != nil {
 		slog.Error("order: payment grpc client failed — online payment disabled", "err", err)
+		return nil
+	}
+	return client
+}
+
+// buildUserClient dials the user service. Returns nil on failure — the owner
+// order view degrades to empty customer name/phone.
+func buildUserClient(deps app.Dependencies) *grpcclient.UserClient {
+	client, err := grpcclient.NewUserClient(deps.Config.UserService.GRPCAddr)
+	if err != nil {
+		slog.Error("order: user grpc client failed — owner order contact disabled", "err", err)
+		return nil
+	}
+	return client
+}
+
+// buildLocationClient dials the location service. Returns nil on failure — the
+// owner order view degrades to the raw location id.
+func buildLocationClient(deps app.Dependencies) *grpcclient.LocationClient {
+	client, err := grpcclient.NewLocationClient(deps.Config.LocationService.GRPCAddr)
+	if err != nil {
+		slog.Error("order: location grpc client failed — owner order path disabled", "err", err)
 		return nil
 	}
 	return client

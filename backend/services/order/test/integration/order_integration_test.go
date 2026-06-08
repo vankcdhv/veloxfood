@@ -352,7 +352,7 @@ func setupEnv(t *testing.T) *testEnv {
 		AuthMiddleware:  func(c *gin.Context) { c.Next() },
 		CartHandler:     v1.NewCustomerCartHandler(cartUC),
 		CustomerHandler: v1.NewCustomerOrderHandler(placeOrderUC, lifecycleUC),
-		OwnerHandler:    v1.NewOwnerOrderHandler(lifecycleUC),
+		OwnerHandler:    v1.NewOwnerOrderHandler(lifecycleUC, nil, nil),
 	})
 
 	token := "test-token"

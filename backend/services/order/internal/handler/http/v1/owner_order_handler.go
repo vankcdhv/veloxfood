@@ -4,6 +4,7 @@ import (
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/response"
 	"project/services/order/internal/entity"
+	"project/services/order/internal/infrastructure/grpcclient"
 	"project/services/order/internal/usecase"
 
 	"github.com/gin-gonic/gin"
@@ -11,11 +12,43 @@ import (
 
 // OwnerOrderHandler handles order management endpoints for store owners and staff.
 type OwnerOrderHandler struct {
-	lifecycleUC usecase.OrderLifecycleUsecase
+	lifecycleUC    usecase.OrderLifecycleUsecase
+	userClient     *grpcclient.UserClient
+	locationClient *grpcclient.LocationClient
 }
 
-func NewOwnerOrderHandler(lifecycleUC usecase.OrderLifecycleUsecase) *OwnerOrderHandler {
-	return &OwnerOrderHandler{lifecycleUC: lifecycleUC}
+func NewOwnerOrderHandler(
+	lifecycleUC usecase.OrderLifecycleUsecase,
+	userClient *grpcclient.UserClient,
+	locationClient *grpcclient.LocationClient,
+) *OwnerOrderHandler {
+	return &OwnerOrderHandler{lifecycleUC: lifecycleUC, userClient: userClient, locationClient: locationClient}
+}
+
+// ownerOrderView augments an order with the customer's contact info + a readable
+// delivery path so the store owner knows who/where to fulfill (never raw UUIDs).
+type ownerOrderView struct {
+	*entity.Order
+	CustomerName  string `json:"CustomerName"`
+	CustomerPhone string `json:"CustomerPhone"`
+	LocationPath  string `json:"LocationPath"`
+}
+
+func (h *OwnerOrderHandler) enrich(c *gin.Context, o *entity.Order) *ownerOrderView {
+	ctx := c.Request.Context()
+	v := &ownerOrderView{Order: o}
+	if h.userClient != nil {
+		u := h.userClient.GetUser(ctx, o.CustomerID)
+		v.CustomerName, v.CustomerPhone = u.FullName, u.Phone
+	}
+	if h.locationClient != nil && o.Fulfillment == entity.FulfillmentDelivery && o.LocationID != nil {
+		level := ""
+		if o.LocationLevel != nil {
+			level = *o.LocationLevel
+		}
+		v.LocationPath = h.locationClient.GetLocationPath(ctx, *o.LocationID, level)
+	}
+	return v
 }
 
 // ListStoreOrders GET /api/v1/stores/:storeId/orders
@@ -33,7 +66,11 @@ func (h *OwnerOrderHandler) ListStoreOrders(c *gin.Context) {
 		response.HandleError(c, err)
 		return
 	}
-	response.Paginated(c, orders, total, page)
+	views := make([]*ownerOrderView, len(orders))
+	for i, o := range orders {
+		views[i] = h.enrich(c, o)
+	}
+	response.Paginated(c, views, total, page)
 }
 
 // GetOrder GET /api/v1/stores/:storeId/orders/:id
@@ -44,7 +81,7 @@ func (h *OwnerOrderHandler) GetOrder(c *gin.Context) {
 		response.HandleError(c, err)
 		return
 	}
-	response.Success(c, order)
+	response.Success(c, h.enrich(c, order))
 }
 
 // ConfirmOrder POST /api/v1/stores/:storeId/orders/:id/confirm

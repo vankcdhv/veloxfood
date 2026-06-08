@@ -234,6 +234,15 @@ function OrderActions({ storeId, orderId }: { storeId: string; orderId: string }
 
         {/* Meta */}
         <div className="text-xs text-muted-foreground space-y-0.5">
+          {order.CustomerName && (
+            <p className="text-foreground font-medium">
+              Khách: {order.CustomerName}
+              {order.CustomerPhone ? ` · ${order.CustomerPhone}` : ''}
+            </p>
+          )}
+          {order.Fulfillment === 'DELIVERY' && order.LocationPath && (
+            <p>Giao đến: {order.LocationPath}</p>
+          )}
           <p>Hình thức: {order.Fulfillment === 'DELIVERY' ? 'Giao hàng' : 'Tự lấy'}</p>
           <p>Thanh toán: {order.PaymentMethod}</p>
           <p>Đặt lúc: {new Date(order.PlacedAt).toLocaleString('vi-VN')}</p>
