@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, ShoppingCart, Package, Bike, MapPin, Store, Banknote, Settings, Menu } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingCart, Bike, MapPin, Store, Banknote, Settings, Menu } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/shared/ui/sheet';
 import { BrandMark } from '@/widgets/brand-mark/brand-mark';
@@ -19,7 +19,6 @@ interface NavItem {
 const PRIMARY_NAV: NavItem[] = [
   { label: 'Tổng quan', href: ROUTES.admin.root, icon: LayoutDashboard },
   { label: 'Đơn hàng', href: ROUTES.admin.orders, icon: ShoppingCart },
-  { label: 'Sản phẩm', href: ROUTES.admin.products, icon: Package },
   { label: 'Người dùng', href: ROUTES.admin.users, icon: Users },
   { label: 'Shipper', href: ROUTES.admin.shippers, icon: Bike },
   { label: 'Vị trí', href: ROUTES.admin.locations, icon: MapPin },

@@ -68,7 +68,7 @@ export const vendorStoreApi = {
     unwrap(await http.patch<ApiResponse<Store>>(`${STORES}/${id}/sale-status`, { sale_status: saleStatus })),
 
   setPickup: async (id: string, pickupEnabled: boolean) =>
-    unwrap(await http.patch<ApiResponse<Store>>(`${STORES}/${id}/pickup`, { pickup_enabled: pickupEnabled })),
+    unwrap(await http.patch<ApiResponse<Store>>(`${STORES}/${id}/pickup`, { enabled: pickupEnabled })),
 
   // Categories
   createCategory: async (storeId: string, name: string, sortOrder: number) =>

@@ -4,6 +4,8 @@ import {
   deleteUser,
   getUser,
   listUsers,
+  reactivateUser,
+  suspendUser,
   updateUser,
   type ListUsersParams,
 } from '../api/user-api';
@@ -51,6 +53,22 @@ export function useDeleteUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteUser(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: userKeys.all }),
+  });
+}
+
+export function useSuspendUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { userId: string; reason?: string }) => suspendUser(v.userId, v.reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: userKeys.all }),
+  });
+}
+
+export function useReactivateUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => reactivateUser(userId),
     onSuccess: () => qc.invalidateQueries({ queryKey: userKeys.all }),
   });
 }

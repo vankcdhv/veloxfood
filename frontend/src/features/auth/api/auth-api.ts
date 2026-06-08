@@ -2,6 +2,7 @@ import { http } from '@/shared/lib/http-client';
 import { API_PREFIX } from '@/shared/config/constants';
 import type { ApiResponse } from '@/shared/api/api-response';
 import type {
+  ChangePasswordRequest,
   ForgotPasswordRequest,
   LoginRequest,
   MeResponse,
@@ -9,6 +10,7 @@ import type {
   RegisterResult,
   ResetPasswordRequest,
   TokenPairResponse,
+  UpdateMeRequest,
   VerifyRegisterRequest,
 } from '../types/auth';
 
@@ -40,6 +42,14 @@ export async function resetPassword(payload: ResetPasswordRequest): Promise<void
 export async function logout(): Promise<void> {
   // Backend reads the refresh/access tokens from cookies and clears them.
   await http.post<ApiResponse>(`${AUTH_PATH}/logout`, {});
+}
+
+export async function updateMe(payload: UpdateMeRequest): Promise<void> {
+  await http.patch<ApiResponse>(`${API_PREFIX}/me`, payload);
+}
+
+export async function changePassword(payload: ChangePasswordRequest): Promise<void> {
+  await http.post<ApiResponse>(`${AUTH_PATH}/change-password`, payload);
 }
 
 export async function getMe(): Promise<MeResponse> {

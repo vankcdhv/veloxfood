@@ -9,7 +9,6 @@ export const ROUTES = {
     root: '/admin',
     users: '/admin/users',
     orders: '/admin/orders',
-    products: '/admin/products',
     shippers: '/admin/shippers',
     locations: '/admin/locations',
     stores: '/admin/stores',
@@ -17,6 +16,7 @@ export const ROUTES = {
     settings: '/admin/settings',
   },
   account: {
+    profile: '/account/profile',
     locations: '/account/locations',
     store: '/account/store',
     wallet: '/account/wallet',

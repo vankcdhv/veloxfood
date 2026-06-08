@@ -2,11 +2,13 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+  changePassword,
   forgotPassword,
   login,
   logout,
   register,
   resetPassword,
+  updateMe,
   verifyRegister,
 } from '../api/auth-api';
 import { ME_QUERY_KEY } from './use-session';
@@ -38,6 +40,15 @@ export function useForgotPassword() {
 
 export function useResetPassword() {
   return useMutation({ mutationFn: resetPassword });
+}
+
+export function useUpdateProfile() {
+  const onSuccess = useRefreshSessionOnSuccess();
+  return useMutation({ mutationFn: updateMe, onSuccess });
+}
+
+export function useChangePassword() {
+  return useMutation({ mutationFn: changePassword });
 }
 
 export function useLogout() {

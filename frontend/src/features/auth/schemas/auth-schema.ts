@@ -54,6 +54,24 @@ export const resetPasswordSchema = z
     message: 'Mật khẩu xác nhận không khớp',
   });
 
+export const updateProfileSchema = z.object({
+  full_name: z.string().min(1, 'Họ tên không được trống'),
+});
+
+export const changePasswordSchema = z
+  .object({
+    old_password: z.string().min(1, 'Vui lòng nhập mật khẩu hiện tại'),
+    password: strongPassword,
+    confirm_password: z.string().min(1, 'Vui lòng xác nhận mật khẩu'),
+  })
+  .refine((d) => d.password === d.confirm_password, {
+    path: ['confirm_password'],
+    message: 'Mật khẩu xác nhận không khớp',
+  });
+
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;

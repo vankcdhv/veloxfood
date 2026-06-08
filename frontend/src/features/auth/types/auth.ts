@@ -78,3 +78,15 @@ export interface ResetPasswordRequest {
   token: string;
   new_password: string;
 }
+
+// PATCH /api/v1/me — self-service profile update (only round-trippable fields).
+export interface UpdateMeRequest {
+  full_name?: string;
+}
+
+// POST /api/v1/auth/change-password — user_id required by backend (reads from body).
+export interface ChangePasswordRequest {
+  user_id: string;
+  old_password: string;
+  new_password: string;
+}

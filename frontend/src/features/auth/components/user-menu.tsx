@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { LogOut, LayoutDashboard, User as UserIcon, Wallet, Package, Truck, MapPin } from 'lucide-react';
+import { LogOut, LayoutDashboard, User as UserIcon, Wallet, Package, Truck, MapPin, Store } from 'lucide-react';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar';
 import {
@@ -74,8 +74,12 @@ export function UserMenu({ showAdminLink = false, align = 'end' }: UserMenuProps
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => router.push(ROUTES.shop.root)} className="cursor-pointer">
+        <DropdownMenuItem onClick={() => router.push(ROUTES.account.profile)} className="cursor-pointer">
           <UserIcon className="mr-2 h-4 w-4" />
+          Hồ sơ của tôi
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push(ROUTES.shop.root)} className="cursor-pointer">
+          <Store className="mr-2 h-4 w-4" />
           Cửa hàng
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => router.push(ROUTES.account.wallet)} className="cursor-pointer">

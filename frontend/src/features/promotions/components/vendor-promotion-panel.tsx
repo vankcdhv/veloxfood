@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { Badge } from '@/shared/ui/badge';
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { usePromotionMutations, usePromotions } from '../hooks/use-promotions';
 import { PromotionStatusBadge } from './promotion-status-badge';
@@ -41,6 +42,7 @@ export function VendorPromotionPanel({ storeId }: Props) {
   const m = usePromotionMutations(storeId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Promotion | undefined>(undefined);
+  const [pendingDelete, setPendingDelete] = useState<Promotion | null>(null);
 
   const openCreate = () => { setEditing(undefined); setDialogOpen(true); };
   const openEdit = (p: Promotion) => { setEditing(p); setDialogOpen(true); };
@@ -57,11 +59,11 @@ export function VendorPromotionPanel({ storeId }: Props) {
     );
   };
 
-  const handleDelete = (p: Promotion) => {
-    if (!confirm(`Xoá voucher "${p.Code}"? Hành động không thể hoàn tác.`)) return;
-    m.remove.mutate(p.ID, {
-      onSuccess: () => toast.success('Đã xoá voucher.'),
-      onError: (e) => toast.error(getApiErrorMessage(e, 'Xoá thất bại')),
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    m.remove.mutate(pendingDelete.ID, {
+      onSuccess: () => { toast.success('Đã xoá voucher.'); setPendingDelete(null); },
+      onError: (e) => { toast.error(getApiErrorMessage(e, 'Xoá thất bại')); setPendingDelete(null); },
     });
   };
 
@@ -121,7 +123,7 @@ export function VendorPromotionPanel({ storeId }: Props) {
                       promotion={p}
                       onEdit={openEdit}
                       onToggle={handleToggle}
-                      onDelete={handleDelete}
+                      onDelete={setPendingDelete}
                       isToggling={m.toggleStatus.isPending}
                       isDeleting={m.remove.isPending}
                     />
@@ -138,6 +140,17 @@ export function VendorPromotionPanel({ storeId }: Props) {
         open={dialogOpen}
         onClose={closeDialog}
         promotion={editing}
+      />
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onOpenChange={(o) => !o && setPendingDelete(null)}
+        title="Xoá voucher?"
+        description={`Xoá voucher "${pendingDelete?.Code ?? ''}". Hành động không thể hoàn tác.`}
+        confirmLabel="Xoá"
+        destructive
+        loading={m.remove.isPending}
+        onConfirm={confirmDelete}
       />
     </>
   );

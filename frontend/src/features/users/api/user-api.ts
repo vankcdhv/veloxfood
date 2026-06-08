@@ -49,3 +49,12 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<Us
 export async function deleteUser(id: string): Promise<void> {
   await http.delete<ApiResponse<null>>(`${USERS_PATH}/${id}`);
 }
+
+// Backend binds a JSON body (reason optional) — always send an object.
+export async function suspendUser(userId: string, reason = ''): Promise<void> {
+  await http.post<ApiResponse<null>>(`${USERS_PATH}/${userId}/suspend`, { reason });
+}
+
+export async function reactivateUser(userId: string): Promise<void> {
+  await http.post<ApiResponse<null>>(`${USERS_PATH}/${userId}/reactivate`, {});
+}
