@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"io"
 	"log/slog"
 
 	"project/pkg/app"
 	"project/pkg/middleware"
+	"project/pkg/storage"
 	deliveryevent "project/services/delivery/internal/handler/event"
 	handlerhttp "project/services/delivery/internal/handler/http"
 	v1 "project/services/delivery/internal/handler/http/v1"
@@ -31,6 +35,9 @@ func main() {
 		// ── Location gRPC client (graceful noop on failure) ───────────────────
 		locationClient := buildLocationClient(deps)
 
+		// ── MinIO uploader for incident photos ────────────────────────────────
+		uploader := buildUploader(deps)
+
 		// ── Usecases ──────────────────────────────────────────────────────────
 		deliveryUC := usecase.NewDeliveryUsecase(deps.DB, deliveryRepo, batchRepo, outboxRepo, locationClient)
 		incidentUC := usecase.NewIncidentUsecase(deps.DB, deliveryRepo, incidentRepo, outboxRepo)
@@ -44,7 +51,7 @@ func main() {
 			cfg.AuthMiddleware = authMW
 			cfg.ShipperPermission = shipperPerm
 			cfg.AdminPermission = adminPerm
-			cfg.ShipperHandler = v1.NewShipperDeliveryHandler(deliveryUC, incidentUC)
+			cfg.ShipperHandler = v1.NewShipperDeliveryHandler(deliveryUC, incidentUC, uploader)
 			cfg.AdminHandler = v1.NewAdminDeliveryHandler(deliveryRepo, incidentUC)
 		}
 		handlerhttp.RegisterRoutes(r, cfg)
@@ -74,4 +81,22 @@ func buildLocationClient(deps app.Dependencies) *grpcclient.LocationClient {
 		return nil
 	}
 	return client
+}
+
+// buildUploader builds the MinIO client. Falls back to noopUploader so incident
+// photo upload returns a clear error rather than a panic.
+func buildUploader(deps app.Dependencies) usecase.FileUploader {
+	client, err := storage.NewClient(deps.Config.MinIO)
+	if err != nil {
+		slog.Error("delivery: minio client failed — incident photo upload disabled", "err", err)
+		return &noopUploader{}
+	}
+	return client
+}
+
+// noopUploader returns an error for every upload when MinIO is unavailable.
+type noopUploader struct{}
+
+func (n *noopUploader) Put(_ context.Context, _, _ string, _ io.Reader, _ int64) (string, error) {
+	return "", errors.New("delivery: object storage unavailable")
 }

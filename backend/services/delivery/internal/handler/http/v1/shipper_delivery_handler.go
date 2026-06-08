@@ -2,7 +2,10 @@ package v1
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"path/filepath"
 
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/response"
@@ -16,10 +19,11 @@ import (
 type ShipperDeliveryHandler struct {
 	deliveryUC usecase.DeliveryUsecase
 	incidentUC usecase.IncidentUsecase
+	uploader   usecase.FileUploader
 }
 
-func NewShipperDeliveryHandler(deliveryUC usecase.DeliveryUsecase, incidentUC usecase.IncidentUsecase) *ShipperDeliveryHandler {
-	return &ShipperDeliveryHandler{deliveryUC: deliveryUC, incidentUC: incidentUC}
+func NewShipperDeliveryHandler(deliveryUC usecase.DeliveryUsecase, incidentUC usecase.IncidentUsecase, uploader usecase.FileUploader) *ShipperDeliveryHandler {
+	return &ShipperDeliveryHandler{deliveryUC: deliveryUC, incidentUC: incidentUC, uploader: uploader}
 }
 
 // ListAvailable returns all AVAILABLE deliveries with resolved room paths.
@@ -134,6 +138,33 @@ func (h *ShipperDeliveryHandler) MyDeliveries(c *gin.Context) {
 
 // ReportIncident creates an incident for a delivery the shipper owns.
 // POST /api/v1/deliveries/:orderId/incident
+// UploadIncidentPhoto stores an incident evidence photo and returns its URL,
+// which the client then submits as photo_url in the incident report.
+// POST /api/v1/deliveries/:orderId/incident-photo (multipart, field "image")
+func (h *ShipperDeliveryHandler) UploadIncidentPhoto(c *gin.Context) {
+	orderID := c.Param("orderId")
+
+	file, header, err := c.Request.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, response.Response{
+			Status: http.StatusBadRequest, Message: "bad request", Error: "image file required",
+		})
+		return
+	}
+	defer file.Close()
+
+	ext := filepath.Ext(header.Filename)
+	objectKey := fmt.Sprintf("deliveries/%s/incident%s", orderID, ext)
+	url, err := h.uploader.Put(c.Request.Context(), objectKey, header.Header.Get("Content-Type"), file.(io.Reader), header.Size)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.Response{
+			Status: http.StatusInternalServerError, Message: "internal server error", Error: err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, response.Response{Status: http.StatusOK, Message: "ok", Data: gin.H{"photo_url": url}})
+}
+
 func (h *ShipperDeliveryHandler) ReportIncident(c *gin.Context) {
 	orderID := c.Param("orderId")
 	shipperID := authmw.UserIDFromContext(c.Request.Context())

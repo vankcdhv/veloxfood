@@ -13,8 +13,10 @@ import {
 } from '@/shared/ui/dialog';
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
+import { PhotoUpload } from '@/shared/ui/photo-upload';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useReportIncident } from '../hooks/use-deliveries';
+import { deliveryApi } from '../api/delivery-api';
 import { INCIDENT_TYPES } from '../types/delivery';
 
 interface ReportIncidentDialogProps {
@@ -26,6 +28,8 @@ interface ReportIncidentDialogProps {
 export function ReportIncidentDialog({ orderId, open, onOpenChange }: ReportIncidentDialogProps) {
   const [type, setType] = useState<string>(INCIDENT_TYPES[0].value);
   const [note, setNote] = useState('');
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
   const reportMutation = useReportIncident();
 
   const handleSubmit = async () => {
@@ -34,15 +38,26 @@ export function ReportIncidentDialog({ orderId, open, onOpenChange }: ReportInci
       return;
     }
     try {
-      await reportMutation.mutateAsync({ orderId, body: { type, note: note.trim() } });
+      // Upload the optional evidence photo first, then attach its URL to the report.
+      let photo_url: string | undefined;
+      if (photo) {
+        setUploading(true);
+        photo_url = await deliveryApi.uploadIncidentPhoto(orderId, photo);
+        setUploading(false);
+      }
+      await reportMutation.mutateAsync({ orderId, body: { type, note: note.trim(), photo_url } });
       toast.success('Đã báo sự cố');
       setNote('');
       setType(INCIDENT_TYPES[0].value);
+      setPhoto(null);
       onOpenChange(false);
     } catch (err) {
+      setUploading(false);
       toast.error(getApiErrorMessage(err, 'Không báo được sự cố'));
     }
   };
+
+  const busy = reportMutation.isPending || uploading;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -81,21 +96,27 @@ export function ReportIncidentDialog({ orderId, open, onOpenChange }: ReportInci
               maxLength={500}
             />
           </div>
+
+          <PhotoUpload
+            label="Ảnh sự cố (tuỳ chọn)"
+            value={photo}
+            onChange={setPhoto}
+          />
         </div>
 
         <DialogFooter>
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            disabled={reportMutation.isPending}
+            disabled={busy}
           >
             Hủy
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={reportMutation.isPending || !note.trim()}
+            disabled={busy || !note.trim()}
           >
-            {reportMutation.isPending ? 'Đang gửi…' : 'Gửi báo cáo'}
+            {uploading ? 'Đang tải ảnh…' : reportMutation.isPending ? 'Đang gửi…' : 'Gửi báo cáo'}
           </Button>
         </DialogFooter>
       </DialogContent>

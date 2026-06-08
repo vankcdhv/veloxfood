@@ -40,6 +40,7 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 		api.GET("/deliveries/available", append(shipperMW, h.ListAvailable)...)
 		api.POST("/deliveries/:orderId/claim", append(shipperMW, h.ClaimDelivery)...)
 		api.PATCH("/deliveries/:orderId/status", append(shipperMW, h.UpdateStatus)...)
+		api.POST("/deliveries/:orderId/incident-photo", append(shipperMW, h.UploadIncidentPhoto)...)
 		api.POST("/deliveries/:orderId/incident", append(shipperMW, h.ReportIncident)...)
 		api.GET("/me/deliveries", append(shipperMW, h.MyDeliveries)...)
 	}

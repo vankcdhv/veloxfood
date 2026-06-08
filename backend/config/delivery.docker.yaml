@@ -46,3 +46,10 @@ user_service:
   grpc_addr: user-service:50051
 location_service:
   grpc_addr: location-service:50052
+
+minio:
+  endpoint: "minio:9000"
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+  bucket: "veloxfood"
+  use_ssl: false

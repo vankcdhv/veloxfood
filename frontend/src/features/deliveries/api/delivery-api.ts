@@ -40,4 +40,17 @@ export const deliveryApi = {
   reportIncident: async (orderId: string, body: ReportIncidentBody): Promise<void> => {
     await http.post<ApiResponse>(`${DELIVERIES}/${orderId}/incident`, body);
   },
+
+  // POST /api/v1/deliveries/:orderId/incident-photo — upload evidence, returns its URL.
+  uploadIncidentPhoto: async (orderId: string, file: File): Promise<string> => {
+    const form = new FormData();
+    form.append('image', file);
+    const res = await http.post<ApiResponse<{ photo_url: string }>>(
+      `${DELIVERIES}/${orderId}/incident-photo`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    if (!res.data.data?.photo_url) throw new Error(res.data.error ?? 'Upload failed');
+    return res.data.data.photo_url;
+  },
 };
