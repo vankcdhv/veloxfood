@@ -111,6 +111,7 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 
 	// Shipper self-registration (any authenticated user applies).
 	if cfg.ShipperHandler != nil {
+		protected.GET("/shipper/me", cfg.ShipperHandler.GetMine)
 		protected.POST("/shipper/register", cfg.ShipperHandler.Register)
 	}
 

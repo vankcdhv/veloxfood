@@ -50,6 +50,26 @@ func (h *ShipperHandler) Register(c *gin.Context) {
 	response.Success(c, out)
 }
 
+// GetMine GET /api/v1/shipper/me — caller's own application status (or registered:false).
+func (h *ShipperHandler) GetMine(c *gin.Context) {
+	userID := authmw.UserIDFromContext(c.Request.Context())
+	out, err := h.registerUC.GetMine(c.Request.Context(), userID)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	if out == nil {
+		response.Success(c, gin.H{"registered": false})
+		return
+	}
+	response.Success(c, gin.H{
+		"registered":  true,
+		"status":      out.Status,
+		"applied_at":  out.AppliedAt,
+		"approved_at": out.ApprovedAt,
+	})
+}
+
 // photo bundles an opened multipart file + cleanup.
 type photo struct {
 	file  usecase.UploadFile

@@ -17,6 +17,14 @@ export interface ShipperProfile {
   email?: string | null;
 }
 
+// GET /api/v1/shipper/me — the caller's own application state.
+export interface MyShipperStatus {
+  registered: boolean;
+  status?: ShipperStatus;
+  applied_at?: string;
+  approved_at?: string | null;
+}
+
 export interface ShipperListResponse {
   items: ShipperProfile[];
   total: number;

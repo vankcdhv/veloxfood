@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"time"
 
 	"project/pkg/audit"
 	"project/services/user/internal/entity"
@@ -40,9 +41,18 @@ type ShipperRegisterOutput struct {
 	Status string `json:"status"`
 }
 
+// ShipperStatusOutput is the caller's own shipper application state.
+type ShipperStatusOutput struct {
+	Status     string     `json:"status"`
+	AppliedAt  time.Time  `json:"applied_at"`
+	ApprovedAt *time.Time `json:"approved_at"`
+}
+
 // ShipperRegisterUsecase handles shipper self-registration.
 type ShipperRegisterUsecase interface {
 	Register(ctx context.Context, userID string, in ShipperRegisterInput) (*ShipperRegisterOutput, error)
+	// GetMine returns the caller's application state, or nil if they never applied.
+	GetMine(ctx context.Context, userID string) (*ShipperStatusOutput, error)
 }
 
 type shipperRegisterUsecase struct {
@@ -126,4 +136,19 @@ func (uc *shipperRegisterUsecase) Register(ctx context.Context, userID string, i
 	})
 	slog.InfoContext(ctx, "shipper registered", "user_id", userID)
 	return &ShipperRegisterOutput{Status: "pending_admin_approval"}, nil
+}
+
+func (uc *shipperRegisterUsecase) GetMine(ctx context.Context, userID string) (*ShipperStatusOutput, error) {
+	p, err := uc.shipperRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // never applied
+		}
+		return nil, err
+	}
+	return &ShipperStatusOutput{
+		Status:     string(p.Status),
+		AppliedAt:  p.CreatedAt,
+		ApprovedAt: p.ApprovedAt,
+	}, nil
 }

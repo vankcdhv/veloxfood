@@ -1,10 +1,17 @@
 import { http } from '@/shared/lib/http-client';
 import { API_PREFIX } from '@/shared/config/constants';
 import type { ApiResponse } from '@/shared/api/api-response';
-import type { ShipperListResponse, ShipperStatus } from '../types/shipper';
+import type { MyShipperStatus, ShipperListResponse, ShipperStatus } from '../types/shipper';
 
 const SHIPPER_PATH = `${API_PREFIX}/shipper`;
 const ADMIN_SHIPPERS_PATH = `${API_PREFIX}/admin/shippers`;
+
+// myShipperStatus returns the caller's own application state (GET /shipper/me).
+export async function myShipperStatus(): Promise<MyShipperStatus> {
+  const res = await http.get<ApiResponse<MyShipperStatus>>(`${SHIPPER_PATH}/me`);
+  if (!res.data.data) throw new Error(res.data.error ?? 'Không tải được trạng thái');
+  return res.data.data;
+}
 
 // registerShipper uploads the two verification photos as multipart/form-data.
 export async function registerShipper(idDocument: File, portrait: File): Promise<void> {
