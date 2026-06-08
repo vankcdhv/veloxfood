@@ -17,11 +17,14 @@ import (
 
 // Client wraps a MinIO client + the target bucket.
 type Client struct {
-	mc     *minio.Client
-	bucket string
+	mc         *minio.Client
+	bucket     string
+	publicBase string // "<scheme>://<endpoint>/<bucket>" — prefix for object URLs
 }
 
-// NewClient builds a MinIO client and ensures the bucket exists.
+// NewClient builds a MinIO client, ensures the bucket exists, and makes it
+// anonymous-read so uploaded images (avatars, menu photos, incident photos) are
+// directly fetchable by the browser via the URL returned from Put.
 func NewClient(cfg config.MinIOConfig) (*Client, error) {
 	mc, err := minio.New(cfg.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
@@ -44,10 +47,24 @@ func NewClient(cfg config.MinIOConfig) (*Client, error) {
 		}
 	}
 
-	return &Client{mc: mc, bucket: cfg.Bucket}, nil
+	// Allow anonymous GET on objects so returned URLs render without signing.
+	policy := fmt.Sprintf(`{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::%s/*"]}]}`, cfg.Bucket)
+	if err := mc.SetBucketPolicy(ctx, cfg.Bucket, policy); err != nil {
+		return nil, fmt.Errorf("minio: set public-read policy: %w", err)
+	}
+
+	scheme := "http"
+	if cfg.UseSSL {
+		scheme = "https"
+	}
+	return &Client{
+		mc:         mc,
+		bucket:     cfg.Bucket,
+		publicBase: fmt.Sprintf("%s://%s/%s", scheme, cfg.Endpoint, cfg.Bucket),
+	}, nil
 }
 
-// Put uploads an object and returns its object key.
+// Put uploads an object and returns its public URL.
 func (c *Client) Put(ctx context.Context, objectKey, contentType string, r io.Reader, size int64) (string, error) {
 	_, err := c.mc.PutObject(ctx, c.bucket, objectKey, r, size, minio.PutObjectOptions{
 		ContentType: contentType,
@@ -55,7 +72,7 @@ func (c *Client) Put(ctx context.Context, objectKey, contentType string, r io.Re
 	if err != nil {
 		return "", fmt.Errorf("minio: put object: %w", err)
 	}
-	return objectKey, nil
+	return fmt.Sprintf("%s/%s", c.publicBase, objectKey), nil
 }
 
 // PresignedURL returns a temporary GET URL for an object key.
