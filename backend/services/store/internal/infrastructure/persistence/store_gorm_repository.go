@@ -81,6 +81,13 @@ func (r *storeGormRepository) UpdatePickupEnabled(ctx context.Context, id string
 		Update("pickup_enabled", enabled).Error
 }
 
+func (r *storeGormRepository) UpdateAvatarURL(ctx context.Context, id string, url string) error {
+	return r.db.WithContext(ctx).
+		Model(&entity.Store{}).
+		Where("id = ?", id).
+		Update("avatar_url", url).Error
+}
+
 func (r *storeGormRepository) Delete(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&entity.Store{}, "id = ?", id).Error
 }

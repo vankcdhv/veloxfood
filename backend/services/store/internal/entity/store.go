@@ -17,6 +17,7 @@ type Store struct {
 	BusinessType  string         `gorm:"type:varchar(100)"`
 	Address       string         `gorm:"type:varchar(255)"`
 	Phone         string         `gorm:"type:varchar(30)"`
+	AvatarURL     string         `gorm:"type:text;not null;default:''"`
 	SaleStatus    string         `gorm:"type:varchar(20);not null;default:'OPEN'"`
 	PickupEnabled bool           `gorm:"not null;default:false"`
 	PrepMinutes   int            `gorm:"not null;default:15"`

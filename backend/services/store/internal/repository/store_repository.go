@@ -32,6 +32,9 @@ type StoreRepository interface {
 	// UpdatePickupEnabled sets only the pickup_enabled column.
 	UpdatePickupEnabled(ctx context.Context, id string, enabled bool) error
 
+	// UpdateAvatarURL sets only the avatar_url column.
+	UpdateAvatarURL(ctx context.Context, id string, url string) error
+
 	// Delete soft-deletes the store.
 	Delete(ctx context.Context, id string) error
 }

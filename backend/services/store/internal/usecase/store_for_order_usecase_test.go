@@ -65,6 +65,10 @@ func (m *mockStoreRepo) UpdatePickupEnabled(ctx context.Context, id string, enab
 	}
 	return errors.New("not implemented")
 }
+
+func (m *mockStoreRepo) UpdateAvatarURL(_ context.Context, _ string, _ string) error {
+	return errors.New("not implemented")
+}
 func (m *mockStoreRepo) UpdateSaleStatus(ctx context.Context, id string, status string) error {
 	if m.updateSaleStatusFn != nil {
 		return m.updateSaleStatusFn(ctx, id, status)

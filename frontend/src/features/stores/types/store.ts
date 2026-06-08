@@ -16,6 +16,7 @@ export interface Store {
   Phone: string;
   SaleStatus: SaleStatus;
   PickupEnabled: boolean;
+  AvatarURL?: string;
   CreatedAt: string;
   // Prep-time + open-now fields returned by browse/detail endpoints.
   PrepMinutes?: number;

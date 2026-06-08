@@ -79,11 +79,17 @@ export function useVendorStoreMutations(storeId: string) {
   const invalidateMenu = () => qc.invalidateQueries({ queryKey: storeKeys.browseMenu(storeId) });
   const invalidateShipFees = () => qc.invalidateQueries({ queryKey: storeKeys.shipFees(storeId) });
 
+  const invalidateMine = () => qc.invalidateQueries({ queryKey: storeKeys.myList() });
+
   return {
     updateProfile: useMutation({
       mutationFn: (body: Parameters<typeof vendorStoreApi.updateProfile>[1]) =>
         vendorStoreApi.updateProfile(storeId, body),
       onSuccess: invalidateStore,
+    }),
+    uploadAvatar: useMutation({
+      mutationFn: (file: File) => vendorStoreApi.uploadStoreAvatar(storeId, file),
+      onSuccess: () => { invalidateStore(); invalidateMine(); },
     }),
     setSaleStatus: useMutation({
       mutationFn: (saleStatus: string) => vendorStoreApi.setSaleStatus(storeId, saleStatus),

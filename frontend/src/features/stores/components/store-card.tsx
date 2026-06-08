@@ -24,9 +24,14 @@ export function StoreCard({ store, href }: StoreCardProps) {
       <CardContent className="flex flex-1 flex-col p-5">
         {/* Header: cuisine icon + name (clamped) + status badge (no wrap) */}
         <div className="flex items-start gap-3">
-          <div className="bg-primary/10 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
-            <UtensilsCrossed className="h-5 w-5" />
-          </div>
+          {store.AvatarURL ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={store.AvatarURL} alt={store.Name} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+          ) : (
+            <div className="bg-primary/10 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
+              <UtensilsCrossed className="h-5 w-5" />
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             <h3 className="font-serif text-base font-semibold leading-snug line-clamp-2 group-hover:text-primary transition-colors">
               {store.Name}

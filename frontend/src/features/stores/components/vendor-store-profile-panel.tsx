@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
+import { PhotoUpload } from '@/shared/ui/photo-upload';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useVendorStoreMutations } from '../hooks/use-stores';
 import { SaleStatusBadge } from './sale-status-badge';
@@ -34,6 +35,16 @@ export function VendorStoreProfilePanel({ store }: Props) {
   const [phone, setPhone] = useState(store.Phone);
   const [businessType, setBusinessType] = useState(store.BusinessType);
   const [prepMinutesRaw, setPrepMinutesRaw] = useState(String(store.PrepMinutes ?? 15));
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+
+  const onPickAvatar = (file: File | null) => {
+    setAvatarFile(file);
+    if (!file) return;
+    m.uploadAvatar.mutate(file, {
+      onSuccess: () => { toast.success('Đã cập nhật ảnh cửa hàng.'); setAvatarFile(null); },
+      onError: (e) => toast.error(getApiErrorMessage(e, 'Tải ảnh thất bại')),
+    });
+  };
 
   const saveProfile = () => {
     m.updateProfile.mutate(
@@ -67,6 +78,30 @@ export function VendorStoreProfilePanel({ store }: Props) {
           <CardTitle className="text-base">Thông tin cửa hàng</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Store avatar/logo — uploads immediately on pick */}
+          <div className="flex items-start gap-4">
+            {store.AvatarURL ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={store.AvatarURL} alt={store.Name} className="h-16 w-16 shrink-0 rounded-xl object-cover" />
+            ) : (
+              <div className="bg-muted text-muted-foreground/40 flex h-16 w-16 shrink-0 items-center justify-center rounded-xl text-xs">
+                Logo
+              </div>
+            )}
+            <div className="flex-1">
+              <PhotoUpload
+                label="Ảnh / logo cửa hàng"
+                value={avatarFile}
+                onChange={onPickAvatar}
+              />
+              {m.uploadAvatar.isPending && (
+                <p className="text-muted-foreground mt-1 flex items-center gap-1 text-xs">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Đang tải ảnh…
+                </p>
+              )}
+            </div>
+          </div>
+
           <Field label="Tên cửa hàng" value={name} onChange={setName} />
           <Field label="Loại hình" value={businessType} onChange={setBusinessType} />
           <Field label="Địa chỉ" value={address} onChange={setAddress} />

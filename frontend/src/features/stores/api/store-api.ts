@@ -116,6 +116,19 @@ export const vendorStoreApi = {
     return res.data.data.image_url;
   },
 
+  // Upload a store avatar/logo; multipart field name is "image". Returns { avatar_url }.
+  uploadStoreAvatar: async (storeId: string, file: File): Promise<string> => {
+    const form = new FormData();
+    form.append('image', file);
+    const res = await http.post<ApiResponse<{ avatar_url: string }>>(
+      `${STORES}/${storeId}/avatar`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    if (!res.data.data?.avatar_url) throw new Error(res.data.error ?? 'Upload failed');
+    return res.data.data.avatar_url;
+  },
+
   // Hours-change request
   requestHoursChange: async (storeId: string, payload: Record<string, unknown>) =>
     unwrap(await http.post<ApiResponse<HoursChangeRequest>>(`${STORES}/${storeId}/hours-change`, { payload })),

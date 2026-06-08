@@ -320,6 +320,35 @@ func (h *VendorStoreHandler) UploadMenuItemImage(c *gin.Context) {
 	response.Success(c, gin.H{"image_url": url})
 }
 
+// UploadAvatar POST /stores/:id/avatar (multipart) — store logo/avatar image.
+func (h *VendorStoreHandler) UploadAvatar(c *gin.Context) {
+	storeID := c.Param("id")
+	if _, ok := h.authorizeStoreOwner(c, storeID); !ok {
+		return
+	}
+
+	file, header, err := c.Request.FormFile("image")
+	if err != nil {
+		response.BadRequest(c, "image file required")
+		return
+	}
+	defer file.Close()
+
+	ext := filepath.Ext(header.Filename)
+	objectKey := fmt.Sprintf("stores/%s/avatar%s", storeID, ext)
+	url, err := h.uploader.Put(c.Request.Context(), objectKey, header.Header.Get("Content-Type"), file.(io.Reader), header.Size)
+	if err != nil {
+		response.InternalError(c)
+		return
+	}
+
+	if err := h.storeUC.SetAvatar(c.Request.Context(), storeID, url); err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"avatar_url": url})
+}
+
 // DeleteMenuItem DELETE /stores/:id/menu/:itemId
 func (h *VendorStoreHandler) DeleteMenuItem(c *gin.Context) {
 	if _, ok := h.authorizeStoreOwner(c, c.Param("id")); !ok {

@@ -39,6 +39,7 @@ type StoreUsecase interface {
 	UpdateStore(ctx context.Context, id string, name, businessType, address, phone string, prepMinutes int) (*entity.Store, error)
 	UpdateSaleStatus(ctx context.Context, id string, status string) error
 	UpdatePickup(ctx context.Context, id string, enabled bool) error
+	SetAvatar(ctx context.Context, id string, url string) error
 	DeleteStore(ctx context.Context, id string) error
 
 	// Enriched variants include OwnerUserName resolved via the user service.
@@ -209,6 +210,16 @@ func (uc *storeUsecase) UpdatePickup(ctx context.Context, id string, enabled boo
 			return ErrStoreNotFound
 		}
 		return fmt.Errorf("update pickup_enabled: %w", err)
+	}
+	return nil
+}
+
+func (uc *storeUsecase) SetAvatar(ctx context.Context, id string, url string) error {
+	if err := uc.storeRepo.UpdateAvatarURL(ctx, id, url); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrStoreNotFound
+		}
+		return fmt.Errorf("update avatar_url: %w", err)
 	}
 	return nil
 }

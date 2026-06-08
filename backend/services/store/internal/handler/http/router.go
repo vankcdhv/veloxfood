@@ -61,6 +61,7 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 		s.PATCH("", h.UpdateStore)
 		s.PATCH("/sale-status", h.UpdateSaleStatus)
 		s.PATCH("/pickup", h.UpdatePickup)
+		s.POST("/avatar", h.UploadAvatar)
 
 		// Categories
 		s.POST("/categories", h.CreateCategory)
