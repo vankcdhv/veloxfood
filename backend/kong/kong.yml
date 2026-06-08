@@ -264,6 +264,13 @@ services:
         strip_path: false
         regex_priority: 80
 
+      # /api/v1/me/store-revenue (owner store earnings; must beat user-me at 10)
+      - name: payment-me-store-revenue
+        paths:
+          - ~/api/v1/me/store-revenue(/.*)?$
+        strip_path: false
+        regex_priority: 80
+
       # /api/v1/admin/settlements/*
       - name: payment-admin-settlements
         paths:

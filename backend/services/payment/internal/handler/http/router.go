@@ -39,6 +39,11 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 		auth.POST("/wallet/topup", cfg.WalletHandler.InitiateTopup)
 	}
 
+	// Store owner earnings overview (reuses payout summary/history).
+	if cfg.AdminHandler != nil {
+		auth.GET("/me/store-revenue", cfg.AdminHandler.GetStoreRevenue)
+	}
+
 	// ── Admin routes ──────────────────────────────────────────────────────────
 	if cfg.AdminHandler != nil {
 		admin := api.Group("/admin", cfg.AuthMiddleware)

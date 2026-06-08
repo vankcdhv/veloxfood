@@ -87,6 +87,30 @@ func (h *AdminPayoutHandler) GetSettlements(c *gin.Context) {
 	response.Success(c, summary)
 }
 
+// GetStoreRevenue returns a store owner's earnings overview: current unsettled
+// (payable) balance + the breakdown of unsettled orders + past payout batches.
+// GET /api/v1/me/store-revenue?store_id=<uuid>
+func (h *AdminPayoutHandler) GetStoreRevenue(c *gin.Context) {
+	ctx := c.Request.Context()
+	storeID := c.Query("store_id")
+	if storeID == "" {
+		response.BadRequest(c, "store_id required")
+		return
+	}
+
+	summary, err := h.payoutUC.GetSettleableSummary(ctx, storeID)
+	if err != nil {
+		response.InternalError(c)
+		return
+	}
+	batches, err := h.payoutUC.ListByStore(ctx, storeID, 20, 0)
+	if err != nil {
+		response.InternalError(c)
+		return
+	}
+	response.Success(c, gin.H{"summary": summary, "batches": batches})
+}
+
 // ExecutePayout atomically settles a payout batch.
 // POST /api/v1/admin/payouts/:id/execute
 func (h *AdminPayoutHandler) ExecutePayout(c *gin.Context) {

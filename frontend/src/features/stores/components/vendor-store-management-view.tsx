@@ -16,6 +16,7 @@ import { VendorComboPanel } from './vendor-combo-panel';
 import { VendorPromotionPanel } from '@/features/promotions/components/vendor-promotion-panel';
 import { VendorOrderPanel } from '@/features/orders/components/vendor-order-panel';
 import { VendorReviewPanel } from '@/features/reviews/components/vendor-review-panel';
+import { VendorRevenuePanel } from './vendor-revenue-panel';
 import type { Store } from '../types/store';
 
 // Tab definitions for the management panel.
@@ -29,6 +30,7 @@ const TABS = [
   { key: 'hours', label: 'Giờ hoạt động' },
   { key: 'promotions', label: 'Khuyến mãi' },
   { key: 'orders', label: 'Đơn hàng' },
+  { key: 'revenue', label: 'Doanh thu' },
   { key: 'reviews', label: 'Đánh giá' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
@@ -140,6 +142,7 @@ function ManagementPanel({
       {tab === 'hours' && <VendorHoursPanel storeId={store.ID} />}
       {tab === 'promotions' && <VendorPromotionPanel storeId={store.ID} />}
       {tab === 'orders' && <VendorOrderPanel storeId={store.ID} />}
+      {tab === 'revenue' && <VendorRevenuePanel storeId={store.ID} />}
       {tab === 'reviews' && <VendorReviewPanel storeId={store.ID} />}
     </div>
   );
