@@ -22,22 +22,22 @@ export interface AvailableDelivery {
   created_at: string;
 }
 
-// Delivery record from GET /api/v1/me/deliveries .deliveries[]
+// Delivery record from GET /api/v1/me/deliveries .deliveries[] — snake_case DTO.
 export interface MyDelivery {
-  ID: string;
-  OrderID: string;
-  OrderCode?: string;
-  StoreID: string;
-  LocationID: string;
-  ShipFee: number;
-  Status: DeliveryStatus;
-  BatchID?: string;
-  ClaimedAt?: string;
-  DeliveredAt?: string;
-  DesiredTime?: string;    // RFC3339 — customer's requested receive time
-  LateByMinutes?: number;  // > 0 means delivery was late (backend snake_case: late_by_minutes)
-  CreatedAt: string;
-  UpdatedAt: string;
+  id: string;
+  order_id: string;
+  order_code?: string;
+  store_id: string;
+  location_id: string;
+  location_level?: string;
+  ship_fee: number;
+  status: DeliveryStatus;
+  batch_id?: string;
+  claimed_at?: string;
+  delivered_at?: string;
+  desired_time?: string;    // RFC3339 — customer's requested receive time
+  late_by_minutes?: number; // > 0 means delivery was late
+  created_at: string;
 }
 
 // GET /api/v1/me/deliveries response data shape

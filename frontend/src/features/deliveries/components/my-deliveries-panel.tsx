@@ -46,14 +46,14 @@ export function MyDeliveriesPanel() {
   const deliveries = data?.deliveries ?? [];
   const earnings = data?.earnings ?? 0;
 
-  const active = deliveries.filter((d) => ACTIVE_STATUSES.has(d.Status));
-  const history = deliveries.filter((d) => !ACTIVE_STATUSES.has(d.Status));
+  const active = deliveries.filter((d) => ACTIVE_STATUSES.has(d.status));
+  const history = deliveries.filter((d) => !ACTIVE_STATUSES.has(d.status));
 
   const handleAdvance = async (delivery: MyDelivery) => {
-    const next = NEXT_STATUS[delivery.Status];
+    const next = NEXT_STATUS[delivery.status];
     if (!next) return;
     try {
-      await updateStatus.mutateAsync({ orderId: delivery.OrderID, body: { status: next } });
+      await updateStatus.mutateAsync({ orderId: delivery.order_id, body: { status: next } });
       toast.success('Đã cập nhật trạng thái');
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Không cập nhật được'));
@@ -110,13 +110,13 @@ export function MyDeliveriesPanel() {
         <div className="space-y-2">
           {active.map((delivery) => (
             <ActiveDeliveryCard
-              key={delivery.ID}
+              key={delivery.id}
               delivery={delivery}
               onAdvance={handleAdvance}
               onReportIncident={(orderId) => setIncidentOrderId(orderId)}
               isAdvancing={
                 updateStatus.isPending &&
-                updateStatus.variables?.orderId === delivery.OrderID
+                updateStatus.variables?.orderId === delivery.order_id
               }
             />
           ))}
@@ -129,7 +129,7 @@ export function MyDeliveriesPanel() {
           <h3 className="font-semibold text-sm">Lịch sử ({history.length})</h3>
           <div className="space-y-2">
             {history.map((delivery) => (
-              <HistoryDeliveryRow key={delivery.ID} delivery={delivery} />
+              <HistoryDeliveryRow key={delivery.id} delivery={delivery} />
             ))}
           </div>
         </div>
@@ -158,33 +158,33 @@ function ActiveDeliveryCard({
   onReportIncident: (orderId: string) => void;
   isAdvancing: boolean;
 }) {
-  const next = NEXT_STATUS[delivery.Status];
-  const nextLabel = NEXT_STATUS_LABEL[delivery.Status];
+  const next = NEXT_STATUS[delivery.status];
+  const nextLabel = NEXT_STATUS_LABEL[delivery.status];
 
   return (
     <Card>
       <CardHeader className="pb-2 pt-3 px-3">
         <CardTitle className="text-sm flex items-center justify-between gap-2">
           <span className="font-mono truncate text-xs text-muted-foreground">
-            {delivery.OrderCode || 'Đơn chưa có mã'}
+            {delivery.order_code || 'Đơn chưa có mã'}
           </span>
-          <DeliveryStatusBadge status={delivery.Status} />
+          <DeliveryStatusBadge status={delivery.status} />
         </CardTitle>
       </CardHeader>
       <CardContent className="px-3 pb-3 space-y-2">
-        <p className="text-sm font-semibold text-primary">{formatVnd(delivery.ShipFee)}</p>
-        {delivery.DesiredTime && (
+        <p className="text-sm font-semibold text-primary">{formatVnd(delivery.ship_fee)}</p>
+        {delivery.desired_time && (
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="h-3 w-3 shrink-0" />
             <span>
               Giờ mong muốn:{' '}
-              <span className="font-medium text-foreground">{formatHHMM(delivery.DesiredTime)}</span>
+              <span className="font-medium text-foreground">{formatHHMM(delivery.desired_time)}</span>
             </span>
           </div>
         )}
-        {delivery.ClaimedAt && (
+        {delivery.claimed_at && (
           <p className="text-xs text-muted-foreground">
-            Nhận lúc: {new Date(delivery.ClaimedAt).toLocaleString('vi-VN')}
+            Nhận lúc: {new Date(delivery.claimed_at).toLocaleString('vi-VN')}
           </p>
         )}
         <div className="flex flex-wrap gap-2">
@@ -201,7 +201,7 @@ function ActiveDeliveryCard({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onReportIncident(delivery.OrderID)}
+            onClick={() => onReportIncident(delivery.order_id)}
             className="flex-1"
           >
             <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
@@ -214,16 +214,16 @@ function ActiveDeliveryCard({
 }
 
 function HistoryDeliveryRow({ delivery }: { delivery: MyDelivery }) {
-  const lateBy = delivery.LateByMinutes ?? 0;
-  const desiredTimeStr = formatHHMM(delivery.DesiredTime);
+  const lateBy = delivery.late_by_minutes ?? 0;
+  const desiredTimeStr = formatHHMM(delivery.desired_time);
 
   return (
     <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
       <div className="min-w-0 space-y-0.5">
         <p className="font-mono text-xs text-muted-foreground truncate">
-          {delivery.OrderCode || `#${delivery.OrderID.slice(0, 8)}…`}
+          {delivery.order_code || `#${delivery.order_id.slice(0, 8)}…`}
         </p>
-        <p className="font-medium">{formatVnd(delivery.ShipFee)}</p>
+        <p className="font-medium">{formatVnd(delivery.ship_fee)}</p>
         {desiredTimeStr && (
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="h-3 w-3 shrink-0" />
@@ -233,14 +233,14 @@ function HistoryDeliveryRow({ delivery }: { delivery: MyDelivery }) {
       </div>
       <div className="flex flex-col items-end gap-1 shrink-0">
         <div className="flex items-center gap-2">
-          {delivery.DeliveredAt && (
+          {delivery.delivered_at && (
             <span className="text-xs text-muted-foreground hidden sm:inline">
-              {new Date(delivery.DeliveredAt).toLocaleDateString('vi-VN')}
+              {new Date(delivery.delivered_at).toLocaleDateString('vi-VN')}
             </span>
           )}
-          <DeliveryStatusBadge status={delivery.Status} />
+          <DeliveryStatusBadge status={delivery.status} />
         </div>
-        {delivery.Status === 'DELIVERED' && desiredTimeStr && (
+        {delivery.status === 'DELIVERED' && desiredTimeStr && (
           lateBy > 0
             ? <Badge variant="destructive" className="text-xs px-1.5 py-0">Trễ {lateBy}&apos;</Badge>
             : <Badge variant="success" className="text-xs px-1.5 py-0">Đúng giờ</Badge>
