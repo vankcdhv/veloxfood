@@ -43,6 +43,10 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 		api.POST("/deliveries/:orderId/incident-photo", append(shipperMW, h.UploadIncidentPhoto)...)
 		api.POST("/deliveries/:orderId/incident", append(shipperMW, h.ReportIncident)...)
 		api.GET("/me/deliveries", append(shipperMW, h.MyDeliveries)...)
+
+		// Customer-facing (auth only, no SHIPPER role): who delivered my order,
+		// so the customer can rate the shipper.
+		api.GET("/deliveries/:orderId/shipper", h.GetOrderShipper)
 	}
 
 	// ── Admin endpoints ────────────────────────────────────────────────────────

@@ -165,6 +165,21 @@ func (h *ShipperDeliveryHandler) UploadIncidentPhoto(c *gin.Context) {
 	c.JSON(http.StatusOK, response.Response{Status: http.StatusOK, Message: "ok", Data: gin.H{"photo_url": url}})
 }
 
+// GetOrderShipper returns the shipper assigned to the caller's order, so the
+// customer can rate the delivery. GET /api/v1/deliveries/:orderId/shipper
+func (h *ShipperDeliveryHandler) GetOrderShipper(c *gin.Context) {
+	orderID := c.Param("orderId")
+	customerID := authmw.UserIDFromContext(c.Request.Context())
+	shipperID, err := h.deliveryUC.GetOrderShipper(c.Request.Context(), orderID, customerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.Response{
+			Status: http.StatusInternalServerError, Message: "internal server error", Error: err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, response.Response{Status: http.StatusOK, Message: "ok", Data: gin.H{"shipper_id": shipperID}})
+}
+
 func (h *ShipperDeliveryHandler) ReportIncident(c *gin.Context) {
 	orderID := c.Param("orderId")
 	shipperID := authmw.UserIDFromContext(c.Request.Context())

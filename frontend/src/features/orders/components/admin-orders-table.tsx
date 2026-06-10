@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { formatVnd } from '@/shared/lib/format-vnd';
 import { reportingApi } from '@/features/notifications/api/reporting-api';
+import { useStores } from '@/features/stores/hooks/use-stores';
 import { OrderStatusBadge } from './order-status-badge';
 import type { OrderStatus } from '../types/order';
 
@@ -40,6 +41,14 @@ export function AdminOrdersTable() {
     queryFn: () => reportingApi.recentOrders(100),
     refetchInterval: 20_000,
   });
+
+  // Resolve store names client-side (reporting facts only carry store_id).
+  const { data: stores } = useStores();
+  const storeName = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of stores ?? []) m.set(s.ID, s.Name);
+    return m;
+  }, [stores]);
 
   const rows = useMemo(() => {
     const all = data ?? [];
@@ -91,7 +100,7 @@ export function AdminOrdersTable() {
                   {rows.map((o) => (
                     <tr key={o.OrderID} className="hover:bg-muted/40 transition-colors">
                       <td className="px-4 py-2 font-mono font-medium">{o.Code ?? o.OrderID.slice(0, 8)}</td>
-                      <td className="px-4 py-2 text-muted-foreground truncate max-w-[180px]">{o.StoreName ?? '—'}</td>
+                      <td className="px-4 py-2 text-muted-foreground truncate max-w-[180px]">{o.StoreName ?? storeName.get(o.StoreID) ?? '—'}</td>
                       <td className="px-4 py-2 text-right font-semibold text-primary tabular-nums">{formatVnd(o.GrandTotal)}</td>
                       <td className="px-4 py-2"><OrderStatusBadge status={o.Status as OrderStatus} /></td>
                       <td className="px-4 py-2 text-muted-foreground whitespace-nowrap">{formatDatetime(o.CreatedAt)}</td>

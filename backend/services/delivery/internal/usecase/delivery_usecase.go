@@ -70,6 +70,9 @@ type DeliveryUsecase interface {
 	ClaimDelivery(ctx context.Context, orderID, shipperID string) (*ClaimResult, error)
 	UpdateStatus(ctx context.Context, orderID, shipperID string, status entity.DeliveryStatus) error
 	MyDeliveries(ctx context.Context, shipperID string) (*MyDeliveriesResult, error)
+	// GetOrderShipper returns the shipper assigned to the caller's order (for
+	// rating). Empty when the caller doesn't own the order or none is assigned.
+	GetOrderShipper(ctx context.Context, orderID, customerID string) (string, error)
 }
 
 type deliveryUsecase struct {
@@ -296,6 +299,23 @@ func (uc *deliveryUsecase) MyDeliveries(ctx context.Context, shipperID string) (
 		"shipper_id", shipperID, "count", len(rows), "earnings", earnings)
 
 	return &MyDeliveriesResult{Deliveries: items, Earnings: earnings}, nil
+}
+
+// GetOrderShipper returns the shipper assigned to the order, but only to the
+// customer who owns it (so they can rate the delivery). Returns "" when there
+// is no delivery, no shipper yet, or the caller is not the order's customer.
+func (uc *deliveryUsecase) GetOrderShipper(ctx context.Context, orderID, customerID string) (string, error) {
+	d, err := uc.deliveryRepo.GetByOrderID(ctx, orderID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", nil
+		}
+		return "", err
+	}
+	if d.CustomerID != customerID || d.ShipperID == nil {
+		return "", nil
+	}
+	return *d.ShipperID, nil
 }
 
 // formatTimePtr formats a *time.Time as RFC3339; returns "" when nil.

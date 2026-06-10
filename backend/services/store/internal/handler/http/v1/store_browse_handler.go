@@ -139,11 +139,23 @@ func (h *StoreBrowseHandler) GetStoreHours(c *gin.Context) {
 // ListMyStores GET /api/v1/stores/mine
 // Returns only the stores owned by the authenticated user (vendor console view).
 func (h *StoreBrowseHandler) ListMyStores(c *gin.Context) {
-	ownerUserID := authmw.UserIDFromContext(c.Request.Context())
-	stores, err := h.storeUC.ListMyStores(c.Request.Context(), ownerUserID)
+	ctx := c.Request.Context()
+	ownerUserID := authmw.UserIDFromContext(ctx)
+	stores, err := h.storeUC.ListMyStores(ctx, ownerUserID)
 	if err != nil {
 		response.HandleError(c, err)
 		return
+	}
+
+	// Enrich open-now status so the owner console shows the real state, not
+	// always "Ngoài giờ" (mirrors the public ListStores enrichment).
+	now := time.Now()
+	for _, s := range stores {
+		if openRes, err := h.hoursUC.IsOpenNow(ctx, s.ID, s.SaleStatus, now); err == nil {
+			s.OpenNow = openRes.OpenNow
+			s.OpenTimeToday = openRes.OpenTimeToday
+			s.CloseTimeToday = openRes.CloseTimeToday
+		}
 	}
 	response.Success(c, stores)
 }

@@ -15,6 +15,7 @@ import { formatVnd } from '@/shared/lib/format-vnd';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useAuth } from '@/features/auth/context/auth-provider';
 import { OrderReviewForm } from '@/features/reviews/components/order-review-form';
+import { useOrderShipper } from '@/features/deliveries/hooks/use-deliveries';
 import { useCancelOrder, useMyOrder, useReorder } from '../hooks/use-orders';
 import { OrderStatusBadge, orderStatusLabel } from './order-status-badge';
 import type { Order, OrderStatus } from '../types/order';
@@ -46,6 +47,8 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
   const { data: order, isLoading, isError } = useMyOrder(orderId);
   const cancelOrder = useCancelOrder(orderId);
   const reorder = useReorder();
+  // Shipper of this order (for the rating block) — only for delivery orders.
+  const { data: shipperId } = useOrderShipper(orderId, order?.Fulfillment === 'DELIVERY');
 
   // Firestore realtime tracking — subscribes to orders/{userId}/orders/{orderId}
   // when Firebase is configured. Falls back to the existing 10s poll otherwise.
@@ -276,6 +279,7 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
           orderId={orderId}
           storeId={displayOrder.StoreID}
           items={displayOrder.Items}
+          shipperId={displayOrder.Fulfillment === 'DELIVERY' ? shipperId : undefined}
           onSubmitted={() => setReviewSubmitted(true)}
         />
       )}

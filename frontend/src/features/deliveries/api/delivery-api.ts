@@ -41,6 +41,15 @@ export const deliveryApi = {
     await http.post<ApiResponse>(`${DELIVERIES}/${orderId}/incident`, body);
   },
 
+  // GET /api/v1/deliveries/:orderId/shipper — the shipper who delivered the
+  // caller's order (for rating). Returns '' if none / not the owner.
+  orderShipper: async (orderId: string): Promise<string> => {
+    const res = await http.get<ApiResponse<{ shipper_id: string }>>(
+      `${DELIVERIES}/${orderId}/shipper`,
+    );
+    return res.data.data?.shipper_id ?? '';
+  },
+
   // POST /api/v1/deliveries/:orderId/incident-photo — upload evidence, returns its URL.
   uploadIncidentPhoto: async (orderId: string, file: File): Promise<string> => {
     const form = new FormData();

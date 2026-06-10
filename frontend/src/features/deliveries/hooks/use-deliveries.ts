@@ -6,7 +6,18 @@ export const deliveryKeys = {
   all: ['deliveries'] as const,
   available: () => [...deliveryKeys.all, 'available'] as const,
   mine: () => [...deliveryKeys.all, 'mine'] as const,
+  orderShipper: (orderId: string) => [...deliveryKeys.all, 'order-shipper', orderId] as const,
 };
+
+// The shipper who delivered an order (customer rating flow). Enable only when
+// the order was delivered, so we don't query for undelivered orders.
+export function useOrderShipper(orderId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: deliveryKeys.orderShipper(orderId),
+    queryFn: () => deliveryApi.orderShipper(orderId),
+    enabled,
+  });
+}
 
 // Poll available deliveries every 15 s so the list stays fresh.
 export function useAvailableDeliveries() {

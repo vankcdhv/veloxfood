@@ -21,16 +21,19 @@ interface OrderReviewFormProps {
   storeId: string;
   /** Items in the order — each can be rated individually. */
   items?: OrderReviewItem[];
+  /** Shipper who delivered the order — enables a shipper rating block. */
+  shipperId?: string;
   /** Called after a successful submission so the parent can hide the form. */
   onSubmitted?: () => void;
 }
 
-export function OrderReviewForm({ orderId, storeId, items = [], onSubmitted }: OrderReviewFormProps) {
+export function OrderReviewForm({ orderId, storeId, items = [], shipperId, onSubmitted }: OrderReviewFormProps) {
   const qc = useQueryClient();
   const [storeRating, setStoreRating] = useState(0);
   const [comment, setComment] = useState('');
   // Per-item rating, keyed by menu item ID (0 = not rated → skipped).
   const [itemRatings, setItemRatings] = useState<Record<string, number>>({});
+  const [shipperRating, setShipperRating] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
   // De-dupe items (an order may list the same dish twice with different slots).
@@ -54,6 +57,9 @@ export function OrderReviewForm({ orderId, storeId, items = [], onSubmitted }: O
       if (r && r > 0) {
         payloads.push({ target_type: 'ITEM', target_id: it.MenuItemID, rating: r, comment: '' });
       }
+    }
+    if (shipperId && shipperRating > 0) {
+      payloads.push({ target_type: 'SHIPPER', target_id: shipperId, rating: shipperRating, comment: '' });
     }
 
     setSubmitting(true);
@@ -114,6 +120,13 @@ export function OrderReviewForm({ orderId, storeId, items = [], onSubmitted }: O
                   />
                 </div>
               ))}
+            </div>
+          )}
+
+          {shipperId && (
+            <div className="space-y-2 border-t border-border pt-4">
+              <p className="text-sm font-medium">Đánh giá người giao hàng (tuỳ chọn)</p>
+              <StarRatingInput value={shipperRating} onChange={setShipperRating} disabled={submitting} />
             </div>
           )}
 

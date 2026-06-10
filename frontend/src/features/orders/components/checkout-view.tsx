@@ -125,6 +125,10 @@ function CheckoutContent() {
   const { data: store } = useStore(storeId);
 
   const [fulfillment, setFulfillment] = useState<FulfillmentType>('DELIVERY');
+  // Offer "Tự lấy" only when the store enables pickup.
+  const fulfillmentOptions: FulfillmentType[] = store?.PickupEnabled
+    ? ['DELIVERY', 'PICKUP']
+    : ['DELIVERY'];
   const [locationSel, setLocationSel] = useState<LocationSelection | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
   const [voucherInput, setVoucherInput] = useState('');
@@ -295,7 +299,7 @@ function CheckoutContent() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2">
-            {(['DELIVERY', 'PICKUP'] as FulfillmentType[]).map((f) => (
+            {fulfillmentOptions.map((f) => (
               <button
                 key={f}
                 type="button"
