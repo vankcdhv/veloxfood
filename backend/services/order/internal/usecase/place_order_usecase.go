@@ -176,14 +176,11 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		})
 	}
 
-	// Ship fee: unit_fee × total_qty for DELIVERY; 0 for PICKUP.
+	// Ship fee is a flat per-delivery charge for the resolved location (matches
+	// the checkout preview); PICKUP pays nothing. It does not scale with quantity.
 	var shipFee int64
 	if req.Fulfillment == entity.FulfillmentDelivery {
-		var totalQty int64
-		for _, ri := range req.Items {
-			totalQty += int64(ri.Qty)
-		}
-		shipFee = storeInfo.UnitShipFee * totalQty
+		shipFee = storeInfo.UnitShipFee
 	}
 
 	// ── Step 3: Apply promotions ──────────────────────────────────────────────
