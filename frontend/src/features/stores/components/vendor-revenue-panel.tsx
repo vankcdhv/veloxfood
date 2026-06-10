@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { formatVnd } from '@/shared/lib/format-vnd';
+import { formatDate } from '@/shared/lib/format-date';
 
 interface SettleableOrder {
   OrderID: string;
@@ -39,11 +40,6 @@ const BATCH_STATUS: Record<string, { label: string; variant: 'success' | 'warnin
   SETTLED: { label: 'Đã chi trả', variant: 'success' },
   PENDING: { label: 'Chờ chi trả', variant: 'warning' },
 };
-
-function formatDate(iso?: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
 
 export function VendorRevenuePanel({ storeId }: { storeId: string }) {
   const { data, isLoading, isError } = useQuery({
