@@ -41,12 +41,15 @@ func (r *ledgerGormRepository) ListByWallet(ctx context.Context, walletID string
 // then exclude them from the STORE_PAYABLE credit entries query.
 // Using a NOT IN subquery keeps it in one round-trip without needing JSONB ops.
 func (r *ledgerGormRepository) SettleableOrdersForStore(ctx context.Context, storeID string) ([]*repository.SettleableOrder, error) {
-	// Subquery: unnest order_ids from SETTLED payout_batches for this store.
+	// Subquery: unnest order_ids from payout_batches already covering this store's
+	// orders. Exclude PENDING batches too — once an order is in an unexecuted
+	// batch it must not appear as settleable again, otherwise a second batch could
+	// be created for the same order and the store would be paid twice.
 	// JSONB array → set of text UUIDs, then cast to uuid for the NOT IN check.
 	const settledOrdersSubquery = `
 		SELECT jsonb_array_elements_text(order_ids)::uuid
 		FROM payout_batches
-		WHERE store_id = ? AND status = 'SETTLED'
+		WHERE store_id = ? AND status IN ('PENDING', 'SETTLED')
 	`
 
 	type row struct {
