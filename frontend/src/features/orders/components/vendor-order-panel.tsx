@@ -8,6 +8,7 @@ import { Badge } from '@/shared/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { formatVnd } from '@/shared/lib/format-vnd';
+import { formatLateBy } from '@/shared/lib/format-late-by';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useStoreOrders, useOwnerOrderMutations, useStoreOrder } from '../hooks/use-orders';
 import { OrderStatusBadge, orderStatusLabel } from './order-status-badge';
@@ -45,7 +46,7 @@ function DesiredTimeMeta({ order }: { order: Order }) {
       <span>Giờ mong muốn: <span className="font-medium text-foreground">{timeStr}</span></span>
       {isDelivered && (
         late > 0
-          ? <Badge variant="destructive" className="text-xs px-1.5 py-0">Trễ {late}&apos;</Badge>
+          ? <Badge variant="destructive" className="text-xs px-1.5 py-0">Trễ {formatLateBy(late)}</Badge>
           : <Badge variant="success" className="text-xs px-1.5 py-0">Đúng giờ</Badge>
       )}
     </div>

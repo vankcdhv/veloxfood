@@ -8,6 +8,7 @@ import { Badge } from '@/shared/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { formatVnd } from '@/shared/lib/format-vnd';
+import { formatLateBy } from '@/shared/lib/format-late-by';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useMyDeliveries, useUpdateDeliveryStatus } from '../hooks/use-deliveries';
 import { DeliveryStatusBadge } from './delivery-status-badge';
@@ -242,7 +243,7 @@ function HistoryDeliveryRow({ delivery }: { delivery: MyDelivery }) {
         </div>
         {delivery.status === 'DELIVERED' && desiredTimeStr && (
           lateBy > 0
-            ? <Badge variant="destructive" className="text-xs px-1.5 py-0">Trễ {lateBy}&apos;</Badge>
+            ? <Badge variant="destructive" className="text-xs px-1.5 py-0">Trễ {formatLateBy(lateBy)}</Badge>
             : <Badge variant="success" className="text-xs px-1.5 py-0">Đúng giờ</Badge>
         )}
       </div>
