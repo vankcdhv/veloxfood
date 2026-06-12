@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/ui/dialog';
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useOptionGroups, useOptionGroupMutations, useOptions } from '../hooks/use-stores';
 import type { Option, OptionGroup } from '../types/store';
@@ -29,10 +30,12 @@ export function VendorOptionPanel({ storeId }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editGroup, setEditGroup] = useState<OptionGroup | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<OptionGroup | null>(null);
 
-  const deleteGroup = (ogId: string) => {
-    m.deleteGroup.mutate(ogId, {
-      onSuccess: () => toast.success('Đã xoá nhóm tuỳ chọn.'),
+  const deleteGroup = () => {
+    if (!pendingDelete) return;
+    m.deleteGroup.mutate(pendingDelete.ID, {
+      onSuccess: () => { toast.success('Đã xoá nhóm tuỳ chọn.'); setPendingDelete(null); },
       onError: (e) => toast.error(getApiErrorMessage(e, 'Xoá thất bại')),
     });
   };
@@ -88,7 +91,7 @@ export function VendorOptionPanel({ storeId }: Props) {
                   <button
                     type="button"
                     aria-label="Xoá nhóm"
-                    onClick={() => deleteGroup(group.ID)}
+                    onClick={() => setPendingDelete(group)}
                     disabled={m.deleteGroup.isPending}
                     className="text-muted-foreground hover:text-destructive p-1 disabled:opacity-30"
                   >
@@ -122,6 +125,21 @@ export function VendorOptionPanel({ storeId }: Props) {
         onClose={() => setEditGroup(null)}
         mutations={m}
       />
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onOpenChange={(o) => !o && setPendingDelete(null)}
+        title="Xoá nhóm tuỳ chọn?"
+        description={
+          pendingDelete
+            ? `Xoá nhóm "${pendingDelete.Name}" và toàn bộ tuỳ chọn bên trong. Hành động không thể hoàn tác.`
+            : undefined
+        }
+        confirmLabel="Xoá"
+        destructive
+        loading={m.deleteGroup.isPending}
+        onConfirm={deleteGroup}
+      />
     </>
   );
 }
@@ -138,12 +156,14 @@ function OptionList({
   const { data: options, isLoading } = useOptions(storeId, group.ID);
   const [editOpt, setEditOpt] = useState<Option | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [pendingDeleteOpt, setPendingDeleteOpt] = useState<Option | null>(null);
 
-  const deleteOption = (optId: string) => {
+  const deleteOption = () => {
+    if (!pendingDeleteOpt) return;
     mutations.deleteOption.mutate(
-      { ogId: group.ID, optId },
+      { ogId: group.ID, optId: pendingDeleteOpt.ID },
       {
-        onSuccess: () => toast.success('Đã xoá tuỳ chọn.'),
+        onSuccess: () => { toast.success('Đã xoá tuỳ chọn.'); setPendingDeleteOpt(null); },
         onError: (e) => toast.error(getApiErrorMessage(e, 'Xoá thất bại')),
       },
     );
@@ -176,7 +196,7 @@ function OptionList({
             <button
               type="button"
               aria-label="Xoá tuỳ chọn"
-              onClick={() => deleteOption(opt.ID)}
+              onClick={() => setPendingDeleteOpt(opt)}
               disabled={mutations.deleteOption.isPending}
               className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 p-1 transition-opacity disabled:opacity-30"
             >
@@ -209,6 +229,19 @@ function OptionList({
         option={editOpt ?? undefined}
         onClose={() => setEditOpt(null)}
         mutations={mutations}
+      />
+
+      <ConfirmDialog
+        open={!!pendingDeleteOpt}
+        onOpenChange={(o) => !o && setPendingDeleteOpt(null)}
+        title="Xoá tuỳ chọn?"
+        description={
+          pendingDeleteOpt ? `Xoá tuỳ chọn "${pendingDeleteOpt.Name}". Hành động không thể hoàn tác.` : undefined
+        }
+        confirmLabel="Xoá"
+        destructive
+        loading={mutations.deleteOption.isPending}
+        onConfirm={deleteOption}
       />
     </div>
   );

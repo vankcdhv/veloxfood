@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/ui/dialog';
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import {
   useCombos,
@@ -34,13 +35,15 @@ export function VendorComboPanel({ storeId }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editCombo, setEditCombo] = useState<Combo | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Combo | null>(null);
 
   // Flat list of all menu items for name resolution and picker.
   const allItems: MenuItem[] = menuGroups?.flatMap((g) => g.Items) ?? [];
 
-  const deleteCombo = (comboId: string) => {
-    m.deleteCombo.mutate(comboId, {
-      onSuccess: () => toast.success('Đã xoá combo.'),
+  const deleteCombo = () => {
+    if (!pendingDelete) return;
+    m.deleteCombo.mutate(pendingDelete.ID, {
+      onSuccess: () => { toast.success('Đã xoá combo.'); setPendingDelete(null); },
       onError: (e) => toast.error(getApiErrorMessage(e, 'Xoá thất bại')),
     });
   };
@@ -96,7 +99,7 @@ export function VendorComboPanel({ storeId }: Props) {
                   <button
                     type="button"
                     aria-label="Xoá combo"
-                    onClick={() => deleteCombo(combo.ID)}
+                    onClick={() => setPendingDelete(combo)}
                     disabled={m.deleteCombo.isPending}
                     className="text-muted-foreground hover:text-destructive p-1 disabled:opacity-30"
                   >
@@ -133,6 +136,19 @@ export function VendorComboPanel({ storeId }: Props) {
         onClose={() => setEditCombo(null)}
         mutations={m}
       />
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onOpenChange={(o) => !o && setPendingDelete(null)}
+        title="Xoá combo?"
+        description={
+          pendingDelete ? `Xoá combo "${pendingDelete.Name}". Hành động không thể hoàn tác.` : undefined
+        }
+        confirmLabel="Xoá"
+        destructive
+        loading={m.deleteCombo.isPending}
+        onConfirm={deleteCombo}
+      />
     </>
   );
 }
@@ -150,6 +166,7 @@ function ComboItemList({
   const { data: comboItems, isLoading } = useComboItems(storeId, combo.ID);
   const [selectedItemId, setSelectedItemId] = useState('');
   const [quantity, setQuantity] = useState('1');
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
 
   // Items not already in the combo.
   const attachedIds = new Set(comboItems?.map((ci) => ci.MenuItemID) ?? []);
@@ -174,11 +191,12 @@ function ComboItemList({
     );
   };
 
-  const removeItem = (menuItemId: string) => {
+  const removeItem = () => {
+    if (!pendingRemoveId) return;
     mutations.removeComboItem.mutate(
-      { comboId: combo.ID, menuItemId },
+      { comboId: combo.ID, menuItemId: pendingRemoveId },
       {
-        onSuccess: () => toast.success('Đã xoá món khỏi combo.'),
+        onSuccess: () => { toast.success('Đã xoá món khỏi combo.'); setPendingRemoveId(null); },
         onError: (e) => toast.error(getApiErrorMessage(e, 'Xoá thất bại')),
       },
     );
@@ -206,7 +224,7 @@ function ComboItemList({
             <button
               type="button"
               aria-label="Xoá món khỏi combo"
-              onClick={() => removeItem(ci.MenuItemID)}
+              onClick={() => setPendingRemoveId(ci.MenuItemID)}
               disabled={mutations.removeComboItem.isPending}
               className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 p-1 transition-opacity disabled:opacity-30"
             >
@@ -251,6 +269,19 @@ function ComboItemList({
             : <Plus className="h-4 w-4" />}
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={!!pendingRemoveId}
+        onOpenChange={(o) => !o && setPendingRemoveId(null)}
+        title="Xoá món khỏi combo?"
+        description={
+          pendingRemoveId ? `Xoá "${resolveName(pendingRemoveId)}" khỏi combo này.` : undefined
+        }
+        confirmLabel="Xoá"
+        destructive
+        loading={mutations.removeComboItem.isPending}
+        onConfirm={removeItem}
+      />
     </div>
   );
 }
