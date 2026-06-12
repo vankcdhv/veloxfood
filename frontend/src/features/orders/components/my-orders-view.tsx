@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { Package } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Package } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
 import { Skeleton } from '@/shared/ui/skeleton';
@@ -25,9 +26,14 @@ export function MyOrdersView() {
   );
 }
 
+const PAGE_SIZE = 20;
+
 function OrderListContent() {
-  const { data, isLoading, isError } = useMyOrders();
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError } = useMyOrders(page);
   const orders = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   if (isLoading) {
     return (
@@ -60,6 +66,34 @@ function OrderListContent() {
       {orders.map((order) => (
         <OrderCard key={order.ID} order={order} />
       ))}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-4 pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Trước
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Trang {page}/{totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Sau
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

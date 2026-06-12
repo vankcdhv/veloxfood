@@ -92,7 +92,30 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
     };
   }, [user?.id, orderId]);
 
+  // Persist "already reviewed" per order so the form doesn't reappear on reload
+  // (reviews are one-shot — the server enforces UNIQUE(order,target) and 409s a re-submit).
+  const reviewedKey = `velox:reviewed:${orderId}`;
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  // Read localStorage AFTER hydration (not in a lazy initializer) so server and
+  // client render the same initial markup — avoids a hydration mismatch.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(reviewedKey) === '1') {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setReviewSubmitted(true);
+      }
+    } catch {
+      /* localStorage unavailable — fall back to in-session state */
+    }
+  }, [reviewedKey]);
+  const markReviewed = () => {
+    setReviewSubmitted(true);
+    try {
+      localStorage.setItem(reviewedKey, '1');
+    } catch {
+      /* ignore */
+    }
+  };
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   if (isLoading) {
@@ -280,7 +303,7 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
           storeId={displayOrder.StoreID}
           items={displayOrder.Items}
           shipperId={displayOrder.Fulfillment === 'DELIVERY' ? shipperId : undefined}
-          onSubmitted={() => setReviewSubmitted(true)}
+          onSubmitted={markReviewed}
         />
       )}
       {liveStatus === 'COMPLETED' && reviewSubmitted && (

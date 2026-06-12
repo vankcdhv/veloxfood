@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { AxiosError } from 'axios';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
@@ -74,7 +75,14 @@ export function OrderReviewForm({ orderId, storeId, items = [], shipperId, onSub
       toast.success('Cảm ơn bạn đã đánh giá!');
       onSubmitted?.();
     } catch (e) {
-      toast.error(getApiErrorMessage(e, 'Không gửi được đánh giá'));
+      // Already reviewed (server enforces UNIQUE order+target) — treat as success
+      // so a re-submit after reload shows the thank-you state, not a scary error.
+      if (e instanceof AxiosError && e.response?.status === 409) {
+        toast.info('Bạn đã đánh giá đơn hàng này rồi.');
+        onSubmitted?.();
+      } else {
+        toast.error(getApiErrorMessage(e, 'Không gửi được đánh giá'));
+      }
     } finally {
       setSubmitting(false);
     }
