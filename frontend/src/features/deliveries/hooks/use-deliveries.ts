@@ -7,7 +7,17 @@ export const deliveryKeys = {
   available: () => [...deliveryKeys.all, 'available'] as const,
   mine: () => [...deliveryKeys.all, 'mine'] as const,
   orderShipper: (orderId: string) => [...deliveryKeys.all, 'order-shipper', orderId] as const,
+  adminIncidents: () => [...deliveryKeys.all, 'admin-incidents'] as const,
 };
+
+// Admin: list every delivery incident reported by shippers. Polls every 30s.
+export function useAdminIncidents() {
+  return useQuery({
+    queryKey: deliveryKeys.adminIncidents(),
+    queryFn: deliveryApi.adminListIncidents,
+    refetchInterval: 30_000,
+  });
+}
 
 // The shipper who delivered an order (customer rating flow). Enable only when
 // the order was delivered, so we don't query for undelivered orders.

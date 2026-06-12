@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"project/pkg/outbox"
 	"project/services/delivery/internal/entity"
+	"project/services/delivery/internal/infrastructure/grpcclient"
 	"project/services/delivery/internal/repository"
 
 	"gorm.io/gorm"
@@ -21,31 +23,48 @@ type ReportIncidentRequest struct {
 	PhotoURL  *string
 }
 
+// AdminIncidentView is the admin-facing shape of a delivery incident: order code
+// and shipper name instead of raw UUIDs (snake_case to match the delivery DTOs).
+type AdminIncidentView struct {
+	ID          string    `json:"id"`
+	OrderCode   string    `json:"order_code"`
+	ShipperName string    `json:"shipper_name"`
+	Type        string    `json:"type"`
+	Note        string    `json:"note"`
+	PhotoURL    *string   `json:"photo_url"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 // IncidentUsecase handles incident creation and admin listing.
 type IncidentUsecase interface {
 	ReportIncident(ctx context.Context, req ReportIncidentRequest) (*entity.DeliveryIncident, error)
-	ListAllIncidents(ctx context.Context) ([]*entity.DeliveryIncident, error)
+	ListAllIncidents(ctx context.Context) ([]*AdminIncidentView, error)
 }
 
 type incidentUsecase struct {
-	db             *gorm.DB
-	deliveryRepo   repository.DeliveryRepository
-	incidentRepo   repository.IncidentRepository
-	outboxRepo     repository.OutboxRepository
+	db           *gorm.DB
+	deliveryRepo repository.DeliveryRepository
+	incidentRepo repository.IncidentRepository
+	outboxRepo   repository.OutboxRepository
+	userClient   *grpcclient.UserClient
 }
 
-// NewIncidentUsecase constructs the incident usecase.
+// NewIncidentUsecase constructs the incident usecase. userClient may be nil —
+// the admin view then shows an empty shipper name rather than failing.
 func NewIncidentUsecase(
 	db *gorm.DB,
 	deliveryRepo repository.DeliveryRepository,
 	incidentRepo repository.IncidentRepository,
 	outboxRepo repository.OutboxRepository,
+	userClient *grpcclient.UserClient,
 ) IncidentUsecase {
 	return &incidentUsecase{
 		db:           db,
 		deliveryRepo: deliveryRepo,
 		incidentRepo: incidentRepo,
 		outboxRepo:   outboxRepo,
+		userClient:   userClient,
 	}
 }
 
@@ -105,6 +124,34 @@ func (uc *incidentUsecase) ReportIncident(ctx context.Context, req ReportInciden
 	return created, err
 }
 
-func (uc *incidentUsecase) ListAllIncidents(ctx context.Context) ([]*entity.DeliveryIncident, error) {
-	return uc.incidentRepo.ListAll(ctx)
+// ListAllIncidents returns the admin incident list enriched with each order's
+// code and the reporting shipper's name. Shipper names are resolved once per
+// distinct shipper to avoid an N+1 of gRPC calls.
+func (uc *incidentUsecase) ListAllIncidents(ctx context.Context) ([]*AdminIncidentView, error) {
+	rows, err := uc.incidentRepo.ListAllWithOrderCode(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	nameByShipper := make(map[string]string)
+	for _, r := range rows {
+		if _, ok := nameByShipper[r.ShipperID]; !ok {
+			nameByShipper[r.ShipperID] = uc.userClient.GetUser(ctx, r.ShipperID).FullName
+		}
+	}
+
+	views := make([]*AdminIncidentView, len(rows))
+	for i, r := range rows {
+		views[i] = &AdminIncidentView{
+			ID:          r.ID,
+			OrderCode:   r.OrderCode,
+			ShipperName: nameByShipper[r.ShipperID],
+			Type:        r.Type,
+			Note:        r.Note,
+			PhotoURL:    r.PhotoURL,
+			Status:      string(r.Status),
+			CreatedAt:   r.CreatedAt,
+		}
+	}
+	return views, nil
 }

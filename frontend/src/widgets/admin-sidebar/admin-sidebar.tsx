@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, ShoppingCart, Bike, MapPin, Store, Banknote, Settings, Menu } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingCart, Bike, MapPin, Store, Banknote, Settings, Menu, AlertTriangle } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/shared/ui/sheet';
 import { BrandMark } from '@/widgets/brand-mark/brand-mark';
@@ -24,6 +24,7 @@ const PRIMARY_NAV: NavItem[] = [
   { label: 'Vị trí', href: ROUTES.admin.locations, icon: MapPin },
   { label: 'Cửa hàng', href: ROUTES.admin.stores, icon: Store },
   { label: 'Chi trả', href: ROUTES.admin.payouts, icon: Banknote },
+  { label: 'Sự cố', href: ROUTES.admin.incidents, icon: AlertTriangle },
 ];
 
 const SECONDARY_NAV: NavItem[] = [{ label: 'Cài đặt', href: ROUTES.admin.settings, icon: Settings }];

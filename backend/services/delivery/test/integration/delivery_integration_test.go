@@ -85,7 +85,8 @@ func setupEnv(t *testing.T) *testEnv {
 
 	// nil locationClient — room path resolution gracefully returns empty string in tests
 	deliveryUC := usecase.NewDeliveryUsecase(db, deliveryRepo, batchRepo, outboxRepo, nil)
-	incidentUC := usecase.NewIncidentUsecase(db, deliveryRepo, incidentRepo, outboxRepo)
+	// nil userClient — GetUser tolerates it and returns empty shipper names in tests.
+	incidentUC := usecase.NewIncidentUsecase(db, deliveryRepo, incidentRepo, outboxRepo, nil)
 	orderHandler := deliveryevent.NewOrderEventHandler(db, deliveryRepo, processedRepo)
 
 	return &testEnv{

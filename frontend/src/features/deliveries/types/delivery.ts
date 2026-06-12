@@ -70,3 +70,20 @@ export const INCIDENT_TYPES = [
   { value: 'ITEM_DAMAGED', label: 'Hàng bị hỏng' },
   { value: 'OTHER', label: 'Khác' },
 ] as const;
+
+// Map an incident type code → Vietnamese label (falls back to the raw code).
+export function incidentTypeLabel(type: string): string {
+  return INCIDENT_TYPES.find((t) => t.value === type)?.label ?? type;
+}
+
+// GET /api/v1/admin/incidents — admin-facing incident (resolved order code + shipper name).
+export interface AdminIncident {
+  id: string;
+  order_code: string;
+  shipper_name: string;
+  type: string;
+  note: string;
+  photo_url?: string | null;
+  status: 'OPEN' | 'RESOLVED';
+  created_at: string;
+}

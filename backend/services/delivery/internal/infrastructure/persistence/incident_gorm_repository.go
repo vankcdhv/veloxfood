@@ -27,3 +27,14 @@ func (r *incidentGormRepository) ListAll(ctx context.Context) ([]*entity.Deliver
 	err := r.db.WithContext(ctx).Order("created_at DESC").Find(&rows).Error
 	return rows, err
 }
+
+func (r *incidentGormRepository) ListAllWithOrderCode(ctx context.Context) ([]*repository.IncidentWithOrder, error) {
+	var rows []*repository.IncidentWithOrder
+	err := r.db.WithContext(ctx).
+		Table("delivery_incidents").
+		Select("delivery_incidents.*, deliveries.order_code AS order_code").
+		Joins("LEFT JOIN deliveries ON deliveries.id = delivery_incidents.delivery_id").
+		Order("delivery_incidents.created_at DESC").
+		Scan(&rows).Error
+	return rows, err
+}

@@ -32,15 +32,16 @@ func main() {
 		outboxRepo := persistence.NewOutboxGormRepository(deps.DB)
 		processedRepo := persistence.NewProcessedEventGormRepository(deps.DB)
 
-		// ── Location gRPC client (graceful noop on failure) ───────────────────
+		// ── Cross-service gRPC clients (graceful noop on failure) ─────────────
 		locationClient := buildLocationClient(deps)
+		userClient := buildUserClient(deps)
 
 		// ── MinIO uploader for incident photos ────────────────────────────────
 		uploader := buildUploader(deps)
 
 		// ── Usecases ──────────────────────────────────────────────────────────
 		deliveryUC := usecase.NewDeliveryUsecase(deps.DB, deliveryRepo, batchRepo, outboxRepo, locationClient)
-		incidentUC := usecase.NewIncidentUsecase(deps.DB, deliveryRepo, incidentRepo, outboxRepo)
+		incidentUC := usecase.NewIncidentUsecase(deps.DB, deliveryRepo, incidentRepo, outboxRepo, userClient)
 
 		// ── HTTP router ───────────────────────────────────────────────────────
 		cfg := handlerhttp.RouterConfig{}
@@ -78,6 +79,22 @@ func buildLocationClient(deps app.Dependencies) *grpcclient.LocationClient {
 	client, err := grpcclient.NewLocationClient(addr)
 	if err != nil {
 		slog.Error("delivery: location grpc client failed — room paths will show UUIDs", "err", err)
+		return nil
+	}
+	return client
+}
+
+// buildUserClient dials the user service. Returns nil on failure — the admin
+// incident view then shows an empty shipper name instead of failing.
+func buildUserClient(deps app.Dependencies) *grpcclient.UserClient {
+	addr := deps.Config.UserService.GRPCAddr
+	if addr == "" {
+		slog.Warn("delivery: user_service.grpc_addr not configured — shipper names disabled")
+		return nil
+	}
+	client, err := grpcclient.NewUserClient(addr)
+	if err != nil {
+		slog.Error("delivery: user grpc client failed — shipper names will be empty", "err", err)
 		return nil
 	}
 	return client

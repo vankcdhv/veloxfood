@@ -17,6 +17,13 @@ type BatchRepository interface {
 	CreateBatch(ctx context.Context, tx *gorm.DB, b *entity.DeliveryBatch) error
 }
 
+// IncidentWithOrder is an incident row enriched with the human-readable order
+// code from its delivery, so the admin view never exposes a raw order UUID.
+type IncidentWithOrder struct {
+	entity.DeliveryIncident
+	OrderCode string `gorm:"column:order_code"`
+}
+
 // IncidentRepository is the persistence contract for delivery incidents.
 type IncidentRepository interface {
 	// Create inserts a new incident record.
@@ -24,6 +31,10 @@ type IncidentRepository interface {
 
 	// ListAll returns all incidents (admin view), newest first.
 	ListAll(ctx context.Context) ([]*entity.DeliveryIncident, error)
+
+	// ListAllWithOrderCode returns all incidents joined to their delivery's
+	// order_code (admin view), newest first.
+	ListAllWithOrderCode(ctx context.Context) ([]*IncidentWithOrder, error)
 }
 
 // OutboxRepository persists outbox events for the delivery service.

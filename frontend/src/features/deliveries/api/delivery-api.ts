@@ -2,6 +2,7 @@ import { http } from '@/shared/lib/http-client';
 import { API_PREFIX } from '@/shared/config/constants';
 import type { ApiResponse } from '@/shared/api/api-response';
 import type {
+  AdminIncident,
   AvailableDelivery,
   ClaimResult,
   MyDeliveriesData,
@@ -49,6 +50,10 @@ export const deliveryApi = {
     );
     return res.data.data?.shipper_id ?? '';
   },
+
+  // GET /api/v1/admin/incidents — all delivery incidents for admin review.
+  adminListIncidents: async (): Promise<AdminIncident[]> =>
+    unwrap(await http.get<ApiResponse<AdminIncident[]>>(`${API_PREFIX}/admin/incidents`)),
 
   // POST /api/v1/deliveries/:orderId/incident-photo — upload evidence, returns its URL.
   uploadIncidentPhoto: async (orderId: string, file: File): Promise<string> => {

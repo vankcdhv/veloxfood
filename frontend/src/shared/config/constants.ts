@@ -13,6 +13,7 @@ export const ROUTES = {
     locations: '/admin/locations',
     stores: '/admin/stores',
     payouts: '/admin/payouts',
+    incidents: '/admin/incidents',
     settings: '/admin/settings',
   },
   account: {
