@@ -49,7 +49,11 @@ export function useSession(): SessionState {
     isAdmin: roles.some((r) => r.scope_type === 'global' && ADMIN_ROLE_CODES.has(r.role_code)),
     isShipper: hasGlobalRole(roles, 'SHIPPER'),
     isCustomer: hasGlobalRole(roles, 'CUSTOMER'),
-    isVendor: memberships.some((m) => m.status === 'active'),
+    // A user owns/manages a store either via an active membership or a
+    // vendor-scoped role (e.g. VENDOR_OWNER granted per store).
+    isVendor:
+      memberships.some((m) => m.status === 'active') ||
+      roles.some((r) => r.scope_type === 'vendor'),
     refetch: () => void q.refetch(),
   };
 }

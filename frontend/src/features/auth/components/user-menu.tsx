@@ -35,7 +35,7 @@ interface UserMenuProps {
 // optional admin entry, logout). Shared by the shop header and admin topbar.
 export function UserMenu({ showAdminLink = false, align = 'end' }: UserMenuProps) {
   const router = useRouter();
-  const { user, isAdmin, isShipper } = useAuth();
+  const { user, isAdmin, isShipper, isVendor } = useAuth();
   const logoutMutation = useLogout();
 
   const handleLogout = async () => {
@@ -78,10 +78,12 @@ export function UserMenu({ showAdminLink = false, align = 'end' }: UserMenuProps
           <UserIcon className="mr-2 h-4 w-4" />
           Hồ sơ của tôi
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => router.push(ROUTES.shop.root)} className="cursor-pointer">
-          <Store className="mr-2 h-4 w-4" />
-          Cửa hàng
-        </DropdownMenuItem>
+        {isVendor && (
+          <DropdownMenuItem onClick={() => router.push(ROUTES.account.store)} className="cursor-pointer">
+            <Store className="mr-2 h-4 w-4" />
+            Quản lý cửa hàng
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={() => router.push(ROUTES.account.wallet)} className="cursor-pointer">
           <Wallet className="mr-2 h-4 w-4" />
           Ví của tôi
