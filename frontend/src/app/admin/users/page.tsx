@@ -10,7 +10,7 @@ export default function AdminUsersPage() {
     <>
       <AdminTopbar
         title="Quản lý người dùng"
-        description="Demo gọi GET /api/v1/users backend Go qua TanStack Query + Axios"
+        description="Tìm kiếm, lọc theo trạng thái và khoá / mở khoá tài khoản người dùng"
       />
       <div className="p-4 sm:p-6 lg:p-8">
         <UserList />
