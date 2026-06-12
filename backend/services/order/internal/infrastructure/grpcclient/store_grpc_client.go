@@ -31,6 +31,14 @@ type StoreOrderItem struct {
 	Price  int64
 }
 
+// StoreOwnership holds the vendor/owner fields used to authorize store-owner actions.
+type StoreOwnership struct {
+	Found       bool
+	VendorID    string
+	OwnerUserID string
+	Name        string
+}
+
 // StoreClient wraps the Store gRPC service for use by the Order saga.
 type StoreClient struct {
 	client storev1.StoreServiceClient
@@ -75,5 +83,20 @@ func (c *StoreClient) GetStoreForOrder(ctx context.Context, storeID, locationID,
 		OpenNow:        resp.GetOpenNow(),
 		OpenTimeToday:  resp.GetOpenTimeToday(),
 		CloseTimeToday: resp.GetCloseTimeToday(),
+	}, nil
+}
+
+// GetStoreOwnership resolves a store's vendor_id + owner_user_id so the owner
+// order handler can verify the caller is authorized to act on the store.
+func (c *StoreClient) GetStoreOwnership(ctx context.Context, storeID string) (*StoreOwnership, error) {
+	resp, err := c.client.GetStoreOwnership(ctx, &storev1.GetStoreOwnershipRequest{StoreId: storeID})
+	if err != nil {
+		return nil, fmt.Errorf("store.GetStoreOwnership: %w", err)
+	}
+	return &StoreOwnership{
+		Found:       resp.GetFound(),
+		VendorID:    resp.GetVendorId(),
+		OwnerUserID: resp.GetOwnerUserId(),
+		Name:        resp.GetName(),
 	}, nil
 }

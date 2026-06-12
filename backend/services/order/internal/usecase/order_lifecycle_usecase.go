@@ -23,7 +23,7 @@ type OrderLifecycleUsecase interface {
 
 	// AdvanceStatus moves an order to the next status and publishes the matching event.
 	// changedBy is the actor's user ID (store owner/staff).
-	AdvanceStatus(ctx context.Context, orderID string, to entity.OrderStatus, changedBy string) error
+	AdvanceStatus(ctx context.Context, orderID, storeID string, to entity.OrderStatus, changedBy string) error
 
 	// CancelByCustomer cancels a PENDING order and triggers compensation.
 	CancelByCustomer(ctx context.Context, orderID, customerID string) error
@@ -82,7 +82,7 @@ func (uc *orderLifecycleUsecase) ListStoreOrders(ctx context.Context, storeID st
 }
 
 // AdvanceStatus validates the transition then atomically writes status + event.
-func (uc *orderLifecycleUsecase) AdvanceStatus(ctx context.Context, orderID string, to entity.OrderStatus, changedBy string) error {
+func (uc *orderLifecycleUsecase) AdvanceStatus(ctx context.Context, orderID, storeID string, to entity.OrderStatus, changedBy string) error {
 	traceID := outbox.TraceIDFromCtx(ctx)
 	return uc.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		order, err := uc.orderRepo.GetByIDForUpdate(ctx, tx, orderID)
@@ -91,6 +91,11 @@ func (uc *orderLifecycleUsecase) AdvanceStatus(ctx context.Context, orderID stri
 				return ErrOrderNotFound
 			}
 			return err
+		}
+		// The order must belong to the store the caller is authorized for, so an
+		// owner cannot advance another store's order via their own store path.
+		if order.StoreID != storeID {
+			return ErrNotOrderOwner
 		}
 
 		if !entity.CanTransition(order.Status, to) {
@@ -205,7 +210,11 @@ func (uc *orderLifecycleUsecase) VerifyPickupPIN(ctx context.Context, orderID, s
 			return err
 		}
 
-		payload, _ := json.Marshal(map[string]any{"order_id": order.ID})
+		payload, _ := json.Marshal(map[string]any{
+			"order_id":    order.ID,
+			"code":        order.Code,
+			"customer_id": order.CustomerID,
+		})
 		return uc.outboxRepo.Append(ctx, tx, &entity.OutboxEvent{
 			AggregateType: "order",
 			AggregateID:   order.ID,
@@ -311,6 +320,8 @@ func statusEvent(order *entity.Order, to entity.OrderStatus, traceID string) *en
 		eventType = "order.delivered"
 		payload, _ = json.Marshal(map[string]any{
 			"order_id":       orderID,
+			"code":           order.Code,
+			"customer_id":    order.CustomerID,
 			"store_id":       order.StoreID,
 			"amount":         order.GrandTotal,
 			"payment_method": string(order.PaymentMethod),
@@ -318,7 +329,11 @@ func statusEvent(order *entity.Order, to entity.OrderStatus, traceID string) *en
 
 	case entity.StatusCompleted:
 		eventType = "order.completed"
-		payload, _ = json.Marshal(map[string]any{"order_id": orderID})
+		payload, _ = json.Marshal(map[string]any{
+			"order_id":    orderID,
+			"code":        order.Code,
+			"customer_id": order.CustomerID,
+		})
 
 	default:
 		return nil
@@ -368,6 +383,7 @@ func cancelledEvent(order *entity.Order, cancelledBy string, traceID string) *en
 
 	payload, _ := json.Marshal(map[string]any{
 		"order_id":       order.ID,
+		"code":           order.Code,
 		"customer_id":    order.CustomerID,
 		"store_id":       order.StoreID,
 		"cancelled_by":   cancelledBy,

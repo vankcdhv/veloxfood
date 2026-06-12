@@ -56,6 +56,7 @@ type orderEventData struct {
 	Status        string `json:"status"`
 	PaymentMethod string `json:"payment_method"`
 	GrandTotal    int64  `json:"grand_total"`
+	CancelledBy   string `json:"cancelled_by"`
 }
 
 func parseOrderData(env outbox.Envelope) (orderEventData, bool) {
@@ -111,12 +112,19 @@ func (h *OrderEventHandler) handleOrderCancelled(ctx context.Context, env outbox
 	if !ok || d.CustomerID == "" {
 		return nil
 	}
+	// A store-initiated cancel is a rejection from the customer's perspective —
+	// reuse the order.cancelled event (so refund + quota restore still flow) but
+	// phrase the notification accordingly.
+	title, body := "Đơn hàng đã huỷ", "Đơn hàng #"+d.Code+" đã bị huỷ."
+	if d.CancelledBy == "store" {
+		title, body = "Đơn hàng bị từ chối", "Đơn hàng #"+d.Code+" đã bị quán từ chối."
+	}
 	return h.uc.FanOut(ctx, usecase.FanOutRequest{
 		EventID: env.EventID,
 		UserID:  d.CustomerID,
 		Type:    "order.cancelled",
-		Title:   "Đơn hàng đã huỷ",
-		Body:    "Đơn hàng #" + d.Code + " đã bị huỷ.",
+		Title:   title,
+		Body:    body,
 		Channel: entity.ChannelInApp,
 		Data:    map[string]any{"order_id": d.OrderID, "code": d.Code},
 		OrderID: d.OrderID,

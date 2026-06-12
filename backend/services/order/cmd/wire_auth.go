@@ -15,19 +15,20 @@ import (
 )
 
 // buildAuth wires JWT verification (public key only — order does not issue tokens)
-// and a remote permission checker backed by the user-service over gRPC.
-func buildAuth(deps app.Dependencies) (gin.HandlerFunc, error) {
+// and a remote permission checker backed by the user-service over gRPC. The
+// checker gates store-owner order routes (store.manage scoped to the vendor).
+func buildAuth(deps app.Dependencies) (gin.HandlerFunc, authmw.PermissionChecker, error) {
 	cfg := deps.Config
 
 	pubKey, err := authjwt.LoadPublicKey(cfg.JWT.PublicKeyPath, cfg.JWT.PublicKeyPEM)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	jwtSvc := authjwt.NewRS256Service(nil, pubKey, cfg.JWT.AccessTTL, cfg.JWT.RefreshTTL)
 
 	redisAuthStore, err := authstore.NewRedisAuthStore(cfg.Redis)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	conn, err := grpc.NewClient(
@@ -36,9 +37,9 @@ func buildAuth(deps app.Dependencies) (gin.HandlerFunc, error) {
 		grpc.WithUnaryInterceptor(trace.UnaryClientInterceptor()),
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	_ = remotechecker.New(userv1.NewUserServiceClient(conn)) // checker available for future perm gates
-	return authmw.AuthRequired(jwtSvc, redisAuthStore), nil
+	checker := remotechecker.New(userv1.NewUserServiceClient(conn))
+	return authmw.AuthRequired(jwtSvc, redisAuthStore), checker, nil
 }

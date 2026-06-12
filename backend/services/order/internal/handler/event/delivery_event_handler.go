@@ -145,6 +145,8 @@ func (h *DeliveryEventHandler) handleDeliveryStatusChanged(ctx context.Context, 
 		if nextStatus == entity.StatusDelivered {
 			deliveredPayload, _ := json.Marshal(map[string]any{
 				"order_id":       order.ID,
+				"code":           order.Code,
+				"customer_id":    order.CustomerID,
 				"store_id":       order.StoreID,
 				"amount":         order.GrandTotal,
 				"payment_method": string(order.PaymentMethod),
@@ -161,7 +163,11 @@ func (h *DeliveryEventHandler) handleDeliveryStatusChanged(ctx context.Context, 
 
 			// MVP: auto-complete immediately after delivered so the order reaches
 			// its terminal COMPLETED state (unlocks Review eligibility).
-			completedPayload, _ := json.Marshal(map[string]any{"order_id": order.ID})
+			completedPayload, _ := json.Marshal(map[string]any{
+				"order_id":    order.ID,
+				"code":        order.Code,
+				"customer_id": order.CustomerID,
+			})
 			if err := h.outboxRepo.Append(ctx, tx, &entity.OutboxEvent{
 				AggregateType: "order",
 				AggregateID:   order.ID,

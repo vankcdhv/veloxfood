@@ -110,6 +110,23 @@ func (s *stubStore) GetStoreForOrder(_ context.Context, _, _, _ string) (*grpccl
 	}, nil
 }
 
+// GetStoreOwnership lets stubStore satisfy the owner handler's resolver — the
+// owner-flow tests exercise lifecycle transitions, not authorization.
+func (s *stubStore) GetStoreOwnership(_ context.Context, _ string) (*grpcclient.StoreOwnership, error) {
+	return &grpcclient.StoreOwnership{Found: true, VendorID: "test-vendor", OwnerUserID: testCustomerID}, nil
+}
+
+// stubChecker authorizes every owner action so lifecycle tests stay focused.
+type stubChecker struct{}
+
+func (stubChecker) HasPermission(_ context.Context, _, _ string) (bool, error) {
+	return true, nil
+}
+
+func (stubChecker) HasVendorPermission(_ context.Context, _, _, _ string) (bool, error) {
+	return true, nil
+}
+
 type stubPromotion struct{}
 
 func (s *stubPromotion) ApplyPromotion(_ context.Context, _, _, _ string, _ []string, _ int64, _ int32) (*grpcclient.PromotionApplyResult, error) {
@@ -352,7 +369,7 @@ func setupEnv(t *testing.T) *testEnv {
 		AuthMiddleware:  func(c *gin.Context) { c.Next() },
 		CartHandler:     v1.NewCustomerCartHandler(cartUC),
 		CustomerHandler: v1.NewCustomerOrderHandler(placeOrderUC, lifecycleUC),
-		OwnerHandler:    v1.NewOwnerOrderHandler(lifecycleUC, nil, nil),
+		OwnerHandler:    v1.NewOwnerOrderHandler(lifecycleUC, nil, nil, storeStub, stubChecker{}),
 	})
 
 	token := "test-token"

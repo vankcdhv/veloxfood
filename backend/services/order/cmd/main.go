@@ -44,13 +44,19 @@ func main() {
 
 		// ── HTTP router ───────────────────────────────────────────────────────
 		cfg := handlerhttp.RouterConfig{}
-		if authMW, err := buildAuth(deps); err != nil {
+		if authMW, permChecker, err := buildAuth(deps); err != nil {
 			slog.Error("order: auth setup failed — protected routes disabled", "err", err)
 		} else {
 			cfg.AuthMiddleware = authMW
 			cfg.CartHandler = v1.NewCustomerCartHandler(cartUC)
 			cfg.CustomerHandler = v1.NewCustomerOrderHandler(placeOrderUC, lifecycleUC)
-			cfg.OwnerHandler = v1.NewOwnerOrderHandler(lifecycleUC, userClient, locationClient)
+			// Pass a true nil interface when the store client failed to dial so the
+			// owner handler's nil guard catches it (avoids a typed-nil interface).
+			var ownerStore v1.StoreOwnershipResolver
+			if storeClient != nil {
+				ownerStore = storeClient
+			}
+			cfg.OwnerHandler = v1.NewOwnerOrderHandler(lifecycleUC, userClient, locationClient, ownerStore, permChecker)
 		}
 		handlerhttp.RegisterRoutes(r, cfg)
 
