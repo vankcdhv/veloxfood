@@ -55,6 +55,11 @@ export const deliveryApi = {
   adminListIncidents: async (): Promise<AdminIncident[]> =>
     unwrap(await http.get<ApiResponse<AdminIncident[]>>(`${API_PREFIX}/admin/incidents`)),
 
+  // PATCH /api/v1/admin/incidents/:id/resolve — mark an incident resolved.
+  adminResolveIncident: async (id: string): Promise<void> => {
+    await http.patch<ApiResponse>(`${API_PREFIX}/admin/incidents/${id}/resolve`, {});
+  },
+
   // POST /api/v1/deliveries/:orderId/incident-photo — upload evidence, returns its URL.
   uploadIncidentPhoto: async (orderId: string, file: File): Promise<string> => {
     const form = new FormData();

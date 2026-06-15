@@ -60,5 +60,6 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 
 		api.GET("/admin/deliveries", append(adminMW, h.ListDeliveries)...)
 		api.GET("/admin/incidents", append(adminMW, h.ListIncidents)...)
+		api.PATCH("/admin/incidents/:id/resolve", append(adminMW, h.ResolveIncident)...)
 	}
 }

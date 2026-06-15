@@ -36,10 +36,11 @@ type AdminIncidentView struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-// IncidentUsecase handles incident creation and admin listing.
+// IncidentUsecase handles incident creation, admin listing, and resolution.
 type IncidentUsecase interface {
 	ReportIncident(ctx context.Context, req ReportIncidentRequest) (*entity.DeliveryIncident, error)
 	ListAllIncidents(ctx context.Context) ([]*AdminIncidentView, error)
+	ResolveIncident(ctx context.Context, id string) error
 }
 
 type incidentUsecase struct {
@@ -154,4 +155,9 @@ func (uc *incidentUsecase) ListAllIncidents(ctx context.Context) ([]*AdminIncide
 		}
 	}
 	return views, nil
+}
+
+// ResolveIncident marks an incident RESOLVED (admin "đã xử lý" action).
+func (uc *incidentUsecase) ResolveIncident(ctx context.Context, id string) error {
+	return uc.incidentRepo.UpdateStatus(ctx, id, entity.IncidentResolved)
 }

@@ -35,6 +35,10 @@ type IncidentRepository interface {
 	// ListAllWithOrderCode returns all incidents joined to their delivery's
 	// order_code (admin view), newest first.
 	ListAllWithOrderCode(ctx context.Context) ([]*IncidentWithOrder, error)
+
+	// UpdateStatus sets an incident's status by id. Returns ErrNotFound when no
+	// row matches.
+	UpdateStatus(ctx context.Context, id string, status entity.IncidentStatus) error
 }
 
 // OutboxRepository persists outbox events for the delivery service.

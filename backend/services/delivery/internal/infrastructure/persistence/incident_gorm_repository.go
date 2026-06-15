@@ -38,3 +38,17 @@ func (r *incidentGormRepository) ListAllWithOrderCode(ctx context.Context) ([]*r
 		Scan(&rows).Error
 	return rows, err
 }
+
+func (r *incidentGormRepository) UpdateStatus(ctx context.Context, id string, status entity.IncidentStatus) error {
+	res := r.db.WithContext(ctx).
+		Model(&entity.DeliveryIncident{}).
+		Where("id = ?", id).
+		Update("status", status)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return repository.ErrNotFound
+	}
+	return nil
+}

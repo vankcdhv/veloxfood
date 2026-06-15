@@ -19,6 +19,17 @@ export function useAdminIncidents() {
   });
 }
 
+// Admin: mark an incident resolved, then refresh the list.
+export function useResolveIncident() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deliveryApi.adminResolveIncident(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: deliveryKeys.adminIncidents() });
+    },
+  });
+}
+
 // The shipper who delivered an order (customer rating flow). Enable only when
 // the order was delivered, so we don't query for undelivered orders.
 export function useOrderShipper(orderId: string, enabled: boolean) {
