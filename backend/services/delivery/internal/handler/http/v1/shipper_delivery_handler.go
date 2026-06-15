@@ -143,6 +143,24 @@ func (h *ShipperDeliveryHandler) MyDeliveries(c *gin.Context) {
 // POST /api/v1/deliveries/:orderId/incident-photo (multipart, field "image")
 func (h *ShipperDeliveryHandler) UploadIncidentPhoto(c *gin.Context) {
 	orderID := c.Param("orderId")
+	shipperID := authmw.UserIDFromContext(c.Request.Context())
+
+	// Only the assigned shipper may upload evidence for this delivery — the
+	// object key is deterministic per order, so without this any shipper could
+	// overwrite another's incident photo.
+	owns, err := h.deliveryUC.OwnsDelivery(c.Request.Context(), orderID, shipperID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.Response{
+			Status: http.StatusInternalServerError, Message: "internal server error", Error: err.Error(),
+		})
+		return
+	}
+	if !owns {
+		c.JSON(http.StatusForbidden, response.Response{
+			Status: http.StatusForbidden, Message: "forbidden", Error: "not the delivery owner",
+		})
+		return
+	}
 
 	file, header, err := c.Request.FormFile("image")
 	if err != nil {
@@ -152,6 +170,22 @@ func (h *ShipperDeliveryHandler) UploadIncidentPhoto(c *gin.Context) {
 		return
 	}
 	defer file.Close()
+
+	// Reject oversized uploads (max 5MB) and non-image content types.
+	const maxIncidentPhotoBytes = 5 << 20
+	if header.Size > maxIncidentPhotoBytes {
+		c.JSON(http.StatusBadRequest, response.Response{
+			Status: http.StatusBadRequest, Message: "bad request", Error: "image too large (max 5MB)",
+		})
+		return
+	}
+	contentType := header.Header.Get("Content-Type")
+	if !allowedImageType(contentType) {
+		c.JSON(http.StatusBadRequest, response.Response{
+			Status: http.StatusBadRequest, Message: "bad request", Error: "unsupported image type",
+		})
+		return
+	}
 
 	ext := filepath.Ext(header.Filename)
 	objectKey := fmt.Sprintf("deliveries/%s/incident%s", orderID, ext)
@@ -163,6 +197,17 @@ func (h *ShipperDeliveryHandler) UploadIncidentPhoto(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, response.Response{Status: http.StatusOK, Message: "ok", Data: gin.H{"photo_url": url}})
+}
+
+// allowedImageType reports whether the multipart content type is an accepted
+// incident-evidence image format.
+func allowedImageType(contentType string) bool {
+	switch contentType {
+	case "image/jpeg", "image/png", "image/webp":
+		return true
+	default:
+		return false
+	}
 }
 
 // GetOrderShipper returns the shipper assigned to the caller's order, so the
@@ -185,7 +230,7 @@ func (h *ShipperDeliveryHandler) ReportIncident(c *gin.Context) {
 	shipperID := authmw.UserIDFromContext(c.Request.Context())
 
 	var req struct {
-		Type     string  `json:"type" binding:"required"`
+		Type     string  `json:"type" binding:"required,oneof=WRONG_ADDRESS CUSTOMER_ABSENT ITEM_DAMAGED OTHER"`
 		Note     string  `json:"note" binding:"required"`
 		PhotoURL *string `json:"photo_url"`
 	}

@@ -73,6 +73,10 @@ type DeliveryUsecase interface {
 	// GetOrderShipper returns the shipper assigned to the caller's order (for
 	// rating). Empty when the caller doesn't own the order or none is assigned.
 	GetOrderShipper(ctx context.Context, orderID, customerID string) (string, error)
+
+	// OwnsDelivery reports whether the given shipper is the one assigned to the
+	// order's delivery — guards actions keyed only by orderId (e.g. photo upload).
+	OwnsDelivery(ctx context.Context, orderID, shipperID string) (bool, error)
 }
 
 type deliveryUsecase struct {
@@ -113,8 +117,10 @@ func (uc *deliveryUsecase) ListAvailable(ctx context.Context) ([]*AvailableDeliv
 		if uc.locationClient != nil {
 			display = uc.locationClient.GetLocationPath(ctx, d.LocationID, d.LocationLevel)
 		}
-		if display == "" {
-			display = d.LocationID // graceful fallback: show UUID
+		// Never surface a raw UUID: GetLocationPath echoes the id back when
+		// resolution fails, so treat that (and empty) as "unknown location".
+		if display == "" || display == d.LocationID {
+			display = "Địa điểm không xác định"
 		}
 		items[i] = &AvailableDeliveryItem{
 			OrderID:       d.OrderID,
@@ -316,6 +322,18 @@ func (uc *deliveryUsecase) GetOrderShipper(ctx context.Context, orderID, custome
 		return "", nil
 	}
 	return *d.ShipperID, nil
+}
+
+// OwnsDelivery reports whether shipperID is assigned to the order's delivery.
+func (uc *deliveryUsecase) OwnsDelivery(ctx context.Context, orderID, shipperID string) (bool, error) {
+	d, err := uc.deliveryRepo.GetByOrderID(ctx, orderID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, repository.ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return d.ShipperID != nil && *d.ShipperID == shipperID, nil
 }
 
 // formatTimePtr formats a *time.Time as RFC3339; returns "" when nil.
