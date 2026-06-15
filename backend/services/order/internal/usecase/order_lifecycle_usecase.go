@@ -36,6 +36,9 @@ type OrderLifecycleUsecase interface {
 
 	// Reorder creates a new cart pre-filled from a previous order.
 	Reorder(ctx context.Context, orderID, customerID string) (*entity.Cart, error)
+
+	// DeliveredAt returns when the order was marked DELIVERED, or nil if not yet.
+	DeliveredAt(ctx context.Context, orderID string) (*time.Time, error)
 }
 
 type orderLifecycleUsecase struct {
@@ -71,6 +74,10 @@ func NewOrderLifecycleUsecase(
 
 func (uc *orderLifecycleUsecase) GetOrder(ctx context.Context, orderID string) (*entity.Order, error) {
 	return uc.orderRepo.GetByID(ctx, orderID)
+}
+
+func (uc *orderLifecycleUsecase) DeliveredAt(ctx context.Context, orderID string) (*time.Time, error) {
+	return uc.orderRepo.StatusChangedAt(ctx, orderID, entity.StatusDelivered)
 }
 
 func (uc *orderLifecycleUsecase) ListCustomerOrders(ctx context.Context, customerID string, page, pageSize int) ([]*entity.Order, int64, error) {
@@ -275,8 +282,15 @@ func statusEvent(order *entity.Order, to entity.OrderStatus, traceID string) *en
 
 	switch to {
 	case entity.StatusConfirmed, entity.StatusPreparing:
+		// code + customer_id are required so Notification can fan out to the
+		// customer; without them the consumer drops the event silently.
 		eventType = "order." + statusEventSuffix(to)
-		payload, _ = json.Marshal(map[string]any{"order_id": orderID, "status": string(to)})
+		payload, _ = json.Marshal(map[string]any{
+			"order_id":    orderID,
+			"code":        order.Code,
+			"customer_id": order.CustomerID,
+			"status":      string(to),
+		})
 
 	case entity.StatusReady:
 		// Enriched so the Delivery service can create the delivery record straight

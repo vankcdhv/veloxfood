@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"net/http"
+	"time"
 
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/response"
@@ -80,9 +81,10 @@ func (h *OwnerOrderHandler) authorizeStoreOwner(c *gin.Context, storeID string) 
 // delivery path so the store owner knows who/where to fulfill (never raw UUIDs).
 type ownerOrderView struct {
 	*entity.Order
-	CustomerName  string `json:"CustomerName"`
-	CustomerPhone string `json:"CustomerPhone"`
-	LocationPath  string `json:"LocationPath"`
+	CustomerName  string     `json:"CustomerName"`
+	CustomerPhone string     `json:"CustomerPhone"`
+	LocationPath  string     `json:"LocationPath"`
+	DeliveredAt   *time.Time `json:"DeliveredAt,omitempty"`
 }
 
 func (h *OwnerOrderHandler) enrich(c *gin.Context, o *entity.Order) *ownerOrderView {
@@ -98,6 +100,11 @@ func (h *OwnerOrderHandler) enrich(c *gin.Context, o *entity.Order) *ownerOrderV
 			level = *o.LocationLevel
 		}
 		v.LocationPath = h.locationClient.GetLocationPath(ctx, *o.LocationID, level)
+		// GetLocationPath echoes the id back on resolution failure; never show a
+		// raw UUID to the store owner.
+		if v.LocationPath == "" || v.LocationPath == *o.LocationID {
+			v.LocationPath = "Địa điểm không xác định"
+		}
 	}
 	return v
 }
@@ -138,7 +145,15 @@ func (h *OwnerOrderHandler) GetOrder(c *gin.Context) {
 		response.HandleError(c, err)
 		return
 	}
-	response.Success(c, h.enrich(c, order))
+	view := h.enrich(c, order)
+	// On the detail view the owner sees the on-time/late badge, which needs the
+	// actual delivered time (status history) — not serialized on the bare order.
+	if order.Status == entity.StatusDelivered || order.Status == entity.StatusCompleted {
+		if at, err := h.lifecycleUC.DeliveredAt(c.Request.Context(), orderID); err == nil {
+			view.DeliveredAt = at
+		}
+	}
+	response.Success(c, view)
 }
 
 // ConfirmOrder POST /api/v1/stores/:storeId/orders/:id/confirm

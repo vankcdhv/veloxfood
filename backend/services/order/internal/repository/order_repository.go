@@ -36,6 +36,10 @@ type OrderRepository interface {
 
 	// UpdatePaymentStatus sets order.payment_status.
 	UpdatePaymentStatus(ctx context.Context, tx *gorm.DB, orderID string, status entity.PaymentStatus) error
+
+	// StatusChangedAt returns the time of the most recent transition into the
+	// given status, or nil when the order never reached it.
+	StatusChangedAt(ctx context.Context, orderID string, status entity.OrderStatus) (*time.Time, error)
 }
 
 // OutboxRepository persists outbox events for the order service.

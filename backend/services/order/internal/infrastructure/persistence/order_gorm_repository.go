@@ -130,3 +130,18 @@ func (r *orderGormRepository) UpdatePaymentStatus(ctx context.Context, tx *gorm.
 		Updates(map[string]any{"payment_status": status, "updated_at": time.Now()}).Error
 }
 
+func (r *orderGormRepository) StatusChangedAt(ctx context.Context, orderID string, status entity.OrderStatus) (*time.Time, error) {
+	var hist entity.OrderStatusHistory
+	err := r.db.WithContext(ctx).
+		Where("order_id = ? AND status = ?", orderID, status).
+		Order("created_at DESC").
+		First(&hist).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("status changed-at: %w", err)
+	}
+	return &hist.CreatedAt, nil
+}
+
