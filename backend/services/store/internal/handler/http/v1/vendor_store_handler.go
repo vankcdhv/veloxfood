@@ -200,7 +200,8 @@ func (h *VendorStoreHandler) UpdateCategory(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	cat, err := h.catalogUC.UpdateCategory(c.Request.Context(), c.Param("catId"), body.Name, body.SortOrder)
+	// Pass storeID so the usecase enforces that the category belongs to this store.
+	cat, err := h.catalogUC.UpdateCategory(c.Request.Context(), c.Param("id"), c.Param("catId"), body.Name, body.SortOrder)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -213,7 +214,8 @@ func (h *VendorStoreHandler) DeleteCategory(c *gin.Context) {
 	if _, ok := h.authorizeStoreOwner(c, c.Param("id")); !ok {
 		return
 	}
-	if err := h.catalogUC.DeleteCategory(c.Request.Context(), c.Param("catId")); err != nil {
+	// Pass storeID so the usecase enforces that the category belongs to this store.
+	if err := h.catalogUC.DeleteCategory(c.Request.Context(), c.Param("id"), c.Param("catId")); err != nil {
 		response.HandleError(c, err)
 		return
 	}
@@ -232,7 +234,7 @@ func (h *VendorStoreHandler) CreateMenuItem(c *gin.Context) {
 		CategoryID  string `json:"category_id"`
 		Name        string `json:"name" binding:"required"`
 		Description string `json:"description"`
-		Price       int64  `json:"price" binding:"required"`
+		Price       int64  `json:"price" binding:"required,min=0"`
 		Tags        string `json:"tags"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -255,7 +257,7 @@ func (h *VendorStoreHandler) UpdateMenuItem(c *gin.Context) {
 	var body struct {
 		Name        string  `json:"name" binding:"required"`
 		Description string  `json:"description"`
-		Price       int64   `json:"price" binding:"required"`
+		Price       int64   `json:"price" binding:"required,min=0"`
 		Tags        string  `json:"tags"`
 		ImageURL    *string `json:"image_url"`
 	}
@@ -263,7 +265,8 @@ func (h *VendorStoreHandler) UpdateMenuItem(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	item, err := h.catalogUC.UpdateMenuItem(c.Request.Context(), c.Param("itemId"), body.Name, body.Description, body.Price, body.Tags, body.ImageURL)
+	// Pass storeID so the usecase enforces that the menu item belongs to this store.
+	item, err := h.catalogUC.UpdateMenuItem(c.Request.Context(), c.Param("id"), c.Param("itemId"), body.Name, body.Description, body.Price, body.Tags, body.ImageURL)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -283,7 +286,8 @@ func (h *VendorStoreHandler) ToggleMenuItemStatus(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	if err := h.catalogUC.ToggleMenuItemStatus(c.Request.Context(), c.Param("itemId"), body.Status); err != nil {
+	// Pass storeID so the usecase enforces that the menu item belongs to this store.
+	if err := h.catalogUC.ToggleMenuItemStatus(c.Request.Context(), c.Param("id"), c.Param("itemId"), body.Status); err != nil {
 		response.HandleError(c, err)
 		return
 	}
@@ -313,7 +317,8 @@ func (h *VendorStoreHandler) UploadMenuItemImage(c *gin.Context) {
 		return
 	}
 
-	if err := h.catalogUC.SetMenuItemImage(c.Request.Context(), itemID, url); err != nil {
+	// Pass storeID so the usecase enforces that the menu item belongs to this store.
+	if err := h.catalogUC.SetMenuItemImage(c.Request.Context(), storeID, itemID, url); err != nil {
 		response.HandleError(c, err)
 		return
 	}
@@ -354,7 +359,8 @@ func (h *VendorStoreHandler) DeleteMenuItem(c *gin.Context) {
 	if _, ok := h.authorizeStoreOwner(c, c.Param("id")); !ok {
 		return
 	}
-	if err := h.catalogUC.DeleteMenuItem(c.Request.Context(), c.Param("itemId")); err != nil {
+	// Pass storeID so the usecase enforces that the menu item belongs to this store.
+	if err := h.catalogUC.DeleteMenuItem(c.Request.Context(), c.Param("id"), c.Param("itemId")); err != nil {
 		response.HandleError(c, err)
 		return
 	}
@@ -416,7 +422,8 @@ func (h *VendorStoreHandler) UpdateOptionGroup(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	og, err := h.catalogUC.UpdateOptionGroup(c.Request.Context(), c.Param("ogId"), body.Name, body.MinSelect, body.MaxSelect, body.Required)
+	// Pass storeID so the usecase enforces that the option group belongs to this store.
+	og, err := h.catalogUC.UpdateOptionGroup(c.Request.Context(), c.Param("id"), c.Param("ogId"), body.Name, body.MinSelect, body.MaxSelect, body.Required)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -429,7 +436,8 @@ func (h *VendorStoreHandler) DeleteOptionGroup(c *gin.Context) {
 	if _, ok := h.authorizeStoreOwner(c, c.Param("id")); !ok {
 		return
 	}
-	if err := h.catalogUC.DeleteOptionGroup(c.Request.Context(), c.Param("ogId")); err != nil {
+	// Pass storeID so the usecase enforces that the option group belongs to this store.
+	if err := h.catalogUC.DeleteOptionGroup(c.Request.Context(), c.Param("id"), c.Param("ogId")); err != nil {
 		response.HandleError(c, err)
 		return
 	}
@@ -451,7 +459,8 @@ func (h *VendorStoreHandler) CreateOption(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	opt, err := h.catalogUC.CreateOption(c.Request.Context(), c.Param("ogId"), body.Name, body.ExtraPrice)
+	// Pass storeID so the usecase verifies the parent option group belongs to this store.
+	opt, err := h.catalogUC.CreateOption(c.Request.Context(), c.Param("id"), c.Param("ogId"), body.Name, body.ExtraPrice)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -485,7 +494,8 @@ func (h *VendorStoreHandler) UpdateOption(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	opt, err := h.catalogUC.UpdateOption(c.Request.Context(), c.Param("optId"), body.Name, body.ExtraPrice)
+	// Pass storeID so the usecase verifies the option's parent group belongs to this store.
+	opt, err := h.catalogUC.UpdateOption(c.Request.Context(), c.Param("id"), c.Param("optId"), body.Name, body.ExtraPrice)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -498,7 +508,8 @@ func (h *VendorStoreHandler) DeleteOption(c *gin.Context) {
 	if _, ok := h.authorizeStoreOwner(c, c.Param("id")); !ok {
 		return
 	}
-	if err := h.catalogUC.DeleteOption(c.Request.Context(), c.Param("optId")); err != nil {
+	// Pass storeID so the usecase verifies the option's parent group belongs to this store.
+	if err := h.catalogUC.DeleteOption(c.Request.Context(), c.Param("id"), c.Param("optId")); err != nil {
 		response.HandleError(c, err)
 		return
 	}
@@ -573,7 +584,7 @@ func (h *VendorStoreHandler) CreateCombo(c *gin.Context) {
 	}
 	var body struct {
 		Name  string `json:"name" binding:"required"`
-		Price int64  `json:"price" binding:"required"`
+		Price int64  `json:"price" binding:"required,min=0"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.BadRequest(c, err.Error())
@@ -594,13 +605,14 @@ func (h *VendorStoreHandler) UpdateCombo(c *gin.Context) {
 	}
 	var body struct {
 		Name  string `json:"name" binding:"required"`
-		Price int64  `json:"price" binding:"required"`
+		Price int64  `json:"price" binding:"required,min=0"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	combo, err := h.catalogUC.UpdateCombo(c.Request.Context(), c.Param("comboId"), body.Name, body.Price)
+	// Pass storeID so the usecase enforces that the combo belongs to this store.
+	combo, err := h.catalogUC.UpdateCombo(c.Request.Context(), c.Param("id"), c.Param("comboId"), body.Name, body.Price)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -613,7 +625,8 @@ func (h *VendorStoreHandler) DeleteCombo(c *gin.Context) {
 	if _, ok := h.authorizeStoreOwner(c, c.Param("id")); !ok {
 		return
 	}
-	if err := h.catalogUC.DeleteCombo(c.Request.Context(), c.Param("comboId")); err != nil {
+	// Pass storeID so the usecase enforces that the combo belongs to this store.
+	if err := h.catalogUC.DeleteCombo(c.Request.Context(), c.Param("id"), c.Param("comboId")); err != nil {
 		response.HandleError(c, err)
 		return
 	}
@@ -633,7 +646,8 @@ func (h *VendorStoreHandler) AddComboItem(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	if err := h.catalogUC.AddComboItem(c.Request.Context(), c.Param("comboId"), body.MenuItemID, body.Quantity); err != nil {
+	// Pass storeID so the usecase verifies the combo belongs to this store before adding a line item.
+	if err := h.catalogUC.AddComboItem(c.Request.Context(), c.Param("id"), c.Param("comboId"), body.MenuItemID, body.Quantity); err != nil {
 		response.HandleError(c, err)
 		return
 	}
@@ -658,7 +672,8 @@ func (h *VendorStoreHandler) RemoveComboItem(c *gin.Context) {
 	if _, ok := h.authorizeStoreOwner(c, c.Param("id")); !ok {
 		return
 	}
-	if err := h.catalogUC.RemoveComboItem(c.Request.Context(), c.Param("comboId"), c.Param("menuItemId")); err != nil {
+	// Pass storeID so the usecase verifies the combo belongs to this store before removing the line item.
+	if err := h.catalogUC.RemoveComboItem(c.Request.Context(), c.Param("id"), c.Param("comboId"), c.Param("menuItemId")); err != nil {
 		response.HandleError(c, err)
 		return
 	}

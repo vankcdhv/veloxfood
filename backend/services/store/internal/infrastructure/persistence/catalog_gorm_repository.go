@@ -34,6 +34,17 @@ func (r *catalogGormRepository) GetCategory(ctx context.Context, id string) (*en
 	return &c, nil
 }
 
+// GetCategoryByStore fetches a category only if it belongs to storeID.
+// Returns gorm.ErrRecordNotFound when the category does not exist or belongs to a different store,
+// which maps to 404 — preventing cross-tenant reads from leaking data.
+func (r *catalogGormRepository) GetCategoryByStore(ctx context.Context, id, storeID string) (*entity.Category, error) {
+	var c entity.Category
+	if err := r.db.WithContext(ctx).First(&c, "id = ? AND store_id = ?", id, storeID).Error; err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
 func (r *catalogGormRepository) ListCategories(ctx context.Context, storeID string) ([]*entity.Category, error) {
 	var rows []*entity.Category
 	return rows, r.db.WithContext(ctx).
@@ -53,6 +64,20 @@ func (r *catalogGormRepository) DeleteCategory(ctx context.Context, id string) e
 	return r.db.WithContext(ctx).Delete(&entity.Category{}, "id = ?", id).Error
 }
 
+// DeleteCategoryByStore soft-deletes the category only when it belongs to storeID.
+// If the row does not exist or belongs to a different store, the delete is a no-op
+// and the usecase treats RowsAffected==0 as not-found (returns 404).
+func (r *catalogGormRepository) DeleteCategoryByStore(ctx context.Context, id, storeID string) error {
+	res := r.db.WithContext(ctx).Delete(&entity.Category{}, "id = ? AND store_id = ?", id, storeID)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
 // ---- MenuItems ----
 
 func (r *catalogGormRepository) CreateMenuItem(ctx context.Context, m *entity.MenuItem) error {
@@ -62,6 +87,17 @@ func (r *catalogGormRepository) CreateMenuItem(ctx context.Context, m *entity.Me
 func (r *catalogGormRepository) GetMenuItem(ctx context.Context, id string) (*entity.MenuItem, error) {
 	var m entity.MenuItem
 	if err := r.db.WithContext(ctx).First(&m, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+// GetMenuItemByStore fetches a menu item only if it belongs to storeID.
+// Returns gorm.ErrRecordNotFound when the item does not exist or belongs to a different store,
+// which maps to 404 — preventing cross-tenant reads from leaking data.
+func (r *catalogGormRepository) GetMenuItemByStore(ctx context.Context, id, storeID string) (*entity.MenuItem, error) {
+	var m entity.MenuItem
+	if err := r.db.WithContext(ctx).First(&m, "id = ? AND store_id = ?", id, storeID).Error; err != nil {
 		return nil, err
 	}
 	return &m, nil
@@ -98,8 +134,37 @@ func (r *catalogGormRepository) ToggleMenuItemStatus(ctx context.Context, id str
 		Update("status", status).Error
 }
 
+// ToggleMenuItemStatusByStore sets only the status column scoped to storeID.
+// If the item does not belong to storeID, RowsAffected==0 and gorm.ErrRecordNotFound is returned.
+func (r *catalogGormRepository) ToggleMenuItemStatusByStore(ctx context.Context, id, storeID, status string) error {
+	res := r.db.WithContext(ctx).
+		Model(&entity.MenuItem{}).
+		Where("id = ? AND store_id = ?", id, storeID).
+		Update("status", status)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
 func (r *catalogGormRepository) DeleteMenuItem(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&entity.MenuItem{}, "id = ?", id).Error
+}
+
+// DeleteMenuItemByStore soft-deletes the menu item only when it belongs to storeID.
+// RowsAffected==0 means the item does not exist or belongs to a different store; returns gorm.ErrRecordNotFound.
+func (r *catalogGormRepository) DeleteMenuItemByStore(ctx context.Context, id, storeID string) error {
+	res := r.db.WithContext(ctx).Delete(&entity.MenuItem{}, "id = ? AND store_id = ?", id, storeID)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // ---- OptionGroups ----
@@ -111,6 +176,17 @@ func (r *catalogGormRepository) CreateOptionGroup(ctx context.Context, og *entit
 func (r *catalogGormRepository) GetOptionGroup(ctx context.Context, id string) (*entity.OptionGroup, error) {
 	var og entity.OptionGroup
 	if err := r.db.WithContext(ctx).First(&og, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &og, nil
+}
+
+// GetOptionGroupByStore fetches an option group only if it belongs to storeID.
+// Returns gorm.ErrRecordNotFound when the group does not exist or belongs to a different store,
+// which maps to 404 — preventing cross-tenant reads from leaking data.
+func (r *catalogGormRepository) GetOptionGroupByStore(ctx context.Context, id, storeID string) (*entity.OptionGroup, error) {
+	var og entity.OptionGroup
+	if err := r.db.WithContext(ctx).First(&og, "id = ? AND store_id = ?", id, storeID).Error; err != nil {
 		return nil, err
 	}
 	return &og, nil
@@ -135,6 +211,19 @@ func (r *catalogGormRepository) UpdateOptionGroup(ctx context.Context, og *entit
 
 func (r *catalogGormRepository) DeleteOptionGroup(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&entity.OptionGroup{}, "id = ?", id).Error
+}
+
+// DeleteOptionGroupByStore soft-deletes the option group only when it belongs to storeID.
+// RowsAffected==0 means the group does not exist or belongs to a different store; returns gorm.ErrRecordNotFound.
+func (r *catalogGormRepository) DeleteOptionGroupByStore(ctx context.Context, id, storeID string) error {
+	res := r.db.WithContext(ctx).Delete(&entity.OptionGroup{}, "id = ? AND store_id = ?", id, storeID)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // ---- Options ----
@@ -208,6 +297,17 @@ func (r *catalogGormRepository) GetCombo(ctx context.Context, id string) (*entit
 	return &c, nil
 }
 
+// GetComboByStore fetches a combo only if it belongs to storeID.
+// Returns gorm.ErrRecordNotFound when the combo does not exist or belongs to a different store,
+// which maps to 404 — preventing cross-tenant reads from leaking data.
+func (r *catalogGormRepository) GetComboByStore(ctx context.Context, id, storeID string) (*entity.Combo, error) {
+	var c entity.Combo
+	if err := r.db.WithContext(ctx).First(&c, "id = ? AND store_id = ?", id, storeID).Error; err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
 func (r *catalogGormRepository) ListCombos(ctx context.Context, storeID string) ([]*entity.Combo, error) {
 	var rows []*entity.Combo
 	return rows, r.db.WithContext(ctx).
@@ -225,6 +325,19 @@ func (r *catalogGormRepository) UpdateCombo(ctx context.Context, c *entity.Combo
 
 func (r *catalogGormRepository) DeleteCombo(ctx context.Context, id string) error {
 	return r.db.WithContext(ctx).Delete(&entity.Combo{}, "id = ?", id).Error
+}
+
+// DeleteComboByStore soft-deletes the combo only when it belongs to storeID.
+// RowsAffected==0 means the combo does not exist or belongs to a different store; returns gorm.ErrRecordNotFound.
+func (r *catalogGormRepository) DeleteComboByStore(ctx context.Context, id, storeID string) error {
+	res := r.db.WithContext(ctx).Delete(&entity.Combo{}, "id = ? AND store_id = ?", id, storeID)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // ---- ComboItems ----

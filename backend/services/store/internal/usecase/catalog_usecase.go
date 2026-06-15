@@ -18,29 +18,41 @@ type CatalogUsecase interface {
 	// Categories
 	CreateCategory(ctx context.Context, storeID, name string, sortOrder int) (*entity.Category, error)
 	ListCategories(ctx context.Context, storeID string) ([]*entity.Category, error)
-	UpdateCategory(ctx context.Context, id, name string, sortOrder int) (*entity.Category, error)
-	DeleteCategory(ctx context.Context, id string) error
+	// UpdateCategory scopes the update to storeID so a vendor cannot mutate another store's category.
+	UpdateCategory(ctx context.Context, storeID, id, name string, sortOrder int) (*entity.Category, error)
+	// DeleteCategory scopes the delete to storeID so a vendor cannot remove another store's category.
+	DeleteCategory(ctx context.Context, storeID, id string) error
 
 	// Menu items
 	CreateMenuItem(ctx context.Context, storeID, categoryID, name, description string, price int64, tags string) (*entity.MenuItem, error)
 	GetMenuItem(ctx context.Context, id string) (*entity.MenuItem, error)
 	ListMenuItems(ctx context.Context, storeID, categoryID, status string) ([]*entity.MenuItem, error)
-	UpdateMenuItem(ctx context.Context, id, name, description string, price int64, tags string, imageURL *string) (*entity.MenuItem, error)
-	ToggleMenuItemStatus(ctx context.Context, id, status string) error
-	SetMenuItemImage(ctx context.Context, id, imageURL string) error
-	DeleteMenuItem(ctx context.Context, id string) error
+	// UpdateMenuItem scopes the update to storeID to prevent cross-tenant edits.
+	UpdateMenuItem(ctx context.Context, storeID, id, name, description string, price int64, tags string, imageURL *string) (*entity.MenuItem, error)
+	// ToggleMenuItemStatus scopes the status change to storeID to prevent cross-tenant edits.
+	ToggleMenuItemStatus(ctx context.Context, storeID, id, status string) error
+	// SetMenuItemImage scopes the image update to storeID to prevent cross-tenant edits.
+	SetMenuItemImage(ctx context.Context, storeID, id, imageURL string) error
+	// DeleteMenuItem scopes the delete to storeID to prevent cross-tenant edits.
+	DeleteMenuItem(ctx context.Context, storeID, id string) error
 
 	// Option groups
 	CreateOptionGroup(ctx context.Context, storeID, name string, minSelect, maxSelect int, required bool) (*entity.OptionGroup, error)
 	ListOptionGroups(ctx context.Context, storeID string) ([]*entity.OptionGroup, error)
-	UpdateOptionGroup(ctx context.Context, id, name string, minSelect, maxSelect int, required bool) (*entity.OptionGroup, error)
-	DeleteOptionGroup(ctx context.Context, id string) error
+	// UpdateOptionGroup scopes the update to storeID to prevent cross-tenant edits.
+	UpdateOptionGroup(ctx context.Context, storeID, id, name string, minSelect, maxSelect int, required bool) (*entity.OptionGroup, error)
+	// DeleteOptionGroup scopes the delete to storeID to prevent cross-tenant edits.
+	DeleteOptionGroup(ctx context.Context, storeID, id string) error
 
-	// Options
-	CreateOption(ctx context.Context, optionGroupID, name string, extraPrice int64) (*entity.Option, error)
+	// Options — Option rows have no direct StoreID; ownership is inherited from their
+	// parent OptionGroup. The storeID parameter is asserted against the parent's StoreID.
+	// CreateOption verifies the target option group belongs to storeID before inserting.
+	CreateOption(ctx context.Context, storeID, optionGroupID, name string, extraPrice int64) (*entity.Option, error)
 	ListOptions(ctx context.Context, optionGroupID string) ([]*entity.Option, error)
-	UpdateOption(ctx context.Context, id, name string, extraPrice int64) (*entity.Option, error)
-	DeleteOption(ctx context.Context, id string) error
+	// UpdateOption verifies the option's parent group belongs to storeID before updating.
+	UpdateOption(ctx context.Context, storeID, id, name string, extraPrice int64) (*entity.Option, error)
+	// DeleteOption verifies the option's parent group belongs to storeID before deleting.
+	DeleteOption(ctx context.Context, storeID, id string) error
 
 	// MenuItem ↔ OptionGroup links
 	AttachOptionGroup(ctx context.Context, menuItemID, optionGroupID string) error
@@ -50,10 +62,14 @@ type CatalogUsecase interface {
 	// Combos
 	CreateCombo(ctx context.Context, storeID, name string, price int64) (*entity.Combo, error)
 	ListCombos(ctx context.Context, storeID string) ([]*entity.Combo, error)
-	UpdateCombo(ctx context.Context, id, name string, price int64) (*entity.Combo, error)
-	DeleteCombo(ctx context.Context, id string) error
-	AddComboItem(ctx context.Context, comboID, menuItemID string, quantity int) error
-	RemoveComboItem(ctx context.Context, comboID, menuItemID string) error
+	// UpdateCombo scopes the update to storeID to prevent cross-tenant edits.
+	UpdateCombo(ctx context.Context, storeID, id, name string, price int64) (*entity.Combo, error)
+	// DeleteCombo scopes the delete to storeID to prevent cross-tenant edits.
+	DeleteCombo(ctx context.Context, storeID, id string) error
+	// AddComboItem verifies the combo belongs to storeID before adding a line item.
+	AddComboItem(ctx context.Context, storeID, comboID, menuItemID string, quantity int) error
+	// RemoveComboItem verifies the combo belongs to storeID before removing a line item.
+	RemoveComboItem(ctx context.Context, storeID, comboID, menuItemID string) error
 	ListComboItems(ctx context.Context, comboID string) ([]*entity.ComboItem, error)
 
 	// Global search
@@ -84,8 +100,9 @@ func (uc *catalogUsecase) ListCategories(ctx context.Context, storeID string) ([
 	return uc.catalogRepo.ListCategories(ctx, storeID)
 }
 
-func (uc *catalogUsecase) UpdateCategory(ctx context.Context, id, name string, sortOrder int) (*entity.Category, error) {
-	c, err := uc.catalogRepo.GetCategory(ctx, id)
+func (uc *catalogUsecase) UpdateCategory(ctx context.Context, storeID, id, name string, sortOrder int) (*entity.Category, error) {
+	// Scope the lookup to storeID so a vendor cannot update another store's category.
+	c, err := uc.catalogRepo.GetCategoryByStore(ctx, id, storeID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrCategoryNotFound
 	}
@@ -100,8 +117,13 @@ func (uc *catalogUsecase) UpdateCategory(ctx context.Context, id, name string, s
 	return c, nil
 }
 
-func (uc *catalogUsecase) DeleteCategory(ctx context.Context, id string) error {
-	return uc.catalogRepo.DeleteCategory(ctx, id)
+func (uc *catalogUsecase) DeleteCategory(ctx context.Context, storeID, id string) error {
+	// Scope the delete to storeID so a vendor cannot remove another store's category.
+	err := uc.catalogRepo.DeleteCategoryByStore(ctx, id, storeID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrCategoryNotFound
+	}
+	return err
 }
 
 // ─── Menu items ───────────────────────────────────────────────────────────────
@@ -134,8 +156,9 @@ func (uc *catalogUsecase) ListMenuItems(ctx context.Context, storeID, categoryID
 	return uc.catalogRepo.ListMenuItems(ctx, storeID, categoryID, status)
 }
 
-func (uc *catalogUsecase) UpdateMenuItem(ctx context.Context, id, name, description string, price int64, tags string, imageURL *string) (*entity.MenuItem, error) {
-	m, err := uc.catalogRepo.GetMenuItem(ctx, id)
+func (uc *catalogUsecase) UpdateMenuItem(ctx context.Context, storeID, id, name, description string, price int64, tags string, imageURL *string) (*entity.MenuItem, error) {
+	// Scope the lookup to storeID so a vendor cannot update another store's menu item.
+	m, err := uc.catalogRepo.GetMenuItemByStore(ctx, id, storeID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrMenuItemNotFound
 	}
@@ -156,15 +179,21 @@ func (uc *catalogUsecase) UpdateMenuItem(ctx context.Context, id, name, descript
 	return m, nil
 }
 
-func (uc *catalogUsecase) ToggleMenuItemStatus(ctx context.Context, id, status string) error {
+func (uc *catalogUsecase) ToggleMenuItemStatus(ctx context.Context, storeID, id, status string) error {
 	if status != "on" && status != "off" {
 		return fmt.Errorf("invalid status: must be 'on' or 'off'")
 	}
-	return uc.catalogRepo.ToggleMenuItemStatus(ctx, id, status)
+	// Scope the status change to storeID so a vendor cannot toggle another store's item.
+	err := uc.catalogRepo.ToggleMenuItemStatusByStore(ctx, id, storeID, status)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrMenuItemNotFound
+	}
+	return err
 }
 
-func (uc *catalogUsecase) SetMenuItemImage(ctx context.Context, id, imageURL string) error {
-	m, err := uc.catalogRepo.GetMenuItem(ctx, id)
+func (uc *catalogUsecase) SetMenuItemImage(ctx context.Context, storeID, id, imageURL string) error {
+	// Scope the lookup to storeID so a vendor cannot set image on another store's item.
+	m, err := uc.catalogRepo.GetMenuItemByStore(ctx, id, storeID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return ErrMenuItemNotFound
 	}
@@ -175,8 +204,13 @@ func (uc *catalogUsecase) SetMenuItemImage(ctx context.Context, id, imageURL str
 	return uc.catalogRepo.UpdateMenuItem(ctx, m)
 }
 
-func (uc *catalogUsecase) DeleteMenuItem(ctx context.Context, id string) error {
-	return uc.catalogRepo.DeleteMenuItem(ctx, id)
+func (uc *catalogUsecase) DeleteMenuItem(ctx context.Context, storeID, id string) error {
+	// Scope the delete to storeID so a vendor cannot remove another store's menu item.
+	err := uc.catalogRepo.DeleteMenuItemByStore(ctx, id, storeID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrMenuItemNotFound
+	}
+	return err
 }
 
 // ─── Option groups ────────────────────────────────────────────────────────────
@@ -193,8 +227,9 @@ func (uc *catalogUsecase) ListOptionGroups(ctx context.Context, storeID string) 
 	return uc.catalogRepo.ListOptionGroups(ctx, storeID)
 }
 
-func (uc *catalogUsecase) UpdateOptionGroup(ctx context.Context, id, name string, minSelect, maxSelect int, required bool) (*entity.OptionGroup, error) {
-	og, err := uc.catalogRepo.GetOptionGroup(ctx, id)
+func (uc *catalogUsecase) UpdateOptionGroup(ctx context.Context, storeID, id, name string, minSelect, maxSelect int, required bool) (*entity.OptionGroup, error) {
+	// Scope the lookup to storeID so a vendor cannot update another store's option group.
+	og, err := uc.catalogRepo.GetOptionGroupByStore(ctx, id, storeID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrOptionGroupNotFound
 	}
@@ -211,14 +246,28 @@ func (uc *catalogUsecase) UpdateOptionGroup(ctx context.Context, id, name string
 	return og, nil
 }
 
-func (uc *catalogUsecase) DeleteOptionGroup(ctx context.Context, id string) error {
-	return uc.catalogRepo.DeleteOptionGroup(ctx, id)
+func (uc *catalogUsecase) DeleteOptionGroup(ctx context.Context, storeID, id string) error {
+	// Scope the delete to storeID so a vendor cannot remove another store's option group.
+	err := uc.catalogRepo.DeleteOptionGroupByStore(ctx, id, storeID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrOptionGroupNotFound
+	}
+	return err
 }
 
 // ─── Options ─────────────────────────────────────────────────────────────────
 
-func (uc *catalogUsecase) CreateOption(ctx context.Context, optionGroupID, name string, extraPrice int64) (*entity.Option, error) {
-	o := &entity.Option{OptionGroupID: optionGroupID, Name: name, ExtraPrice: extraPrice}
+func (uc *catalogUsecase) CreateOption(ctx context.Context, storeID, optionGroupID, name string, extraPrice int64) (*entity.Option, error) {
+	// Options inherit store ownership from their parent OptionGroup.
+	// Verify the parent group belongs to storeID before inserting to prevent cross-tenant writes.
+	og, err := uc.catalogRepo.GetOptionGroupByStore(ctx, optionGroupID, storeID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrOptionGroupNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	o := &entity.Option{OptionGroupID: og.ID, Name: name, ExtraPrice: extraPrice}
 	if err := uc.catalogRepo.CreateOption(ctx, o); err != nil {
 		return nil, fmt.Errorf("create option: %w", err)
 	}
@@ -229,13 +278,19 @@ func (uc *catalogUsecase) ListOptions(ctx context.Context, optionGroupID string)
 	return uc.catalogRepo.ListOptions(ctx, optionGroupID)
 }
 
-func (uc *catalogUsecase) UpdateOption(ctx context.Context, id, name string, extraPrice int64) (*entity.Option, error) {
+func (uc *catalogUsecase) UpdateOption(ctx context.Context, storeID, id, name string, extraPrice int64) (*entity.Option, error) {
+	// Options have no direct StoreID; verify ownership by loading the option then its parent group.
 	o, err := uc.catalogRepo.GetOption(ctx, id)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrOptionNotFound
 	}
 	if err != nil {
 		return nil, err
+	}
+	// Assert the parent option group belongs to the authorised store to prevent cross-tenant edits.
+	og, err := uc.catalogRepo.GetOptionGroup(ctx, o.OptionGroupID)
+	if err != nil || og.StoreID != storeID {
+		return nil, ErrOptionNotFound
 	}
 	o.Name = name
 	o.ExtraPrice = extraPrice
@@ -245,7 +300,20 @@ func (uc *catalogUsecase) UpdateOption(ctx context.Context, id, name string, ext
 	return o, nil
 }
 
-func (uc *catalogUsecase) DeleteOption(ctx context.Context, id string) error {
+func (uc *catalogUsecase) DeleteOption(ctx context.Context, storeID, id string) error {
+	// Options have no direct StoreID; verify ownership by loading the option then its parent group.
+	o, err := uc.catalogRepo.GetOption(ctx, id)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrOptionNotFound
+	}
+	if err != nil {
+		return err
+	}
+	// Assert the parent option group belongs to the authorised store to prevent cross-tenant deletes.
+	og, err := uc.catalogRepo.GetOptionGroup(ctx, o.OptionGroupID)
+	if err != nil || og.StoreID != storeID {
+		return ErrOptionNotFound
+	}
 	return uc.catalogRepo.DeleteOption(ctx, id)
 }
 
@@ -280,8 +348,9 @@ func (uc *catalogUsecase) ListCombos(ctx context.Context, storeID string) ([]*en
 	return uc.catalogRepo.ListCombos(ctx, storeID)
 }
 
-func (uc *catalogUsecase) UpdateCombo(ctx context.Context, id, name string, price int64) (*entity.Combo, error) {
-	c, err := uc.catalogRepo.GetCombo(ctx, id)
+func (uc *catalogUsecase) UpdateCombo(ctx context.Context, storeID, id, name string, price int64) (*entity.Combo, error) {
+	// Scope the lookup to storeID so a vendor cannot update another store's combo.
+	c, err := uc.catalogRepo.GetComboByStore(ctx, id, storeID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrComboNotFound
 	}
@@ -296,11 +365,25 @@ func (uc *catalogUsecase) UpdateCombo(ctx context.Context, id, name string, pric
 	return c, nil
 }
 
-func (uc *catalogUsecase) DeleteCombo(ctx context.Context, id string) error {
-	return uc.catalogRepo.DeleteCombo(ctx, id)
+func (uc *catalogUsecase) DeleteCombo(ctx context.Context, storeID, id string) error {
+	// Scope the delete to storeID so a vendor cannot remove another store's combo.
+	err := uc.catalogRepo.DeleteComboByStore(ctx, id, storeID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrComboNotFound
+	}
+	return err
 }
 
-func (uc *catalogUsecase) AddComboItem(ctx context.Context, comboID, menuItemID string, quantity int) error {
+func (uc *catalogUsecase) AddComboItem(ctx context.Context, storeID, comboID, menuItemID string, quantity int) error {
+	// ComboItems inherit store ownership from their parent Combo.
+	// Verify the combo belongs to storeID before adding a line item to prevent cross-tenant writes.
+	_, err := uc.catalogRepo.GetComboByStore(ctx, comboID, storeID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrComboNotFound
+	}
+	if err != nil {
+		return err
+	}
 	return uc.catalogRepo.AddComboItem(ctx, &entity.ComboItem{
 		ComboID:    comboID,
 		MenuItemID: menuItemID,
@@ -308,7 +391,15 @@ func (uc *catalogUsecase) AddComboItem(ctx context.Context, comboID, menuItemID 
 	})
 }
 
-func (uc *catalogUsecase) RemoveComboItem(ctx context.Context, comboID, menuItemID string) error {
+func (uc *catalogUsecase) RemoveComboItem(ctx context.Context, storeID, comboID, menuItemID string) error {
+	// Verify the combo belongs to storeID before removing a line item to prevent cross-tenant deletes.
+	_, err := uc.catalogRepo.GetComboByStore(ctx, comboID, storeID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrComboNotFound
+	}
+	if err != nil {
+		return err
+	}
 	return uc.catalogRepo.RemoveComboItem(ctx, comboID, menuItemID)
 }
 

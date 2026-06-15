@@ -26,14 +26,20 @@ type CatalogRepository interface {
 
 	CreateCategory(ctx context.Context, c *entity.Category) error
 	GetCategory(ctx context.Context, id string) (*entity.Category, error)
+	// GetCategoryByStore fetches a category only if it belongs to storeID (returns ErrRecordNotFound otherwise).
+	GetCategoryByStore(ctx context.Context, id, storeID string) (*entity.Category, error)
 	ListCategories(ctx context.Context, storeID string) ([]*entity.Category, error)
 	UpdateCategory(ctx context.Context, c *entity.Category) error
 	DeleteCategory(ctx context.Context, id string) error // soft-delete
+	// DeleteCategoryByStore soft-deletes the category only if it belongs to storeID.
+	DeleteCategoryByStore(ctx context.Context, id, storeID string) error
 
 	// ---- MenuItems ----
 
 	CreateMenuItem(ctx context.Context, m *entity.MenuItem) error
 	GetMenuItem(ctx context.Context, id string) (*entity.MenuItem, error)
+	// GetMenuItemByStore fetches a menu item only if it belongs to storeID (returns ErrRecordNotFound otherwise).
+	GetMenuItemByStore(ctx context.Context, id, storeID string) (*entity.MenuItem, error)
 
 	// ListMenuItems returns items for a store. Pass categoryID="" to skip filter.
 	// Pass status="" to skip filter; use "on"/"off" to filter by status.
@@ -43,16 +49,24 @@ type CatalogRepository interface {
 
 	// ToggleMenuItemStatus sets only the status column ("on" or "off").
 	ToggleMenuItemStatus(ctx context.Context, id string, status string) error
+	// ToggleMenuItemStatusByStore sets only the status column scoped to storeID (no-op / ErrRecordNotFound if item does not belong to store).
+	ToggleMenuItemStatusByStore(ctx context.Context, id, storeID, status string) error
 
 	DeleteMenuItem(ctx context.Context, id string) error // soft-delete
+	// DeleteMenuItemByStore soft-deletes the menu item only if it belongs to storeID.
+	DeleteMenuItemByStore(ctx context.Context, id, storeID string) error
 
 	// ---- OptionGroups ----
 
 	CreateOptionGroup(ctx context.Context, og *entity.OptionGroup) error
 	GetOptionGroup(ctx context.Context, id string) (*entity.OptionGroup, error)
+	// GetOptionGroupByStore fetches an option group only if it belongs to storeID (returns ErrRecordNotFound otherwise).
+	GetOptionGroupByStore(ctx context.Context, id, storeID string) (*entity.OptionGroup, error)
 	ListOptionGroups(ctx context.Context, storeID string) ([]*entity.OptionGroup, error)
 	UpdateOptionGroup(ctx context.Context, og *entity.OptionGroup) error
 	DeleteOptionGroup(ctx context.Context, id string) error // soft-delete
+	// DeleteOptionGroupByStore soft-deletes the option group only if it belongs to storeID.
+	DeleteOptionGroupByStore(ctx context.Context, id, storeID string) error
 
 	// ---- Options ----
 
@@ -77,9 +91,13 @@ type CatalogRepository interface {
 
 	CreateCombo(ctx context.Context, c *entity.Combo) error
 	GetCombo(ctx context.Context, id string) (*entity.Combo, error)
+	// GetComboByStore fetches a combo only if it belongs to storeID (returns ErrRecordNotFound otherwise).
+	GetComboByStore(ctx context.Context, id, storeID string) (*entity.Combo, error)
 	ListCombos(ctx context.Context, storeID string) ([]*entity.Combo, error)
 	UpdateCombo(ctx context.Context, c *entity.Combo) error
 	DeleteCombo(ctx context.Context, id string) error // soft-delete
+	// DeleteComboByStore soft-deletes the combo only if it belongs to storeID.
+	DeleteComboByStore(ctx context.Context, id, storeID string) error
 
 	// ---- ComboItems ----
 

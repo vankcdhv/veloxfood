@@ -100,6 +100,12 @@ func (m *mockCatalogRepo) UpdateCategory(ctx context.Context, c *entity.Category
 func (m *mockCatalogRepo) DeleteCategory(ctx context.Context, id string) error {
 	return errors.New("not implemented")
 }
+func (m *mockCatalogRepo) GetCategoryByStore(ctx context.Context, id, storeID string) (*entity.Category, error) {
+	return nil, errors.New("not implemented")
+}
+func (m *mockCatalogRepo) DeleteCategoryByStore(ctx context.Context, id, storeID string) error {
+	return errors.New("not implemented")
+}
 func (m *mockCatalogRepo) CreateMenuItem(ctx context.Context, item *entity.MenuItem) error {
 	return errors.New("not implemented")
 }
@@ -118,7 +124,16 @@ func (m *mockCatalogRepo) UpdateMenuItem(ctx context.Context, item *entity.MenuI
 func (m *mockCatalogRepo) ToggleMenuItemStatus(ctx context.Context, id string, status string) error {
 	return errors.New("not implemented")
 }
+func (m *mockCatalogRepo) GetMenuItemByStore(ctx context.Context, id, storeID string) (*entity.MenuItem, error) {
+	return nil, errors.New("not implemented")
+}
+func (m *mockCatalogRepo) ToggleMenuItemStatusByStore(ctx context.Context, id, storeID, status string) error {
+	return errors.New("not implemented")
+}
 func (m *mockCatalogRepo) DeleteMenuItem(ctx context.Context, id string) error {
+	return errors.New("not implemented")
+}
+func (m *mockCatalogRepo) DeleteMenuItemByStore(ctx context.Context, id, storeID string) error {
 	return errors.New("not implemented")
 }
 func (m *mockCatalogRepo) CreateOptionGroup(ctx context.Context, og *entity.OptionGroup) error {
@@ -134,6 +149,12 @@ func (m *mockCatalogRepo) UpdateOptionGroup(ctx context.Context, og *entity.Opti
 	return errors.New("not implemented")
 }
 func (m *mockCatalogRepo) DeleteOptionGroup(ctx context.Context, id string) error {
+	return errors.New("not implemented")
+}
+func (m *mockCatalogRepo) GetOptionGroupByStore(ctx context.Context, id, storeID string) (*entity.OptionGroup, error) {
+	return nil, errors.New("not implemented")
+}
+func (m *mockCatalogRepo) DeleteOptionGroupByStore(ctx context.Context, id, storeID string) error {
 	return errors.New("not implemented")
 }
 func (m *mockCatalogRepo) CreateOption(ctx context.Context, o *entity.Option) error {
@@ -173,6 +194,12 @@ func (m *mockCatalogRepo) UpdateCombo(ctx context.Context, c *entity.Combo) erro
 	return errors.New("not implemented")
 }
 func (m *mockCatalogRepo) DeleteCombo(ctx context.Context, id string) error {
+	return errors.New("not implemented")
+}
+func (m *mockCatalogRepo) GetComboByStore(ctx context.Context, id, storeID string) (*entity.Combo, error) {
+	return nil, errors.New("not implemented")
+}
+func (m *mockCatalogRepo) DeleteComboByStore(ctx context.Context, id, storeID string) error {
 	return errors.New("not implemented")
 }
 func (m *mockCatalogRepo) AddComboItem(ctx context.Context, ci *entity.ComboItem) error {
