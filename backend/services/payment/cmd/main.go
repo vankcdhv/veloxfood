@@ -4,12 +4,14 @@ import (
 	"log/slog"
 
 	"project/pkg/app"
+	authmw "project/pkg/auth/middleware"
 	"project/pkg/middleware"
 	paymentv1 "project/proto/payment/v1"
 	grpchandler "project/services/payment/internal/handler/grpc"
 	payevent "project/services/payment/internal/handler/event"
 	handlerhttp "project/services/payment/internal/handler/http"
 	v1 "project/services/payment/internal/handler/http/v1"
+	"project/services/payment/internal/infrastructure/grpcclient"
 	"project/services/payment/internal/infrastructure/momo"
 	"project/services/payment/internal/infrastructure/persistence"
 	"project/services/payment/internal/usecase"
@@ -48,12 +50,25 @@ func main() {
 		cfg := handlerhttp.RouterConfig{
 			MoMoHandler: v1.NewMoMoHandler(ipnUC),
 		}
-		if authMW, _, err := buildAuth(deps); err != nil {
+		if authMW, checker, err := buildAuth(deps); err != nil {
 			slog.Error("payment: auth setup failed — protected routes disabled", "err", err)
 		} else {
 			cfg.AuthMiddleware = authMW
+			// store.approve gates admin payout/settlement routes; without it any
+			// authenticated user could move settlement money.
+			cfg.AdminPermission = authmw.PermissionRequired(checker, "store.approve")
 			cfg.WalletHandler = v1.NewWalletHandler(walletUC, topupUC)
-			cfg.AdminHandler = v1.NewAdminPayoutHandler(payoutUC)
+
+			// Store client lets the owner-facing /me/store-revenue verify the
+			// caller owns the store before exposing its earnings. Keep it as a nil
+			// interface (not a typed-nil) on failure so the handler degrades safely.
+			var storeResolver v1.StoreOwnershipResolver
+			if sc, scErr := grpcclient.NewStoreClient(deps.Config.StoreService.GRPCAddr); scErr != nil {
+				slog.Error("payment: store gRPC client setup failed", "err", scErr)
+			} else {
+				storeResolver = sc
+			}
+			cfg.AdminHandler = v1.NewAdminPayoutHandler(payoutUC, storeResolver, checker)
 		}
 
 		handlerhttp.RegisterRoutes(r, cfg)

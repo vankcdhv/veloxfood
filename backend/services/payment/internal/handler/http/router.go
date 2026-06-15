@@ -14,6 +14,9 @@ type RouterConfig struct {
 
 	// AuthMiddleware validates Bearer tokens. When nil, customer/admin routes are disabled.
 	AuthMiddleware gin.HandlerFunc
+	// AdminPermission enforces admin-level permission on /admin routes (payouts,
+	// settlements). Without it any authenticated user could move settlement money.
+	AdminPermission gin.HandlerFunc
 }
 
 // RegisterRoutes mounts all payment API routes onto r.
@@ -46,7 +49,11 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 
 	// ── Admin routes ──────────────────────────────────────────────────────────
 	if cfg.AdminHandler != nil {
-		admin := api.Group("/admin", cfg.AuthMiddleware)
+		adminMW := []gin.HandlerFunc{cfg.AuthMiddleware}
+		if cfg.AdminPermission != nil {
+			adminMW = append(adminMW, cfg.AdminPermission)
+		}
+		admin := api.Group("/admin", adminMW...)
 		admin.GET("/payouts", cfg.AdminHandler.ListPayouts)
 		admin.POST("/payouts", cfg.AdminHandler.CreatePayout)
 		admin.POST("/payouts/:id/execute", cfg.AdminHandler.ExecutePayout)

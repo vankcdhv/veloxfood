@@ -116,7 +116,7 @@ func setupEnv(t *testing.T) *testEnv {
 	handlerhttp.RegisterRoutes(engine, handlerhttp.RouterConfig{
 		MoMoHandler:    v1.NewMoMoHandler(ipnUC),
 		WalletHandler:  v1.NewWalletHandler(walletUC, topupUC),
-		AdminHandler:   v1.NewAdminPayoutHandler(payoutUC),
+		AdminHandler:   v1.NewAdminPayoutHandler(payoutUC, nil, nil),
 		AuthMiddleware: func(c *gin.Context) { c.Next() },
 	})
 
@@ -640,9 +640,17 @@ func TestPayout_ExecuteAtomic_IdempotentSkipSettled(t *testing.T) {
 	env.db.Exec("INSERT INTO wallets (id,owner_type,owner_id,balance) VALUES (gen_random_uuid(),'STORE_PAYABLE',$1,60000)", storeID)
 	env.db.Exec("INSERT INTO wallets (id,owner_type,owner_id,balance) VALUES (gen_random_uuid(),'SYSTEM','00000000-0000-0000-0000-000000000000',999999999) ON CONFLICT DO NOTHING")
 
+	// Seed a settleable PAYMENT ledger entry so the batch total is derived
+	// server-side (CreateBatch recomputes from the settleable summary).
+	var storeWalletID string
+	env.db.Raw("SELECT id FROM wallets WHERE owner_type='STORE_PAYABLE' AND owner_id=$1", storeID).Scan(&storeWalletID)
+	env.db.Exec(
+		"INSERT INTO ledger_entries (id,wallet_id,entry_type,amount,ref_type,ref_id,balance_after) VALUES (gen_random_uuid(),$1,'PAYMENT',60000,'order','99990000-0000-0000-0000-000000000001',60000)",
+		storeWalletID,
+	)
+
 	batch, err := payoutUC.CreateBatch(context.Background(), usecase.CreatePayoutRequest{
-		StoreID:     storeID,
-		TotalAmount: 60000,
+		StoreID: storeID,
 	})
 	if err != nil {
 		t.Fatalf("CreateBatch: %v", err)

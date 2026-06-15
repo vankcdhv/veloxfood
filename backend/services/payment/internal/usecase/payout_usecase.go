@@ -82,7 +82,21 @@ func parseDateOr(s string, fallback time.Time) time.Time {
 }
 
 func (uc *payoutUsecase) CreateBatch(ctx context.Context, req CreatePayoutRequest) (*entity.PayoutBatch, error) {
-	orderIDsJSON, _ := json.Marshal(req.OrderIDs)
+	// Derive the amount and order set server-side from the settleable summary —
+	// never trust the client-supplied total_amount/order_ids, which could inflate
+	// the payout or include already-settled orders.
+	summary, err := uc.GetSettleableSummary(ctx, req.StoreID)
+	if err != nil {
+		return nil, err
+	}
+	if summary.Total <= 0 {
+		return nil, ErrNothingToSettle
+	}
+	orderIDs := make([]string, 0, len(summary.Orders))
+	for _, o := range summary.Orders {
+		orderIDs = append(orderIDs, o.OrderID)
+	}
+	orderIDsJSON, _ := json.Marshal(orderIDs)
 	// Persist the batch period; fall back to today when the client omits it so
 	// the history never shows a zero date (0001-01-01).
 	periodFrom := parseDateOr(req.PeriodFrom, time.Now().UTC())
@@ -92,7 +106,7 @@ func (uc *payoutUsecase) CreateBatch(ctx context.Context, req CreatePayoutReques
 		PeriodFrom:  periodFrom,
 		PeriodTo:    periodTo,
 		OrderIDs:    orderIDsJSON,
-		TotalAmount: req.TotalAmount,
+		TotalAmount: summary.Total,
 		Status:      entity.PayoutPending,
 	}
 

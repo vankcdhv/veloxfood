@@ -1,22 +1,64 @@
 package v1
 
 import (
+	"context"
 	"net/http"
 
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/response"
+	"project/services/payment/internal/infrastructure/grpcclient"
 	"project/services/payment/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )
 
-// AdminPayoutHandler serves payout management endpoints (admin auth required).
-type AdminPayoutHandler struct {
-	payoutUC usecase.PayoutUsecase
+// StoreOwnershipResolver resolves a store's vendor so the handler can authorize
+// a store owner. Satisfied by *grpcclient.StoreClient.
+type StoreOwnershipResolver interface {
+	GetStoreOwnership(ctx context.Context, storeID string) (*grpcclient.StoreOwnership, error)
 }
 
-func NewAdminPayoutHandler(payoutUC usecase.PayoutUsecase) *AdminPayoutHandler {
-	return &AdminPayoutHandler{payoutUC: payoutUC}
+// AdminPayoutHandler serves payout management endpoints (admin auth required).
+type AdminPayoutHandler struct {
+	payoutUC    usecase.PayoutUsecase
+	storeClient StoreOwnershipResolver
+	checker     authmw.PermissionChecker
+}
+
+func NewAdminPayoutHandler(payoutUC usecase.PayoutUsecase, storeClient StoreOwnershipResolver, checker authmw.PermissionChecker) *AdminPayoutHandler {
+	return &AdminPayoutHandler{payoutUC: payoutUC, storeClient: storeClient, checker: checker}
+}
+
+// authorizeStoreOwner verifies the caller holds store.manage on the store's
+// vendor. The /me/store-revenue route is auth-only (any logged-in user), so
+// without this check anyone could read another store's revenue by store_id.
+// Writes the error response and returns false on failure.
+func (h *AdminPayoutHandler) authorizeStoreOwner(c *gin.Context, storeID string) bool {
+	ctx := c.Request.Context()
+	if h.storeClient == nil || h.checker == nil {
+		response.InternalError(c)
+		return false
+	}
+	ownership, err := h.storeClient.GetStoreOwnership(ctx, storeID)
+	if err != nil {
+		response.InternalError(c)
+		return false
+	}
+	if !ownership.Found {
+		response.NotFound(c, "store not found")
+		return false
+	}
+	userID := authmw.UserIDFromContext(ctx)
+	ok, err := h.checker.HasVendorPermission(ctx, userID, ownership.VendorID, "store.manage")
+	if err != nil {
+		response.InternalError(c)
+		return false
+	}
+	if !ok {
+		c.JSON(http.StatusForbidden, gin.H{"error": "insufficient permissions for this store"})
+		return false
+	}
+	return true
 }
 
 // ListPayouts returns payout batches for a store.
@@ -44,25 +86,27 @@ func (h *AdminPayoutHandler) CreatePayout(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	var req struct {
-		StoreID     string   `json:"store_id"`
-		PeriodFrom  string   `json:"period_from"`
-		PeriodTo    string   `json:"period_to"`
-		OrderIDs    []string `json:"order_ids"`
-		TotalAmount int64    `json:"total_amount"`
+		StoreID    string `json:"store_id"`
+		PeriodFrom string `json:"period_from"`
+		PeriodTo   string `json:"period_to"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil || req.StoreID == "" || req.TotalAmount <= 0 {
-		response.BadRequest(c, "store_id and positive total_amount required")
+	// total_amount/order_ids are derived server-side from the settleable summary,
+	// so the client only needs to name the store + (optional) period.
+	if err := c.ShouldBindJSON(&req); err != nil || req.StoreID == "" {
+		response.BadRequest(c, "store_id required")
 		return
 	}
 
 	batch, err := h.payoutUC.CreateBatch(ctx, usecase.CreatePayoutRequest{
-		StoreID:     req.StoreID,
-		PeriodFrom:  req.PeriodFrom,
-		PeriodTo:    req.PeriodTo,
-		OrderIDs:    req.OrderIDs,
-		TotalAmount: req.TotalAmount,
+		StoreID:    req.StoreID,
+		PeriodFrom: req.PeriodFrom,
+		PeriodTo:   req.PeriodTo,
 	})
 	if err != nil {
+		if err == usecase.ErrNothingToSettle {
+			response.BadRequest(c, "nothing to settle for this store")
+			return
+		}
 		response.InternalError(c)
 		return
 	}
@@ -95,6 +139,9 @@ func (h *AdminPayoutHandler) GetStoreRevenue(c *gin.Context) {
 	storeID := c.Query("store_id")
 	if storeID == "" {
 		response.BadRequest(c, "store_id required")
+		return
+	}
+	if !h.authorizeStoreOwner(c, storeID) {
 		return
 	}
 

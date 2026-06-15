@@ -17,4 +17,7 @@ var (
 
 	// ErrPayoutNotFound is returned when the batch does not exist.
 	ErrPayoutNotFound = errors.New("payout batch not found")
+
+	// ErrNothingToSettle is returned when a store has no settleable balance to pay out.
+	ErrNothingToSettle = errors.New("nothing to settle for this store")
 )
