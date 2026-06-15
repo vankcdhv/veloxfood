@@ -36,9 +36,8 @@ function DesiredTimeMeta({ order }: { order: Order }) {
 
   // Only show late badge if the order has been delivered.
   const isDelivered = order.Status === 'DELIVERED' || order.Status === 'COMPLETED';
-  // Find DeliveredAt from status history if available.
-  const deliveredEntry = order.StatusHistory?.find((h) => h.Status === 'DELIVERED');
-  const late = isDelivered ? lateMinutes(deliveredEntry?.OccurredAt, order.DesiredTime) : 0;
+  // DeliveredAt is enriched by the owner detail endpoint from status history.
+  const late = isDelivered ? lateMinutes(order.DeliveredAt, order.DesiredTime) : 0;
 
   return (
     <div className="flex items-center gap-2 text-xs text-muted-foreground">

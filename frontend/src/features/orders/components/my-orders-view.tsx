@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Package } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/card';
@@ -9,6 +9,7 @@ import { Skeleton } from '@/shared/ui/skeleton';
 import { RoleGuard } from '@/features/auth/components/role-guard';
 import { ROUTES } from '@/shared/config/constants';
 import { formatVnd } from '@/shared/lib/format-vnd';
+import { useStores } from '@/features/stores/hooks/use-stores';
 import { useMyOrders } from '../hooks/use-orders';
 import { OrderStatusBadge } from './order-status-badge';
 import type { Order } from '../types/order';
@@ -34,6 +35,14 @@ function OrderListContent() {
   const orders = data?.items ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // Orders carry only store_id; resolve the display name client-side.
+  const { data: stores } = useStores();
+  const storeName = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of stores ?? []) m.set(s.ID, s.Name);
+    return m;
+  }, [stores]);
 
   if (isLoading) {
     return (
@@ -64,7 +73,11 @@ function OrderListContent() {
   return (
     <div className="space-y-3">
       {orders.map((order) => (
-        <OrderCard key={order.ID} order={order} />
+        <OrderCard
+          key={order.ID}
+          order={order}
+          storeName={order.StoreName ?? storeName.get(order.StoreID)}
+        />
       ))}
 
       {totalPages > 1 && (
@@ -98,7 +111,7 @@ function OrderListContent() {
   );
 }
 
-function OrderCard({ order }: { order: Order }) {
+function OrderCard({ order, storeName }: { order: Order; storeName?: string }) {
   const itemCount = order.Items?.reduce((s, it) => s + it.Qty, 0) ?? 0;
   return (
     <Link href={`/account/orders/${order.ID}`} className="block group">
@@ -106,8 +119,8 @@ function OrderCard({ order }: { order: Order }) {
         <CardContent className="flex items-center justify-between gap-4 py-4">
           <div className="min-w-0 space-y-1">
             <p className="font-medium text-sm">{order.Code}</p>
-            {order.StoreName && (
-              <p className="text-xs text-muted-foreground truncate">{order.StoreName}</p>
+            {storeName && (
+              <p className="text-xs text-muted-foreground truncate">{storeName}</p>
             )}
             <p className="text-xs text-muted-foreground">
               {itemCount} món · {new Date(order.PlacedAt).toLocaleDateString('vi-VN')}

@@ -16,6 +16,7 @@ import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useAuth } from '@/features/auth/context/auth-provider';
 import { OrderReviewForm } from '@/features/reviews/components/order-review-form';
 import { useOrderShipper } from '@/features/deliveries/hooks/use-deliveries';
+import { useStores } from '@/features/stores/hooks/use-stores';
 import { useCancelOrder, useMyOrder, useReorder } from '../hooks/use-orders';
 import { OrderStatusBadge, orderStatusLabel } from './order-status-badge';
 import type { Order, OrderStatus } from '../types/order';
@@ -45,6 +46,8 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
   const router = useRouter();
   const { user } = useAuth();
   const { data: order, isLoading, isError } = useMyOrder(orderId);
+  // Orders carry only store_id; resolve the display name client-side.
+  const { data: stores } = useStores();
   const cancelOrder = useCancelOrder(orderId);
   const reorder = useReorder();
   // Shipper of this order (for the rating block) — only for delivery orders.
@@ -191,9 +194,13 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
               <span className="text-xs text-success font-medium">● realtime</span>
             )}
           </div>
-          {displayOrder.StoreName && (
-            <p className="text-sm text-muted-foreground mt-0.5">{displayOrder.StoreName}</p>
-          )}
+          {(() => {
+            const storeName =
+              displayOrder.StoreName ?? stores?.find((s) => s.ID === displayOrder.StoreID)?.Name;
+            return storeName ? (
+              <p className="text-sm text-muted-foreground mt-0.5">{storeName}</p>
+            ) : null;
+          })()}
         </div>
       </div>
 

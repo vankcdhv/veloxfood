@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { ROUTES } from '@/shared/config/constants';
 import { useAuth } from '../context/auth-provider';
@@ -22,6 +22,7 @@ interface RoleGuardProps {
 // only available in the browser.
 export function RoleGuard({ children, allow, fallback = ROUTES.shop.root, loginNext }: RoleGuardProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const auth = useAuth();
   const { isLoading, isAuthenticated } = auth;
   const allowed = allow(auth);
@@ -29,12 +30,15 @@ export function RoleGuard({ children, allow, fallback = ROUTES.shop.root, loginN
   useEffect(() => {
     if (isLoading) return;
     if (!isAuthenticated) {
-      const next = loginNext ? `?next=${loginNext}` : '';
+      // Default the post-login destination to the current path so a logged-out
+      // user who deep-links into a guarded page returns there after login.
+      const dest = loginNext ?? pathname;
+      const next = dest ? `?next=${encodeURIComponent(dest)}` : '';
       router.replace(`${ROUTES.auth.login}${next}`);
     } else if (!allowed) {
       router.replace(fallback);
     }
-  }, [isLoading, isAuthenticated, allowed, fallback, loginNext, router]);
+  }, [isLoading, isAuthenticated, allowed, fallback, loginNext, pathname, router]);
 
   if (isLoading || !isAuthenticated || !allowed) {
     return (

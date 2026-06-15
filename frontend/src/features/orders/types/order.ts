@@ -56,6 +56,7 @@ export interface Order {
   CustomerName?: string;
   CustomerPhone?: string;
   LocationPath?: string;
+  DeliveredAt?: string; // RFC3339 — owner detail only, set once delivered
 }
 
 // POST /api/v1/orders

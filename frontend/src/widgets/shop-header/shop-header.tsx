@@ -108,6 +108,14 @@ export function ShopHeader() {
                     {item.label}
                   </Link>
                 ))}
+                {!isLoading && !isAuthenticated && (
+                  <Link
+                    href={ROUTES.auth.login}
+                    className="text-primary hover:bg-primary/10 border-border mt-2 rounded-md border-t px-3 py-2 text-sm font-semibold transition-colors"
+                  >
+                    Đăng nhập
+                  </Link>
+                )}
               </nav>
             </SheetContent>
           </Sheet>
