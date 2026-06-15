@@ -33,9 +33,9 @@ func (h *CustomerReviewHandler) CreateReview(c *gin.Context) {
 	customerID := authmw.UserIDFromContext(c.Request.Context())
 
 	var body struct {
-		TargetType string   `json:"target_type" binding:"required"`
+		TargetType string   `json:"target_type" binding:"required,oneof=STORE ITEM SHIPPER"`
 		TargetID   string   `json:"target_id"   binding:"required"`
-		Rating     int      `json:"rating"      binding:"required"`
+		Rating     int      `json:"rating"      binding:"required,min=1,max=5"`
 		Comment    string   `json:"comment"`
 		PhotoURLs  []string `json:"photo_urls"`
 	}
