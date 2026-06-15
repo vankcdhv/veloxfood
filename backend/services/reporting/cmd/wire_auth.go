@@ -4,6 +4,7 @@ import (
 	"project/pkg/app"
 	authjwt "project/pkg/auth/jwt"
 	authmw "project/pkg/auth/middleware"
+	"project/pkg/auth/remotechecker"
 	authstore "project/pkg/auth/store"
 	"project/pkg/trace"
 	userv1 "project/proto/user/v1"
@@ -15,18 +16,18 @@ import (
 
 // buildAuth wires JWT verification (public key only — reporting does not issue tokens)
 // and a remote permission checker backed by the user-service over gRPC.
-func buildAuth(deps app.Dependencies) (gin.HandlerFunc, error) {
+func buildAuth(deps app.Dependencies) (gin.HandlerFunc, authmw.PermissionChecker, error) {
 	cfg := deps.Config
 
 	pubKey, err := authjwt.LoadPublicKey(cfg.JWT.PublicKeyPath, cfg.JWT.PublicKeyPEM)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	jwtSvc := authjwt.NewRS256Service(nil, pubKey, cfg.JWT.AccessTTL, cfg.JWT.RefreshTTL)
 
 	redisAuthStore, err := authstore.NewRedisAuthStore(cfg.Redis)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	conn, err := grpc.NewClient(
@@ -35,9 +36,9 @@ func buildAuth(deps app.Dependencies) (gin.HandlerFunc, error) {
 		grpc.WithUnaryInterceptor(trace.UnaryClientInterceptor()),
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	_ = userv1.NewUserServiceClient(conn) // dial only — permission checks use authmw directly
-	return authmw.AuthRequired(jwtSvc, redisAuthStore), nil
+	checker := remotechecker.New(userv1.NewUserServiceClient(conn))
+	return authmw.AuthRequired(jwtSvc, redisAuthStore), checker, nil
 }

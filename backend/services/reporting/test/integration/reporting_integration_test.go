@@ -94,7 +94,7 @@ func setupEnv(t *testing.T) *testEnv {
 
 	handlerhttp.RegisterRoutes(engine, handlerhttp.RouterConfig{
 		AdminHandler:   v1.NewAdminAnalyticsHandler(analyticsUC),
-		StoreHandler:   v1.NewStoreReportHandler(analyticsUC),
+		StoreHandler:   v1.NewStoreReportHandler(analyticsUC, nil, nil),
 		AuthMiddleware: func(c *gin.Context) { c.Next() },
 	})
 

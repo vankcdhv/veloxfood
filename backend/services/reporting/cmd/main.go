@@ -4,10 +4,12 @@ import (
 	"log/slog"
 
 	"project/pkg/app"
+	authmw "project/pkg/auth/middleware"
 	"project/pkg/middleware"
 	reportevent "project/services/reporting/internal/handler/event"
 	handlerhttp "project/services/reporting/internal/handler/http"
 	v1 "project/services/reporting/internal/handler/http/v1"
+	"project/services/reporting/internal/infrastructure/grpcclient"
 	"project/services/reporting/internal/infrastructure/persistence"
 	"project/services/reporting/internal/usecase"
 
@@ -30,12 +32,24 @@ func main() {
 
 		// ── HTTP router ───────────────────────────────────────────────────────
 		cfg := handlerhttp.RouterConfig{}
-		if authMW, err := buildAuth(deps); err != nil {
+		if authMW, checker, err := buildAuth(deps); err != nil {
 			slog.Error("reporting: auth setup failed — protected routes disabled", "err", err)
 		} else {
 			cfg.AuthMiddleware = authMW
-			cfg.AdminHandler   = v1.NewAdminAnalyticsHandler(analyticsUC)
-			cfg.StoreHandler   = v1.NewStoreReportHandler(analyticsUC)
+			// store.approve gates admin BI routes; without it any authenticated
+			// user could read platform-wide analytics.
+			cfg.AdminPermission = authmw.PermissionRequired(checker, "store.approve")
+			cfg.AdminHandler = v1.NewAdminAnalyticsHandler(analyticsUC)
+
+			// Store client lets per-store report routes verify the caller owns
+			// the store before exposing its data (nil interface degrades safely).
+			var storeResolver v1.StoreOwnershipResolver
+			if sc, scErr := grpcclient.NewStoreClient(deps.Config.StoreService.GRPCAddr); scErr != nil {
+				slog.Error("reporting: store gRPC client setup failed", "err", scErr)
+			} else {
+				storeResolver = sc
+			}
+			cfg.StoreHandler = v1.NewStoreReportHandler(analyticsUC, storeResolver, checker)
 		}
 		handlerhttp.RegisterRoutes(r, cfg)
 

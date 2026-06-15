@@ -13,6 +13,9 @@ type RouterConfig struct {
 
 	// AuthMiddleware validates Bearer tokens. When nil, all protected routes are disabled.
 	AuthMiddleware gin.HandlerFunc
+	// AdminPermission enforces admin-level permission on /admin analytics routes.
+	// Without it any authenticated user could read platform-wide BI data.
+	AdminPermission gin.HandlerFunc
 }
 
 // RegisterRoutes mounts all reporting API routes onto r.
@@ -26,6 +29,9 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 	// ── Admin analytics ───────────────────────────────────────────────────────
 	if cfg.AdminHandler != nil {
 		admin := api.Group("/admin")
+		if cfg.AdminPermission != nil {
+			admin.Use(cfg.AdminPermission)
+		}
 		admin.GET("/analytics", cfg.AdminHandler.GetAnalytics)
 		admin.GET("/orders/recent", cfg.AdminHandler.ListRecentOrders)
 	}
