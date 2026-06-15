@@ -82,7 +82,7 @@ func (h *VendorPromotionHandler) CreatePromotion(c *gin.Context) {
 		Code        string `json:"code"         binding:"required"`
 		Type        string `json:"type"         binding:"required"`
 		ValueKind   string `json:"value_kind"   binding:"required"`
-		Value       int64  `json:"value"        binding:"required"`
+		Value       int64  `json:"value"        binding:"required,min=0"`
 		MinOrder    int64  `json:"min_order"`
 		MaxDiscount *int64 `json:"max_discount"`
 		StartsAt    string `json:"starts_at"    binding:"required"`
@@ -171,7 +171,7 @@ func (h *VendorPromotionHandler) UpdatePromotion(c *gin.Context) {
 		req.EndsAt = t
 	}
 
-	p, err := h.promoUC.UpdatePromotion(c.Request.Context(), promoID, req)
+	p, err := h.promoUC.UpdatePromotion(c.Request.Context(), promoID, storeID, req)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -186,7 +186,7 @@ func (h *VendorPromotionHandler) DeletePromotion(c *gin.Context) {
 	if _, ok := h.authorizeStoreOwner(c, storeID); !ok {
 		return
 	}
-	if err := h.promoUC.DeletePromotion(c.Request.Context(), promoID); err != nil {
+	if err := h.promoUC.DeletePromotion(c.Request.Context(), promoID, storeID); err != nil {
 		response.HandleError(c, err)
 		return
 	}

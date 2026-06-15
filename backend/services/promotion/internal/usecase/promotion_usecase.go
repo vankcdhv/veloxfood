@@ -24,10 +24,14 @@ type PromotionUsecase interface {
 	GetPromotion(ctx context.Context, id string) (*entity.Promotion, error)
 
 	// UpdatePromotion mutates mutable fields (code is immutable).
-	UpdatePromotion(ctx context.Context, id string, req UpdatePromotionRequest) (*entity.Promotion, error)
+	// storeID is the route-authorised store; the call fails with not-found if the
+	// promotion belongs to a different store (prevents cross-tenant edits).
+	UpdatePromotion(ctx context.Context, id string, storeID string, req UpdatePromotionRequest) (*entity.Promotion, error)
 
 	// DeletePromotion soft-deletes a promotion.
-	DeletePromotion(ctx context.Context, id string) error
+	// storeID is the route-authorised store; the call fails with not-found if the
+	// promotion belongs to a different store (prevents cross-tenant deletes).
+	DeletePromotion(ctx context.Context, id string, storeID string) error
 
 	// ValidatePromotion dry-runs the discount calculation without reserving.
 	ValidatePromotion(ctx context.Context, req ValidateRequest) (*ValidateResult, error)
@@ -160,7 +164,7 @@ func (uc *promotionUsecase) GetPromotion(ctx context.Context, id string) (*entit
 	return uc.promoRepo.GetByID(ctx, id)
 }
 
-func (uc *promotionUsecase) UpdatePromotion(ctx context.Context, id string, req UpdatePromotionRequest) (*entity.Promotion, error) {
+func (uc *promotionUsecase) UpdatePromotion(ctx context.Context, id string, storeID string, req UpdatePromotionRequest) (*entity.Promotion, error) {
 	if req.Status != "" && !validStatuses[req.Status] {
 		return nil, ErrInvalidStatus
 	}
@@ -171,6 +175,13 @@ func (uc *promotionUsecase) UpdatePromotion(ctx context.Context, id string, req 
 	p, err := uc.promoRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+
+	// Scope check: ensure the promotion belongs to the authorised store.
+	// Returning not-found (rather than forbidden) avoids leaking whether the
+	// promotion exists at all — standard cross-tenant isolation pattern.
+	if p.StoreID != storeID {
+		return nil, ErrPromotionNotFound
 	}
 
 	// Apply only non-zero values so partial PATCH works correctly.
@@ -197,7 +208,17 @@ func (uc *promotionUsecase) UpdatePromotion(ctx context.Context, id string, req 
 	return p, nil
 }
 
-func (uc *promotionUsecase) DeletePromotion(ctx context.Context, id string) error {
+func (uc *promotionUsecase) DeletePromotion(ctx context.Context, id string, storeID string) error {
+	// Load first so we can assert store ownership before issuing the DELETE.
+	// Returning not-found on mismatch avoids leaking whether the promotion exists
+	// at all — standard cross-tenant isolation pattern.
+	p, err := uc.promoRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if p.StoreID != storeID {
+		return ErrPromotionNotFound
+	}
 	return uc.promoRepo.Delete(ctx, id)
 }
 
