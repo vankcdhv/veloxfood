@@ -1,33 +1,33 @@
 app:
   env: development
-  port: 8082
-  grpc_port: 50053
-  base_url: http://localhost:8082
+  port: 17082
+  grpc_port: 17053
+  base_url: http://localhost:17082
   cookie_secure: false
   cookie_domain: ""
 
 database:
   host: localhost
-  port: 5433
+  port: 17433
   user: dev_user
   password: dev_password
   name: store_db
   ssl_mode: disable
 
 redis:
-  addr: localhost:6380
+  addr: localhost:17380
   password: ""
   db: 0
 
 kafka:
   brokers:
-    - localhost:19092
+    - localhost:17092
 
 rabbitmq:
   url: amqp://dev_user:dev_password@localhost:5672/
 
 dtm:
-  addr: localhost:36790
+  addr: localhost:17790
 
 # Store only VERIFIES tokens — public key suffices (no private key, no issuing).
 jwt:
@@ -46,7 +46,7 @@ outbox:
 
 # Object storage for menu item images.
 minio:
-  endpoint: "localhost:9000"
+  endpoint: "localhost:17090"
   access_key: "minioadmin"
   secret_key: "minioadmin"
   bucket: "veloxfood"
@@ -54,6 +54,6 @@ minio:
 
 # Cross-service gRPC endpoints.
 user_service:
-  grpc_addr: localhost:50051
+  grpc_addr: localhost:17051
 location_service:
-  grpc_addr: localhost:50052
+  grpc_addr: localhost:17052

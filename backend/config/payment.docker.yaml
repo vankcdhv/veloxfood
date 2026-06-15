@@ -53,3 +53,6 @@ momo:
 
 user_service:
   grpc_addr: user-service:50051
+
+store_service:
+  grpc_addr: store-service:50053

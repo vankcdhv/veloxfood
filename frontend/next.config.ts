@@ -2,10 +2,10 @@ import type { NextConfig } from 'next';
 
 // All /api/* traffic is forwarded to the Kong API gateway which handles
 // per-service routing internally. Override GATEWAY_URL to point at a remote
-// Kong instance (staging/prod). Services run on host ports 8080-8089; Kong
-// proxy listens on :8000. The previous per-service rewrites are preserved
-// below as a reference comment — Kong reproduces the same routing logic.
-const GATEWAY_URL = process.env.GATEWAY_URL ?? 'http://localhost:8000';
+// Kong instance (staging/prod). Services run on host ports 17080-17089; Kong
+// proxy is published on host :17000.
+// The previous per-service rewrites are preserved below as a reference comment.
+const GATEWAY_URL = process.env.GATEWAY_URL ?? 'http://localhost:17000';
 
 const nextConfig: NextConfig = {
   async redirects() {

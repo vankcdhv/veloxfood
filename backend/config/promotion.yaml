@@ -1,33 +1,33 @@
 app:
   env: development
-  port: 8084
-  grpc_port: 50055
-  base_url: http://localhost:8084
+  port: 17084
+  grpc_port: 17055
+  base_url: http://localhost:17084
   cookie_secure: false
   cookie_domain: ""
 
 database:
   host: localhost
-  port: 5433
+  port: 17433
   user: dev_user
   password: dev_password
   name: promotion_db
   ssl_mode: disable
 
 redis:
-  addr: localhost:6380
+  addr: localhost:17380
   password: ""
   db: 0
 
 kafka:
   brokers:
-    - localhost:19092
+    - localhost:17092
 
 rabbitmq:
   url: amqp://dev_user:dev_password@localhost:5672/
 
 dtm:
-  addr: localhost:36790
+  addr: localhost:17790
 
 # Promotion only VERIFIES tokens — public key suffices (no private key, no issuing).
 jwt:
@@ -39,7 +39,7 @@ jwt:
   refresh_ttl: 168h
 
 minio:
-  endpoint: "localhost:9000"
+  endpoint: "localhost:17090"
   access_key: "minioadmin"
   secret_key: "minioadmin"
   bucket: "veloxfood"
@@ -47,6 +47,6 @@ minio:
 
 # Cross-service gRPC endpoints.
 user_service:
-  grpc_addr: localhost:50051
+  grpc_addr: localhost:17051
 store_service:
-  grpc_addr: localhost:50053
+  grpc_addr: localhost:17053

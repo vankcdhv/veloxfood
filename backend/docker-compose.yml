@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: dev_password
       POSTGRES_DB: user_db
     ports:
-      - "5433:5432"
+      - "17433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -19,7 +19,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6380:6379"
+      - "17380:6379"
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -36,8 +36,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "17090:9000"
+      - "17091:9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -52,7 +52,7 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:19092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:19092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:17092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
@@ -63,7 +63,7 @@ services:
       KAFKA_LOG_RETENTION_HOURS: 168
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
-      - "19092:19092"
+      - "17092:19092"
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
@@ -98,8 +98,8 @@ services:
       STORE_PASSWORD: dev_password
       STORE_DB: user_db
     ports:
-      - "36789:36789"
-      - "36790:36790"
+      - "17789:36789"
+      - "17790:36790"
     depends_on:
       postgres:
         condition: service_healthy
@@ -113,8 +113,8 @@ services:
     volumes:
       - ./config/config.docker.yaml:/config/config.yaml:ro
     ports:
-      - "8080:8080"
-      - "50051:50051"
+      - "17080:8080"
+      - "17051:50051"
     depends_on:
       postgres:
         condition: service_healthy
@@ -138,8 +138,8 @@ services:
     volumes:
       - ./config/location.docker.yaml:/config/location.yaml:ro
     ports:
-      - "8081:8081"
-      - "50052:50052"
+      - "17081:8081"
+      - "17052:50052"
     depends_on:
       postgres:
         condition: service_healthy
@@ -163,8 +163,8 @@ services:
     volumes:
       - ./config/store.docker.yaml:/config/store.yaml:ro
     ports:
-      - "8082:8082"
-      - "50053:50053"
+      - "17082:8082"
+      - "17053:50053"
     depends_on:
       postgres:
         condition: service_healthy
@@ -190,8 +190,8 @@ services:
     volumes:
       - ./config/promotion.docker.yaml:/config/promotion.yaml:ro
     ports:
-      - "8084:8084"
-      - "50055:50055"
+      - "17084:8084"
+      - "17055:50055"
     depends_on:
       postgres:
         condition: service_healthy
@@ -217,8 +217,8 @@ services:
     volumes:
       - ./config/payment.docker.yaml:/config/payment.yaml:ro
     ports:
-      - "8085:8085"
-      - "50056:50056"
+      - "17085:8085"
+      - "17056:50056"
     depends_on:
       postgres:
         condition: service_healthy
@@ -244,7 +244,7 @@ services:
     volumes:
       - ./config/delivery.docker.yaml:/config/delivery.yaml:ro
     ports:
-      - "8086:8086"
+      - "17086:8086"
     depends_on:
       postgres:
         condition: service_healthy
@@ -271,8 +271,8 @@ services:
       - ./config/review.docker.yaml:/config/review.yaml:ro
       - ./docs/secrets:/docs/secrets:ro
     ports:
-      - "8087:8087"
-      - "50058:50058"
+      - "17087:8087"
+      - "17058:50058"
     depends_on:
       postgres:
         condition: service_healthy
@@ -298,7 +298,7 @@ services:
     volumes:
       - ./config/reporting.docker.yaml:/config/reporting.yaml:ro
     ports:
-      - "8088:8088"
+      - "17088:8088"
     depends_on:
       postgres:
         condition: service_healthy
@@ -325,7 +325,7 @@ services:
       - ./config/notification.docker.yaml:/config/notification.yaml:ro
       - ./docs/secrets:/docs/secrets:ro
     ports:
-      - "8089:8089"
+      - "17089:8089"
     depends_on:
       postgres:
         condition: service_healthy
@@ -353,8 +353,10 @@ services:
     volumes:
       - ./kong/kong.yml:/kong/kong.yml:ro
     ports:
-      - "8000:8000"
-      - "8001:8001"
+      # Host 8000 is taken by another local project's Kafka UI — expose Kong's
+      # proxy on 17000 instead (container port stays 8000).
+      - "17000:8000"
+      - "17001:8001"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:

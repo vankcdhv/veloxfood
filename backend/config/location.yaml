@@ -1,33 +1,33 @@
 app:
   env: development
-  port: 8081
-  grpc_port: 50052
-  base_url: http://localhost:8081
+  port: 17081
+  grpc_port: 17052
+  base_url: http://localhost:17081
   cookie_secure: false
   cookie_domain: ""
 
 database:
   host: localhost
-  port: 5433
+  port: 17433
   user: dev_user
   password: dev_password
   name: location_db
   ssl_mode: disable
 
 redis:
-  addr: localhost:6380
+  addr: localhost:17380
   password: ""
   db: 0
 
 kafka:
   brokers:
-    - localhost:19092
+    - localhost:17092
 
 rabbitmq:
   url: amqp://dev_user:dev_password@localhost:5672/
 
 dtm:
-  addr: localhost:36790
+  addr: localhost:17790
 
 # Location only VERIFIES tokens — public key suffices (no private key, no issuing).
 jwt:
@@ -40,4 +40,4 @@ jwt:
 
 # user-service gRPC endpoint for cross-service permission checks.
 user_service:
-  grpc_addr: localhost:50051
+  grpc_addr: localhost:17051

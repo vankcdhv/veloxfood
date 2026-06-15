@@ -1,34 +1,34 @@
 app:
   env: development
-  port: 8080
-  grpc_port: 50051
-  base_url: http://localhost:8080
+  port: 17080
+  grpc_port: 17051
+  base_url: http://localhost:17080
   # Auth cookies: secure=false over plain HTTP in dev; empty domain = host-only.
   cookie_secure: false
   cookie_domain: ""
 
 database:
   host: localhost
-  port: 5433
+  port: 17433
   user: dev_user
   password: dev_password
   name: user_db
   ssl_mode: disable
 
 redis:
-  addr: localhost:6380
+  addr: localhost:17380
   password: ""
   db: 0
 
 kafka:
   brokers:
-    - localhost:19092
+    - localhost:17092
 
 rabbitmq:
   url: amqp://dev_user:dev_password@localhost:5672/
 
 dtm:
-  addr: localhost:36790
+  addr: localhost:17790
 
 jwt:
   private_key_path: secrets/jwt_private.pem
@@ -59,10 +59,10 @@ google_oauth:
   client_id: "194202809974-gr217ea4e9bk7uv25rbifdclsjqg4ual.apps.googleusercontent.com"
   # client_secret: KHÔNG commit — inject qua env GOOGLE_OAUTH_CLIENT_SECRET khi chạy local
   client_secret: ""
-  redirect_uri: "http://localhost:8080/api/v1/auth/google/callback"
+  redirect_uri: "http://localhost:17080/api/v1/auth/google/callback"
 
 minio:
-  endpoint: "localhost:9000"
+  endpoint: "localhost:17090"
   access_key: "minioadmin"
   secret_key: "minioadmin"
   bucket: "veloxfood"
