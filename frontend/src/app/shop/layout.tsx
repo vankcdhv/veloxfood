@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react';
 import { ShopHeader } from '@/widgets/shop-header/shop-header';
 import { ShopFooter } from '@/widgets/shop-footer/shop-footer';
+import { MobileTabBar } from '@/widgets/mobile-tab-bar/mobile-tab-bar';
 
 export default function ShopLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col pb-16 md:pb-0">
       <ShopHeader />
       <main className="flex-1">{children}</main>
       <ShopFooter />
+      <MobileTabBar />
     </div>
   );
 }
