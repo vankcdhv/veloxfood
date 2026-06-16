@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Search, Store as StoreIcon } from 'lucide-react';
+import { Loader2, Search, Store as StoreIcon, X } from 'lucide-react';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { useInfiniteScroll } from '@/shared/hooks/use-infinite-scroll';
 import { useBrowseStores } from '../hooks/use-stores';
 import { StoreCard } from './store-card';
 
 type ModeFilter = 'all' | 'open' | 'pickup';
+type SortKey = 'featured' | 'name';
 
 const FILTERS: { key: ModeFilter; label: string }[] = [
   { key: 'all', label: 'Tất cả' },
@@ -15,9 +16,17 @@ const FILTERS: { key: ModeFilter; label: string }[] = [
   { key: 'pickup', label: 'Tự đến lấy' },
 ];
 
-export function StoreListView() {
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: 'featured', label: 'Nổi bật' },
+  { key: 'name', label: 'Tên A → Z' },
+];
+
+export function StoreListView({ initialCuisine }: { initialCuisine?: string }) {
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<ModeFilter>('all');
+  const [sort, setSort] = useState<SortKey>('featured');
+  // Cuisine filter seeded from the home quick-row (?cuisine=). Removable.
+  const [cuisine, setCuisine] = useState(initialCuisine ?? '');
 
   // Debounce the typed query before it hits the server (name filter).
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -33,16 +42,24 @@ export function StoreListView() {
     enabled: !!hasNextPage && !isFetchingNextPage,
   });
 
-  // "Đang mở"/"Tự đến lấy" refine the already-loaded pages client-side
-  // (OpenNow is computed per-request, not filterable in SQL).
+  // Mode + cuisine refine the already-loaded pages client-side (OpenNow is
+  // computed per-request and cuisine isn't a server filter yet), then sort.
   const filtered = useMemo(() => {
     const all = data?.pages.flatMap((p) => p.items) ?? [];
-    return all.filter((s) => {
+    const out = all.filter((s) => {
       if (mode === 'open' && !s.OpenNow) return false;
       if (mode === 'pickup' && !s.PickupEnabled) return false;
+      if (cuisine && s.BusinessType !== cuisine) return false;
       return true;
     });
-  }, [data, mode]);
+    if (sort === 'name') {
+      out.sort((a, b) => a.Name.localeCompare(b.Name, 'vi'));
+    } else {
+      // Featured: open stores first (stable within group preserves name order).
+      out.sort((a, b) => Number(b.OpenNow ?? false) - Number(a.OpenNow ?? false));
+    }
+    return out;
+  }, [data, mode, cuisine, sort]);
 
   if (isLoading) {
     return (
@@ -76,7 +93,7 @@ export function StoreListView() {
             className="border-input bg-background focus-visible:ring-ring h-10 w-full rounded-lg border pl-9 pr-3 text-sm focus-visible:ring-2 focus-visible:outline-none"
           />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {FILTERS.map((f) => (
             <button
               key={f.key}
@@ -91,6 +108,32 @@ export function StoreListView() {
               {f.label}
             </button>
           ))}
+
+          {/* Active cuisine filter (from home quick-row) — removable */}
+          {cuisine && (
+            <button
+              type="button"
+              onClick={() => setCuisine('')}
+              className="border-primary bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium"
+            >
+              {cuisine}
+              <X className="h-3 w-3" />
+            </button>
+          )}
+
+          {/* Sort — pushed to the right */}
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortKey)}
+            aria-label="Sắp xếp"
+            className="border-input bg-background ml-auto h-8 rounded-lg border px-2 text-xs"
+          >
+            {SORTS.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { MapPin, Phone, Truck, Star, Clock, UtensilsCrossed } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { MapPin, Phone, Truck, Star, Clock, Search, UtensilsCrossed } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
@@ -29,11 +29,21 @@ interface StoreDetailViewProps {
 
 export function StoreDetailView({ storeId }: StoreDetailViewProps) {
   const [tab, setTab] = useState<StoreTab>('menu');
+  const [menuQuery, setMenuQuery] = useState('');
 
   const { data: store, isLoading: storeLoading, isError: storeError } = useStore(storeId);
   const { data: menu, isLoading: menuLoading } = useStoreMenu(storeId);
   const { data: rating } = useStoreRatingSummary(storeId);
   const { data: itemSummaries } = useItemRatingSummaries(storeId);
+
+  // In-menu search: filter items by name (accent-insensitive), drop empty groups.
+  const displayedMenu = useMemo(() => {
+    const q = menuQuery.trim().toLowerCase();
+    if (!q || !menu) return menu ?? [];
+    return menu
+      .map((cat) => ({ ...cat, Items: cat.Items.filter((it) => it.Name.toLowerCase().includes(q)) }))
+      .filter((cat) => cat.Items.length > 0);
+  }, [menu, menuQuery]);
 
   if (storeLoading) {
     return (
@@ -143,23 +153,63 @@ export function StoreDetailView({ storeId }: StoreDetailViewProps) {
 
       {/* Tab panels */}
       {tab === 'menu' && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {menuLoading && (
             <div className="space-y-4">
               <Skeleton className="h-8 w-40" />
               <Skeleton className="h-48 rounded-xl" />
             </div>
           )}
+
+          {!menuLoading && menu && menu.length > 0 && (
+            <>
+              {/* Search within this store's menu */}
+              <div className="relative">
+                <Search className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+                <input
+                  type="search"
+                  value={menuQuery}
+                  onChange={(e) => setMenuQuery(e.target.value)}
+                  placeholder="Tìm món trong quán…"
+                  className="border-input bg-background focus-visible:ring-ring h-10 w-full rounded-lg border pl-9 pr-3 text-sm focus-visible:ring-2 focus-visible:outline-none"
+                />
+              </div>
+
+              {/* Category jump chips (hidden while searching) */}
+              {!menuQuery.trim() && menu.length > 1 && (
+                <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
+                  {menu.map((cat) => (
+                    <button
+                      key={cat.Category.ID}
+                      type="button"
+                      onClick={() =>
+                        document
+                          .getElementById(`cat-${cat.Category.ID}`)
+                          ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }
+                      className="border-border hover:border-primary/50 hover:bg-primary/5 shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors"
+                    >
+                      {cat.Category.Name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
           {!menuLoading && (!menu || menu.length === 0) && (
             <p className="text-muted-foreground text-sm">Chưa có món nào.</p>
           )}
-          {menu?.map((cat) => (
-            <MenuCategorySection
-              key={cat.Category.ID}
-              cat={cat}
-              storeId={storeId}
-              itemSummaries={itemSummaries}
-            />
+          {!menuLoading && menu && menu.length > 0 && displayedMenu.length === 0 && (
+            <p className="text-muted-foreground py-8 text-center text-sm">
+              Không tìm thấy món khớp &ldquo;{menuQuery}&rdquo;.
+            </p>
+          )}
+
+          {displayedMenu.map((cat) => (
+            <div key={cat.Category.ID} id={`cat-${cat.Category.ID}`} className="scroll-mt-24">
+              <MenuCategorySection cat={cat} storeId={storeId} itemSummaries={itemSummaries} />
+            </div>
           ))}
         </div>
       )}

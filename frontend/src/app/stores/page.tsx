@@ -5,7 +5,12 @@ export const metadata: Metadata = {
   title: 'Cửa hàng · VeloxFood',
 };
 
-export default function StoresPage() {
+export default async function StoresPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cuisine?: string }>;
+}) {
+  const { cuisine } = await searchParams;
   return (
     <main className="bg-background min-h-dvh px-4 py-10">
       <div className="mx-auto w-full max-w-5xl space-y-6">
@@ -15,7 +20,7 @@ export default function StoresPage() {
             Khám phá các quầy ăn trong khuôn viên trường.
           </p>
         </div>
-        <StoreListView />
+        <StoreListView initialCuisine={cuisine} />
       </div>
     </main>
   );
