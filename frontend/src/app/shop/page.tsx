@@ -4,18 +4,12 @@ import { Button } from '@/shared/ui/button';
 import { Badge } from '@/shared/ui/badge';
 import { Card, CardContent } from '@/shared/ui/card';
 import { ROUTES } from '@/shared/config/constants';
+import { HomeDiscovery } from '@/features/stores/components/home-discovery';
 
 const HIGHLIGHTS = [
-  { icon: Truck, title: 'Giao 30 phút', description: 'Cam kết giao tận nơi nội thành.' },
-  { icon: Star, title: '4.9 từ 12k đánh giá', description: 'Bếp nổi tiếng, nguyên liệu chọn lọc.' },
-  { icon: Clock, title: 'Mở 10:00 – 22:00', description: 'Phục vụ cả tuần, kể cả lễ tết.' },
-];
-
-const COLLECTIONS = [
-  { name: 'Món hôm nay', tag: 'Hot', subtitle: '12 món bán chạy' },
-  { name: 'Bữa trưa nhanh', tag: 'Quick', subtitle: 'Sẵn sàng dưới 20 phút' },
-  { name: 'Chay & lành mạnh', tag: 'Healthy', subtitle: 'Calo dưới 500' },
-  { name: 'Tráng miệng', tag: 'Sweet', subtitle: 'Bánh & đồ uống' },
+  { icon: Truck, title: 'Giao tận nơi', description: 'Tận phòng, tận tầng — đúng nơi bạn cần.' },
+  { icon: Star, title: 'Bếp uy tín', description: 'Đánh giá thật từ chính người dùng.' },
+  { icon: Clock, title: 'Đặt nhanh, nhận sớm', description: 'Chọn giờ nhận phù hợp với bạn.' },
 ];
 
 export default function ShopHomePage() {
@@ -87,39 +81,7 @@ export default function ShopHomePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mb-8 flex items-end justify-between gap-4">
-          <div>
-            <h2 className="font-serif text-3xl font-bold tracking-tight">Bộ sưu tập</h2>
-            <p className="text-muted-foreground mt-1">
-              Chọn theo dịp, theo nhu cầu, theo tâm trạng.
-            </p>
-          </div>
-          <Button asChild variant="ghost">
-            <Link href={ROUTES.stores.root}>
-              Xem tất cả
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {COLLECTIONS.map((c) => (
-            <Link key={c.name} href={ROUTES.stores.root} className="group block">
-              <Card className="cursor-pointer overflow-hidden transition-shadow hover:shadow-md">
-                <div className="from-primary/15 to-secondary/10 aspect-[4/3] bg-gradient-to-br transition-transform duration-300 group-hover:scale-[1.02]" />
-                <CardContent className="space-y-1 p-5">
-                  <div className="flex items-center justify-between">
-                    <p className="font-serif text-lg font-semibold">{c.name}</p>
-                    <Badge variant="accent">{c.tag}</Badge>
-                  </div>
-                  <p className="text-muted-foreground text-sm">{c.subtitle}</p>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <HomeDiscovery />
     </div>
   );
 }

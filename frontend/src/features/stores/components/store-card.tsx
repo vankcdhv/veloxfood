@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Package, Truck, UtensilsCrossed } from 'lucide-react';
+import { Clock, Package, Truck, UtensilsCrossed } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
 import { StarRatingDisplay } from '@/features/reviews/components/star-rating-input';
@@ -53,6 +53,19 @@ export function StoreCard({ store, href }: StoreCardProps) {
             </>
           ) : (
             <span className="text-muted-foreground/60">Chưa có đánh giá</span>
+          )}
+        </div>
+
+        {/* Meta row: prep-time ETA + today's hours (data already returned by the
+            browse endpoint) — gives users decision info like ShopeeFood/GrabFood. */}
+        <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <span className="inline-flex items-center gap-1">
+            <Clock className="h-3 w-3" />~{store.PrepMinutes && store.PrepMinutes > 0 ? store.PrepMinutes : 20} phút
+          </span>
+          {store.OpenTimeToday && store.CloseTimeToday && (
+            <span>
+              Mở {store.OpenTimeToday}–{store.CloseTimeToday}
+            </span>
           )}
         </div>
 
