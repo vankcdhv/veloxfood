@@ -73,9 +73,10 @@ type CatalogUsecase interface {
 	ListComboItems(ctx context.Context, comboID string) ([]*entity.ComboItem, error)
 
 	// Global search
-	// SearchMenuItems finds sellable items by name (accent-insensitive, fuzzy).
-	// Empty q returns an empty slice. limit is clamped to [1, 50]; default 24.
-	SearchMenuItems(ctx context.Context, q string, limit int) ([]repository.SearchMenuItemRow, error)
+	// SearchMenuItems finds sellable items by name (accent-insensitive, fuzzy),
+	// paginated. Empty q returns an empty page (0 total). limit is clamped to
+	// [1, 50]; default 24. Returns the page rows plus the total match count.
+	SearchMenuItems(ctx context.Context, q string, limit, offset int) ([]repository.SearchMenuItemRow, int64, error)
 }
 
 type catalogUsecase struct {
@@ -414,10 +415,10 @@ const (
 	searchMaxLimit     = 50
 )
 
-func (uc *catalogUsecase) SearchMenuItems(ctx context.Context, q string, limit int) ([]repository.SearchMenuItemRow, error) {
+func (uc *catalogUsecase) SearchMenuItems(ctx context.Context, q string, limit, offset int) ([]repository.SearchMenuItemRow, int64, error) {
 	q = strings.TrimSpace(q)
 	if q == "" {
-		return []repository.SearchMenuItemRow{}, nil
+		return []repository.SearchMenuItemRow{}, 0, nil
 	}
 	if limit <= 0 {
 		limit = searchDefaultLimit
@@ -425,6 +426,9 @@ func (uc *catalogUsecase) SearchMenuItems(ctx context.Context, q string, limit i
 	if limit > searchMaxLimit {
 		limit = searchMaxLimit
 	}
-	return uc.catalogRepo.SearchMenuItems(ctx, q, limit)
+	if offset < 0 {
+		offset = 0
+	}
+	return uc.catalogRepo.SearchMenuItems(ctx, q, limit, offset)
 }
 

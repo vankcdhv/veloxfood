@@ -19,14 +19,16 @@ func NewAdminStoreHandler(storeUC usecase.StoreUsecase, hoursUC usecase.HoursUse
 	return &AdminStoreHandler{storeUC: storeUC, hoursUC: hoursUC}
 }
 
-// ListStores GET /admin/stores — admin overview of every store, includes OwnerUserName.
+// ListStores GET /admin/stores?sale_status=&q=&limit=20&offset=0 — admin overview
+// of every store (includes OwnerUserName), paginated.
 func (h *AdminStoreHandler) ListStores(c *gin.Context) {
-	stores, err := h.storeUC.ListStoresEnriched(c.Request.Context(), c.Query("sale_status"))
+	limit, offset := parseLimitOffset(c, 20)
+	stores, total, err := h.storeUC.ListStoresEnriched(c.Request.Context(), c.Query("sale_status"), c.Query("q"), limit, offset)
 	if err != nil {
 		response.HandleError(c, err)
 		return
 	}
-	response.Success(c, stores)
+	response.Paginated(c, stores, total, offset/limit+1)
 }
 
 // ListHoursChange GET /admin/stores/:id/hours-change?status= — pending requests to review.

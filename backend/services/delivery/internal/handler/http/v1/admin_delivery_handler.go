@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"project/pkg/pagination"
 	"project/pkg/response"
 	"project/services/delivery/internal/repository"
 	"project/services/delivery/internal/usecase"
@@ -34,17 +35,19 @@ func (h *AdminDeliveryHandler) ListDeliveries(c *gin.Context) {
 	c.JSON(http.StatusOK, response.Response{Status: http.StatusOK, Message: "ok", Data: rows})
 }
 
-// ListIncidents returns all delivery incidents for admin review.
-// GET /api/v1/admin/incidents
+// ListIncidents returns delivery incidents for admin review, paginated.
+// GET /api/v1/admin/incidents?page=1&page_size=20
 func (h *AdminDeliveryHandler) ListIncidents(c *gin.Context) {
-	rows, err := h.incidentUC.ListAllIncidents(c.Request.Context())
+	page, pageSize := pagination.Parse(c)
+	offset := pagination.Offset(page, pageSize)
+	rows, total, err := h.incidentUC.ListAllIncidents(c.Request.Context(), pageSize, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.Response{
 			Status: http.StatusInternalServerError, Message: "internal server error", Error: err.Error(),
 		})
 		return
 	}
-	c.JSON(http.StatusOK, response.Response{Status: http.StatusOK, Message: "ok", Data: rows})
+	response.Paginated(c, rows, total, page)
 }
 
 // ResolveIncident marks an incident as resolved (admin "đã xử lý").

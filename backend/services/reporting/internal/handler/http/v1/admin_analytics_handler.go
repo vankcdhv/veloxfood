@@ -1,9 +1,7 @@
 package v1
 
 import (
-	"net/http"
-	"strconv"
-
+	"project/pkg/pagination"
 	"project/pkg/response"
 	"project/services/reporting/internal/usecase"
 
@@ -42,26 +40,17 @@ func (h *AdminAnalyticsHandler) GetAnalytics(c *gin.Context) {
 	response.Success(c, summary)
 }
 
-// ListRecentOrders returns the most recent order_facts rows.
-// GET /api/v1/admin/orders/recent?limit=20
+// ListRecentOrders returns recent order_facts rows, paginated.
+// GET /api/v1/admin/orders/recent?page=1&page_size=20
 //
-// Each item in the array:
+// Each item shape (field names unchanged):
 //
-//	{
-//	  "OrderID":       "uuid",
-//	  "StoreID":       "uuid",
-//	  "GrandTotal":    160000,
-//	  "Status":        "COMPLETED",
-//	  "CreatedAt":     "RFC3339"
-//	}
+//	{"OrderID","Code","StoreID","GrandTotal","Status","CreatedAt"}
 func (h *AdminAnalyticsHandler) ListRecentOrders(c *gin.Context) {
-	limit := 20
-	if l := c.Query("limit"); l != "" {
-		if n, err := strconv.Atoi(l); err == nil && n > 0 && n <= 100 {
-			limit = n
-		}
-	}
-	facts, err := h.analyticsUC.ListRecentOrders(c.Request.Context(), limit)
+	page, pageSize := pagination.Parse(c)
+	offset := pagination.Offset(page, pageSize)
+
+	facts, total, err := h.analyticsUC.ListRecentOrders(c.Request.Context(), pageSize, offset)
 	if err != nil {
 		response.InternalError(c)
 		return
@@ -87,5 +76,5 @@ func (h *AdminAnalyticsHandler) ListRecentOrders(c *gin.Context) {
 			CreatedAt:  f.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		})
 	}
-	c.JSON(http.StatusOK, gin.H{"status": 200, "message": "success", "data": items})
+	response.Paginated(c, items, total, page)
 }

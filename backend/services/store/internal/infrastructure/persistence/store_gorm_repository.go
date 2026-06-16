@@ -47,6 +47,31 @@ func (r *storeGormRepository) List(ctx context.Context, saleStatus string) ([]*e
 	return rows, q.Find(&rows).Error
 }
 
+func (r *storeGormRepository) ListPaged(ctx context.Context, saleStatus, q string, limit, offset int) ([]*entity.Store, int64, error) {
+	base := r.db.WithContext(ctx).Model(&entity.Store{})
+	if saleStatus != "" {
+		base = base.Where("sale_status = ?", saleStatus)
+	}
+	if q != "" {
+		base = base.Where("f_unaccent(lower(name)) ILIKE '%' || f_unaccent(lower(?)) || '%'", q)
+	}
+
+	var total int64
+	if err := base.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	query := base.Order("name ASC")
+	if limit > 0 {
+		query = query.Limit(limit).Offset(offset)
+	}
+	var rows []*entity.Store
+	if err := query.Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
+}
+
 func (r *storeGormRepository) ListByOwner(ctx context.Context, ownerUserID string) ([]*entity.Store, error) {
 	var rows []*entity.Store
 	return rows, r.db.WithContext(ctx).

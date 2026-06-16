@@ -28,15 +28,23 @@ func (r *incidentGormRepository) ListAll(ctx context.Context) ([]*entity.Deliver
 	return rows, err
 }
 
-func (r *incidentGormRepository) ListAllWithOrderCode(ctx context.Context) ([]*repository.IncidentWithOrder, error) {
-	var rows []*repository.IncidentWithOrder
-	err := r.db.WithContext(ctx).
+func (r *incidentGormRepository) ListAllWithOrderCode(ctx context.Context, limit, offset int) ([]*repository.IncidentWithOrder, int64, error) {
+	base := r.db.WithContext(ctx).
 		Table("delivery_incidents").
 		Select("delivery_incidents.*, deliveries.order_code AS order_code").
-		Joins("LEFT JOIN deliveries ON deliveries.id = delivery_incidents.delivery_id").
-		Order("delivery_incidents.created_at DESC").
+		Joins("LEFT JOIN deliveries ON deliveries.id = delivery_incidents.delivery_id")
+
+	var total int64
+	if err := r.db.WithContext(ctx).Model(&repository.IncidentWithOrder{}).
+		Table("delivery_incidents").Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var rows []*repository.IncidentWithOrder
+	err := base.Order("delivery_incidents.created_at DESC").
+		Limit(limit).Offset(offset).
 		Scan(&rows).Error
-	return rows, err
+	return rows, total, err
 }
 
 func (r *incidentGormRepository) UpdateStatus(ctx context.Context, id string, status entity.IncidentStatus) error {

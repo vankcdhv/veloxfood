@@ -19,6 +19,9 @@ type PayoutRepository interface {
 	// ListByStore returns payout batches for a store (newest first).
 	ListByStore(ctx context.Context, storeID string, limit, offset int) ([]*entity.PayoutBatch, error)
 
+	// CountByStore returns the total number of payout batches for a store.
+	CountByStore(ctx context.Context, storeID string) (int64, error)
+
 	// MarkSettled atomically marks the batch SETTLED within tx.
 	MarkSettled(ctx context.Context, tx *gorm.DB, batchID, settledByUserID string) error
 }

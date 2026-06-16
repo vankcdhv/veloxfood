@@ -362,7 +362,21 @@ func (r *catalogGormRepository) ListComboItems(ctx context.Context, comboID stri
 // SearchMenuItems performs accent-insensitive fuzzy search on menu item names
 // across all non-deleted stores with status='on'. Ordered by trigram similarity
 // descending so the best match appears first.
-func (r *catalogGormRepository) SearchMenuItems(ctx context.Context, q string, limit int) ([]repository.SearchMenuItemRow, error) {
+func (r *catalogGormRepository) SearchMenuItems(ctx context.Context, q string, limit, offset int) ([]repository.SearchMenuItemRow, int64, error) {
+	// Total matches (for pagination) — same WHERE as the page query.
+	var total int64
+	if err := r.db.WithContext(ctx).Raw(`
+		SELECT count(*)
+		FROM menu_items
+		JOIN stores ON stores.id = menu_items.store_id
+		WHERE menu_items.deleted_at IS NULL
+		  AND menu_items.status = 'on'
+		  AND stores.deleted_at IS NULL
+		  AND f_unaccent(lower(menu_items.name)) ILIKE '%' || f_unaccent(lower(?)) || '%'
+	`, q).Scan(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
 	var rows []repository.SearchMenuItemRow
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT
@@ -382,7 +396,7 @@ func (r *catalogGormRepository) SearchMenuItems(ctx context.Context, q string, l
 		  AND f_unaccent(lower(menu_items.name)) ILIKE '%' || f_unaccent(lower(?)) || '%'
 		ORDER BY similarity(f_unaccent(lower(menu_items.name)), f_unaccent(lower(?))) DESC,
 		         menu_items.name
-		LIMIT ?
-	`, q, q, limit).Scan(&rows).Error
-	return rows, err
+		LIMIT ? OFFSET ?
+	`, q, q, limit, offset).Scan(&rows).Error
+	return rows, total, err
 }

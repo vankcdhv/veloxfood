@@ -53,13 +53,18 @@ func (r *promotionGormRepository) GetByStoreAndCodeForUpdate(ctx context.Context
 	return &p, nil
 }
 
-func (r *promotionGormRepository) ListByStore(ctx context.Context, storeID string) ([]*entity.Promotion, error) {
+func (r *promotionGormRepository) ListByStore(ctx context.Context, storeID string, limit, offset int) ([]*entity.Promotion, int64, error) {
+	var total int64
+	if err := r.db.WithContext(ctx).Model(&entity.Promotion{}).
+		Where("store_id = ?", storeID).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 	var rows []*entity.Promotion
 	err := r.db.WithContext(ctx).
 		Where("store_id = ?", storeID).
-		Order("created_at DESC").
+		Order("created_at DESC").Limit(limit).Offset(offset).
 		Find(&rows).Error
-	return rows, err
+	return rows, total, err
 }
 
 func (r *promotionGormRepository) Update(ctx context.Context, p *entity.Promotion) error {

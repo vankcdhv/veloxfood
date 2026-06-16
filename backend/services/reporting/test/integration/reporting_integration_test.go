@@ -398,18 +398,22 @@ func TestRecentOrders_ReturnsRows(t *testing.T) {
 		        50000, 10000, 0, 60000, 'COD', 'PENDING', false, $2, $2)`,
 		now.Format("2006-01-02"), now)
 
-	w := env.get(t, "/api/v1/admin/orders/recent?limit=5")
+	w := env.get(t, "/api/v1/admin/orders/recent?page=1&page_size=5")
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d — %s", w.Code, w.Body.String())
 	}
 
 	var resp struct {
-		Data []map[string]any `json:"data"`
+		Data struct {
+			Items []map[string]any `json:"items"`
+			Total int64            `json:"total"`
+			Page  int              `json:"page"`
+		} `json:"data"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("parse response: %v", err)
 	}
-	if len(resp.Data) == 0 {
+	if len(resp.Data.Items) == 0 {
 		t.Error("expected at least one recent order, got none")
 	}
 }

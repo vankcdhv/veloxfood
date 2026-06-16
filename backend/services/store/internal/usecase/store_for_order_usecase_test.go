@@ -41,6 +41,9 @@ func (m *mockStoreRepo) List(ctx context.Context, saleStatus string) ([]*entity.
 	}
 	return nil, errors.New("not implemented")
 }
+func (m *mockStoreRepo) ListPaged(ctx context.Context, saleStatus, q string, limit, offset int) ([]*entity.Store, int64, error) {
+	return nil, 0, errors.New("not implemented")
+}
 func (m *mockStoreRepo) Update(ctx context.Context, s *entity.Store) error {
 	if m.updateFn != nil {
 		return m.updateFn(ctx, s)
@@ -211,8 +214,8 @@ func (m *mockCatalogRepo) RemoveComboItem(ctx context.Context, comboID string, m
 func (m *mockCatalogRepo) ListComboItems(ctx context.Context, comboID string) ([]*entity.ComboItem, error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockCatalogRepo) SearchMenuItems(ctx context.Context, q string, limit int) ([]repository.SearchMenuItemRow, error) {
-	return nil, errors.New("not implemented")
+func (m *mockCatalogRepo) SearchMenuItems(ctx context.Context, q string, limit, offset int) ([]repository.SearchMenuItemRow, int64, error) {
+	return nil, 0, errors.New("not implemented")
 }
 
 // ── mockHoursUsecase ──────────────────────────────────────────────────────────

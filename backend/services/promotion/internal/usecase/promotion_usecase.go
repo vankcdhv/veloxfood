@@ -17,8 +17,8 @@ type PromotionUsecase interface {
 	// CreatePromotion creates a new voucher for a store.
 	CreatePromotion(ctx context.Context, req CreatePromotionRequest) (*entity.Promotion, error)
 
-	// ListPromotions returns all non-deleted promotions for a store.
-	ListPromotions(ctx context.Context, storeID string) ([]*entity.Promotion, error)
+	// ListPromotions returns a page of non-deleted promotions for a store plus total.
+	ListPromotions(ctx context.Context, storeID string, limit, offset int) ([]*entity.Promotion, int64, error)
 
 	// GetPromotion returns a single promotion by ID.
 	GetPromotion(ctx context.Context, id string) (*entity.Promotion, error)
@@ -156,8 +156,8 @@ func (uc *promotionUsecase) CreatePromotion(ctx context.Context, req CreatePromo
 	return p, nil
 }
 
-func (uc *promotionUsecase) ListPromotions(ctx context.Context, storeID string) ([]*entity.Promotion, error) {
-	return uc.promoRepo.ListByStore(ctx, storeID)
+func (uc *promotionUsecase) ListPromotions(ctx context.Context, storeID string, limit, offset int) ([]*entity.Promotion, int64, error) {
+	return uc.promoRepo.ListByStore(ctx, storeID, limit, offset)
 }
 
 func (uc *promotionUsecase) GetPromotion(ctx context.Context, id string) (*entity.Promotion, error) {

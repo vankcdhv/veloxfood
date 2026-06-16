@@ -24,9 +24,9 @@ func (u *AnalyticsUsecase) GetAnalytics(ctx context.Context, period string) (*re
 	return u.queryRepo.GetAnalytics(ctx, from, to)
 }
 
-// ListRecentOrders returns the most recent order_facts rows up to limit.
-func (u *AnalyticsUsecase) ListRecentOrders(ctx context.Context, limit int) ([]*entity.OrderFact, error) {
-	return u.queryRepo.ListRecentOrders(ctx, limit)
+// ListRecentOrders returns a page of recent order_facts rows plus the total count.
+func (u *AnalyticsUsecase) ListRecentOrders(ctx context.Context, limit, offset int) ([]*entity.OrderFact, int64, error) {
+	return u.queryRepo.ListRecentOrders(ctx, limit, offset)
 }
 
 // GetStoreRevenue returns revenue_daily rows for a store within the period window.

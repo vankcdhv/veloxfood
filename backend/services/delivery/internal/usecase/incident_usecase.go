@@ -39,7 +39,7 @@ type AdminIncidentView struct {
 // IncidentUsecase handles incident creation, admin listing, and resolution.
 type IncidentUsecase interface {
 	ReportIncident(ctx context.Context, req ReportIncidentRequest) (*entity.DeliveryIncident, error)
-	ListAllIncidents(ctx context.Context) ([]*AdminIncidentView, error)
+	ListAllIncidents(ctx context.Context, limit, offset int) ([]*AdminIncidentView, int64, error)
 	ResolveIncident(ctx context.Context, id string) error
 }
 
@@ -125,13 +125,13 @@ func (uc *incidentUsecase) ReportIncident(ctx context.Context, req ReportInciden
 	return created, err
 }
 
-// ListAllIncidents returns the admin incident list enriched with each order's
+// ListAllIncidents returns a page of admin incidents enriched with each order's
 // code and the reporting shipper's name. Shipper names are resolved once per
 // distinct shipper to avoid an N+1 of gRPC calls.
-func (uc *incidentUsecase) ListAllIncidents(ctx context.Context) ([]*AdminIncidentView, error) {
-	rows, err := uc.incidentRepo.ListAllWithOrderCode(ctx)
+func (uc *incidentUsecase) ListAllIncidents(ctx context.Context, limit, offset int) ([]*AdminIncidentView, int64, error) {
+	rows, total, err := uc.incidentRepo.ListAllWithOrderCode(ctx, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	nameByShipper := make(map[string]string)
@@ -154,7 +154,7 @@ func (uc *incidentUsecase) ListAllIncidents(ctx context.Context) ([]*AdminIncide
 			CreatedAt:   r.CreatedAt,
 		}
 	}
-	return views, nil
+	return views, total, nil
 }
 
 // ResolveIncident marks an incident RESOLVED (admin "đã xử lý" action).

@@ -34,10 +34,12 @@ func NewStoreBrowseHandler(
 	}
 }
 
-// ListStores GET /api/v1/stores
+// ListStores GET /api/v1/stores?sale_status=&q=&limit=12&offset=0
+// Paginated (infinite-scroll friendly): returns a {items,total,page} envelope.
 func (h *StoreBrowseHandler) ListStores(c *gin.Context) {
 	ctx := c.Request.Context()
-	stores, err := h.storeUC.ListStoresEnriched(ctx, c.Query("sale_status"))
+	limit, offset := parseLimitOffset(c, 12)
+	stores, total, err := h.storeUC.ListStoresEnriched(ctx, c.Query("sale_status"), c.Query("q"), limit, offset)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -51,7 +53,7 @@ func (h *StoreBrowseHandler) ListStores(c *gin.Context) {
 			s.CloseTimeToday = openRes.CloseTimeToday
 		}
 	}
-	response.Success(c, stores)
+	response.Paginated(c, stores, total, offset/limit+1)
 }
 
 // GetStore GET /api/v1/stores/:id
@@ -160,21 +162,33 @@ func (h *StoreBrowseHandler) ListMyStores(c *gin.Context) {
 	response.Success(c, stores)
 }
 
-// SearchMenuItems GET /api/v1/menu-items/search?q=<text>&limit=<int>
+// SearchMenuItems GET /api/v1/menu-items/search?q=<text>&limit=12&offset=0
 // Public endpoint — no auth required. Returns sellable menu items whose name
-// matches q accent-insensitively across all active stores. Empty q → [].
+// matches q accent-insensitively across all active stores, paginated for
+// infinite scroll. Empty q → empty page.
 func (h *StoreBrowseHandler) SearchMenuItems(c *gin.Context) {
 	q := c.Query("q")
-	limit := 0
-	if raw := c.Query("limit"); raw != "" {
-		if n, err := strconv.Atoi(raw); err == nil {
-			limit = n
-		}
-	}
-	items, err := h.catalogUC.SearchMenuItems(c.Request.Context(), q, limit)
+	limit, offset := parseLimitOffset(c, 12)
+	items, total, err := h.catalogUC.SearchMenuItems(c.Request.Context(), q, limit, offset)
 	if err != nil {
 		response.HandleError(c, err)
 		return
 	}
-	response.Success(c, items)
+	response.Paginated(c, items, total, offset/limit+1)
+}
+
+// parseLimitOffset reads limit/offset query params with a default limit and
+// offset 0. limit is capped at 100; non-positive or invalid values fall back.
+func parseLimitOffset(c *gin.Context, defaultLimit int) (limit, offset int) {
+	limit = defaultLimit
+	if n, err := strconv.Atoi(c.Query("limit")); err == nil && n > 0 {
+		if n > 100 {
+			n = 100
+		}
+		limit = n
+	}
+	if n, err := strconv.Atoi(c.Query("offset")); err == nil && n > 0 {
+		offset = n
+	}
+	return
 }

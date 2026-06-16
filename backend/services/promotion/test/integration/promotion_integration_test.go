@@ -274,11 +274,14 @@ func TestOwnerCreateAndListPromotions(t *testing.T) {
 		t.Fatalf("list promotions: %d — %s", w.Code, w.Body.String())
 	}
 	var listResp struct {
-		Data []struct{ ID string } `json:"data"`
+		Data struct {
+			Items []struct{ ID string } `json:"items"`
+			Total int64                 `json:"total"`
+		} `json:"data"`
 	}
 	_ = json.Unmarshal(w.Body.Bytes(), &listResp)
-	if len(listResp.Data) < 1 {
-		t.Errorf("expected at least 1 promotion in list, got %d", len(listResp.Data))
+	if len(listResp.Data.Items) < 1 {
+		t.Errorf("expected at least 1 promotion in list, got %d", len(listResp.Data.Items))
 	}
 }
 

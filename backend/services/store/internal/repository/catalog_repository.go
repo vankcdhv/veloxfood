@@ -108,6 +108,7 @@ type CatalogRepository interface {
 	// ---- Global search ----
 
 	// SearchMenuItems performs accent-insensitive fuzzy name search across all
-	// active stores. Results are ordered by trigram similarity desc, then name.
-	SearchMenuItems(ctx context.Context, q string, limit int) ([]SearchMenuItemRow, error)
+	// active stores, paginated. Results are ordered by trigram similarity desc,
+	// then name. Returns the page rows plus the total match count.
+	SearchMenuItems(ctx context.Context, q string, limit, offset int) ([]SearchMenuItemRow, int64, error)
 }

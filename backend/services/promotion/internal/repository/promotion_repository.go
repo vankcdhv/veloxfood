@@ -20,8 +20,9 @@ type PromotionRepository interface {
 	// SELECT … FOR UPDATE lock. Must be called inside a transaction (tx).
 	GetByStoreAndCodeForUpdate(ctx context.Context, tx *gorm.DB, storeID, code string) (*entity.Promotion, error)
 
-	// ListByStore returns all non-deleted promotions for a store, newest first.
-	ListByStore(ctx context.Context, storeID string) ([]*entity.Promotion, error)
+	// ListByStore returns a page of non-deleted promotions for a store (newest
+	// first) plus the total count.
+	ListByStore(ctx context.Context, storeID string, limit, offset int) ([]*entity.Promotion, int64, error)
 
 	// Update saves mutable fields (value, min_order, max_discount, starts_at,
 	// ends_at, usage_limit, status) on an existing promotion.

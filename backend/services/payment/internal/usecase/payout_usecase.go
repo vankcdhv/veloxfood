@@ -42,7 +42,8 @@ type SettleableOrderItem struct {
 type PayoutUsecase interface {
 	CreateBatch(ctx context.Context, req CreatePayoutRequest) (*entity.PayoutBatch, error)
 	ExecuteBatch(ctx context.Context, batchID, adminUserID string) error
-	ListByStore(ctx context.Context, storeID string, limit, offset int) ([]*entity.PayoutBatch, error)
+	// ListByStore returns a page of payout batches for a store plus the total count.
+	ListByStore(ctx context.Context, storeID string, limit, offset int) ([]*entity.PayoutBatch, int64, error)
 
 	// GetSettleableSummary returns the payable wallet balance and the
 	// individual orders behind it for the given store.
@@ -203,8 +204,13 @@ func (uc *payoutUsecase) ExecuteBatch(ctx context.Context, batchID, adminUserID 
 	})
 }
 
-func (uc *payoutUsecase) ListByStore(ctx context.Context, storeID string, limit, offset int) ([]*entity.PayoutBatch, error) {
-	return uc.payoutRepo.ListByStore(ctx, storeID, limit, offset)
+func (uc *payoutUsecase) ListByStore(ctx context.Context, storeID string, limit, offset int) ([]*entity.PayoutBatch, int64, error) {
+	total, err := uc.payoutRepo.CountByStore(ctx, storeID)
+	if err != nil {
+		return nil, 0, err
+	}
+	batches, err := uc.payoutRepo.ListByStore(ctx, storeID, limit, offset)
+	return batches, total, err
 }
 
 func (uc *payoutUsecase) GetSettleableSummary(ctx context.Context, storeID string) (*SettleableSummary, error) {

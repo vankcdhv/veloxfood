@@ -42,6 +42,13 @@ func (r *payoutGormRepository) ListByStore(ctx context.Context, storeID string, 
 	return batches, err
 }
 
+func (r *payoutGormRepository) CountByStore(ctx context.Context, storeID string) (int64, error) {
+	var total int64
+	err := r.db.WithContext(ctx).Model(&entity.PayoutBatch{}).
+		Where("store_id = ?", storeID).Count(&total).Error
+	return total, err
+}
+
 func (r *payoutGormRepository) MarkSettled(ctx context.Context, tx *gorm.DB, batchID, settledByUserID string) error {
 	now := time.Now()
 	return tx.WithContext(ctx).

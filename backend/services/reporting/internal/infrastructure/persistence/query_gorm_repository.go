@@ -65,18 +65,21 @@ func (r *queryGormRepository) GetAnalytics(ctx context.Context, from, to time.Ti
 	return &summary, nil
 }
 
-func (r *queryGormRepository) ListRecentOrders(ctx context.Context, limit int) ([]*entity.OrderFact, error) {
+func (r *queryGormRepository) ListRecentOrders(ctx context.Context, limit, offset int) ([]*entity.OrderFact, int64, error) {
 	if limit <= 0 {
 		limit = 20
 	}
+	var total int64
+	if err := r.db.WithContext(ctx).Model(&entity.OrderFact{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 	var facts []*entity.OrderFact
 	if err := r.db.WithContext(ctx).
-		Order("created_at DESC").
-		Limit(limit).
+		Order("created_at DESC").Limit(limit).Offset(offset).
 		Find(&facts).Error; err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return facts, nil
+	return facts, total, nil
 }
 
 func (r *queryGormRepository) GetStoreRevenue(ctx context.Context, storeID string, from, to time.Time) ([]*entity.RevenueDaily, error) {

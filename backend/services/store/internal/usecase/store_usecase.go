@@ -43,7 +43,7 @@ type StoreUsecase interface {
 	DeleteStore(ctx context.Context, id string) error
 
 	// Enriched variants include OwnerUserName resolved via the user service.
-	ListStoresEnriched(ctx context.Context, saleStatus string) ([]*StoreView, error)
+	ListStoresEnriched(ctx context.Context, saleStatus, q string, limit, offset int) ([]*StoreView, int64, error)
 	GetStoreEnriched(ctx context.Context, id string) (*StoreView, error)
 
 	// ListMyStores returns only the stores owned by ownerUserID, enriched with OwnerUserName.
@@ -236,10 +236,10 @@ func (uc *storeUsecase) DeleteStore(ctx context.Context, id string) error {
 
 // ListStoresEnriched returns stores with OwnerUserName resolved from the user service.
 // Resolver errors are tolerated: names are left empty and a warning is logged.
-func (uc *storeUsecase) ListStoresEnriched(ctx context.Context, saleStatus string) ([]*StoreView, error) {
-	stores, err := uc.storeRepo.List(ctx, saleStatus)
+func (uc *storeUsecase) ListStoresEnriched(ctx context.Context, saleStatus, q string, limit, offset int) ([]*StoreView, int64, error) {
+	stores, total, err := uc.storeRepo.ListPaged(ctx, saleStatus, q, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Collect unique owner IDs for a single batch call.
@@ -262,7 +262,7 @@ func (uc *storeUsecase) ListStoresEnriched(ctx context.Context, saleStatus strin
 	for i, s := range stores {
 		views[i] = &StoreView{Store: s, OwnerUserName: names[s.OwnerUserID]}
 	}
-	return views, nil
+	return views, total, nil
 }
 
 // GetStoreEnriched returns a single store with OwnerUserName resolved from the user service.

@@ -2,9 +2,9 @@ package v1
 
 import (
 	"encoding/json"
-	"fmt"
 
 	authmw "project/pkg/auth/middleware"
+	"project/pkg/pagination"
 	"project/pkg/response"
 	"project/services/order/internal/entity"
 	"project/services/order/internal/usecase"
@@ -90,7 +90,7 @@ type placeOrderItemBody struct {
 // ListMyOrders GET /api/v1/orders
 func (h *CustomerOrderHandler) ListMyOrders(c *gin.Context) {
 	customerID := authmw.UserIDFromContext(c.Request.Context())
-	page, pageSize := parsePagination(c)
+	page, pageSize := pagination.Parse(c)
 
 	orders, total, err := h.lifecycleUC.ListCustomerOrders(c.Request.Context(), customerID, page, pageSize)
 	if err != nil {
@@ -140,27 +140,4 @@ func (h *CustomerOrderHandler) Reorder(c *gin.Context) {
 		return
 	}
 	response.Created(c, cart)
-}
-
-// parsePagination extracts page/page_size from query params with safe defaults.
-func parsePagination(c *gin.Context) (page, pageSize int) {
-	page = 1
-	pageSize = 20
-	if p := c.Query("page"); p != "" {
-		if n, err := parseInt(p); err == nil && n > 0 {
-			page = n
-		}
-	}
-	if ps := c.Query("page_size"); ps != "" {
-		if n, err := parseInt(ps); err == nil && n > 0 && n <= 100 {
-			pageSize = n
-		}
-	}
-	return
-}
-
-func parseInt(s string) (int, error) {
-	var n int
-	_, err := fmt.Sscanf(s, "%d", &n)
-	return n, err
 }

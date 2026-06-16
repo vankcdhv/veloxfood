@@ -38,8 +38,9 @@ type QueryRepository interface {
 	// window [from, to).
 	GetAnalytics(ctx context.Context, from, to time.Time) (*AnalyticsSummary, error)
 
-	// ListRecentOrders returns the most recent order_facts rows up to limit.
-	ListRecentOrders(ctx context.Context, limit int) ([]*entity.OrderFact, error)
+	// ListRecentOrders returns a page of order_facts rows (newest first) and the
+	// total count, so callers can render pagination controls.
+	ListRecentOrders(ctx context.Context, limit, offset int) ([]*entity.OrderFact, int64, error)
 
 	// GetStoreRevenue returns revenue_daily rows for a store within [from, to).
 	GetStoreRevenue(ctx context.Context, storeID string, from, to time.Time) ([]*entity.RevenueDaily, error)

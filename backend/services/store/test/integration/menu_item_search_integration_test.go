@@ -60,13 +60,16 @@ func TestSearchMenuItemsAccentInsensitive(t *testing.T) {
 	}
 
 	var resp struct {
-		Data []struct {
-			ID         string `json:"ID"`
-			Name       string `json:"Name"`
-			Price      int64  `json:"Price"`
-			StoreID    string `json:"StoreID"`
-			StoreName  string `json:"StoreName"`
-			SaleStatus string `json:"SaleStatus"`
+		Data struct {
+			Items []struct {
+				ID         string `json:"ID"`
+				Name       string `json:"Name"`
+				Price      int64  `json:"Price"`
+				StoreID    string `json:"StoreID"`
+				StoreName  string `json:"StoreName"`
+				SaleStatus string `json:"SaleStatus"`
+			} `json:"items"`
+			Total int64 `json:"total"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
@@ -74,21 +77,21 @@ func TestSearchMenuItemsAccentInsensitive(t *testing.T) {
 	}
 
 	// Expect at least one result and that the first result is "Bánh mì thịt".
-	if len(resp.Data) == 0 {
+	if len(resp.Data.Items) == 0 {
 		t.Fatalf("expected at least 1 result for 'banh mi', got 0 — DB may not have f_unaccent")
 	}
-	if resp.Data[0].Name != "Bánh mì thịt" {
-		t.Errorf("expected top result 'Bánh mì thịt', got %q", resp.Data[0].Name)
+	if resp.Data.Items[0].Name != "Bánh mì thịt" {
+		t.Errorf("expected top result 'Bánh mì thịt', got %q", resp.Data.Items[0].Name)
 	}
-	if resp.Data[0].StoreID != storeID {
-		t.Errorf("expected StoreID=%s, got %s", storeID, resp.Data[0].StoreID)
+	if resp.Data.Items[0].StoreID != storeID {
+		t.Errorf("expected StoreID=%s, got %s", storeID, resp.Data.Items[0].StoreID)
 	}
-	if resp.Data[0].Price != 25000 {
-		t.Errorf("expected Price=25000, got %d", resp.Data[0].Price)
+	if resp.Data.Items[0].Price != 25000 {
+		t.Errorf("expected Price=25000, got %d", resp.Data.Items[0].Price)
 	}
 
 	// "Cơm tấm" should NOT appear in a "banh mi" search.
-	for _, item := range resp.Data {
+	for _, item := range resp.Data.Items {
 		if item.Name == "Cơm tấm sườn" {
 			t.Errorf("unexpected item 'Cơm tấm sườn' in results for 'banh mi'")
 		}
@@ -106,13 +109,15 @@ func TestSearchMenuItemsEmptyQuery(t *testing.T) {
 	}
 
 	var resp struct {
-		Data []interface{} `json:"data"`
+		Data struct {
+			Items []interface{} `json:"items"`
+		} `json:"data"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("parse response: %v", err)
 	}
-	if len(resp.Data) != 0 {
-		t.Errorf("expected empty array for blank q, got %d items", len(resp.Data))
+	if len(resp.Data.Items) != 0 {
+		t.Errorf("expected empty array for blank q, got %d items", len(resp.Data.Items))
 	}
 }
 

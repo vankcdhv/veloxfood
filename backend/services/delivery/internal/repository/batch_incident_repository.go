@@ -32,9 +32,9 @@ type IncidentRepository interface {
 	// ListAll returns all incidents (admin view), newest first.
 	ListAll(ctx context.Context) ([]*entity.DeliveryIncident, error)
 
-	// ListAllWithOrderCode returns all incidents joined to their delivery's
-	// order_code (admin view), newest first.
-	ListAllWithOrderCode(ctx context.Context) ([]*IncidentWithOrder, error)
+	// ListAllWithOrderCode returns a page of incidents joined to their delivery's
+	// order_code (admin view, newest first) plus the total count.
+	ListAllWithOrderCode(ctx context.Context, limit, offset int) ([]*IncidentWithOrder, int64, error)
 
 	// UpdateStatus sets an incident's status by id. Returns ErrNotFound when no
 	// row matches.

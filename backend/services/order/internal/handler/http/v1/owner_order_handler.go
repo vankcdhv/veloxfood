@@ -6,6 +6,7 @@ import (
 	"time"
 
 	authmw "project/pkg/auth/middleware"
+	"project/pkg/pagination"
 	"project/pkg/response"
 	"project/services/order/internal/entity"
 	"project/services/order/internal/infrastructure/grpcclient"
@@ -115,7 +116,7 @@ func (h *OwnerOrderHandler) ListStoreOrders(c *gin.Context) {
 	if !h.authorizeStoreOwner(c, storeID) {
 		return
 	}
-	page, pageSize := parsePagination(c)
+	page, pageSize := pagination.Parse(c)
 
 	var status entity.OrderStatus
 	if s := c.Query("status"); s != "" {

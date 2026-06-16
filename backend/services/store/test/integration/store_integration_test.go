@@ -338,16 +338,19 @@ func TestPublicBrowseStores(t *testing.T) {
 	}
 
 	var resp struct {
-		Data []struct {
-			ID   string `json:"ID"`
-			Name string `json:"Name"`
+		Data struct {
+			Items []struct {
+				ID   string `json:"ID"`
+				Name string `json:"Name"`
+			} `json:"items"`
+			Total int64 `json:"total"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("parse response: %v", err)
 	}
-	if len(resp.Data) < 2 {
-		t.Errorf("expected at least 2 stores, got %d", len(resp.Data))
+	if len(resp.Data.Items) < 2 {
+		t.Errorf("expected at least 2 stores, got %d", len(resp.Data.Items))
 	}
 }
 

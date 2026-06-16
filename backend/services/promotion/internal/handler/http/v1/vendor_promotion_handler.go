@@ -5,6 +5,7 @@ import (
 	"time"
 
 	authmw "project/pkg/auth/middleware"
+	"project/pkg/pagination"
 	"project/pkg/response"
 	"project/services/promotion/internal/usecase"
 
@@ -55,18 +56,20 @@ func (h *VendorPromotionHandler) authorizeStoreOwner(c *gin.Context, storeID str
 	return ownership.VendorID, true
 }
 
-// ListPromotions GET /stores/:storeId/promotions
+// ListPromotions GET /stores/:storeId/promotions?page=1&page_size=20
 func (h *VendorPromotionHandler) ListPromotions(c *gin.Context) {
 	storeID := c.Param("storeId")
 	if _, ok := h.authorizeStoreOwner(c, storeID); !ok {
 		return
 	}
-	promotions, err := h.promoUC.ListPromotions(c.Request.Context(), storeID)
+	page, pageSize := pagination.Parse(c)
+	offset := pagination.Offset(page, pageSize)
+	promotions, total, err := h.promoUC.ListPromotions(c.Request.Context(), storeID, pageSize, offset)
 	if err != nil {
 		response.HandleError(c, err)
 		return
 	}
-	response.Success(c, promotions)
+	response.Paginated(c, promotions, total, page)
 }
 
 // CreatePromotion POST /stores/:storeId/promotions

@@ -586,11 +586,14 @@ func TestAdminListReportedReviews(t *testing.T) {
 		t.Fatalf("list reported: %d — %s", w2.Code, w2.Body.String())
 	}
 	var resp struct {
-		Data  []struct{ ID string }
-		Total int64
+		Data struct {
+			Items []struct{ ID string } `json:"items"`
+			Total int64                 `json:"total"`
+			Page  int                   `json:"page"`
+		} `json:"data"`
 	}
 	_ = json.Unmarshal(w2.Body.Bytes(), &resp)
-	if resp.Total < 1 {
-		t.Errorf("expected at least 1 reported review, got total=%d", resp.Total)
+	if resp.Data.Total < 1 {
+		t.Errorf("expected at least 1 reported review, got total=%d", resp.Data.Total)
 	}
 }

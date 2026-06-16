@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	authmw "project/pkg/auth/middleware"
+	"project/pkg/pagination"
 	"project/pkg/response"
 	"project/services/payment/internal/infrastructure/grpcclient"
 	"project/services/payment/internal/usecase"
@@ -61,8 +62,8 @@ func (h *AdminPayoutHandler) authorizeStoreOwner(c *gin.Context, storeID string)
 	return true
 }
 
-// ListPayouts returns payout batches for a store.
-// GET /api/v1/admin/payouts?store_id=<uuid>&limit=20&offset=0
+// ListPayouts returns payout batches for a store, paginated.
+// GET /api/v1/admin/payouts?store_id=<uuid>&page=1&page_size=20
 func (h *AdminPayoutHandler) ListPayouts(c *gin.Context) {
 	ctx := c.Request.Context()
 	storeID := c.Query("store_id")
@@ -70,13 +71,15 @@ func (h *AdminPayoutHandler) ListPayouts(c *gin.Context) {
 		response.BadRequest(c, "store_id required")
 		return
 	}
+	page, pageSize := pagination.Parse(c)
+	offset := pagination.Offset(page, pageSize)
 
-	batches, err := h.payoutUC.ListByStore(ctx, storeID, 20, 0)
+	batches, total, err := h.payoutUC.ListByStore(ctx, storeID, pageSize, offset)
 	if err != nil {
 		response.InternalError(c)
 		return
 	}
-	response.Success(c, batches)
+	response.Paginated(c, batches, total, page)
 }
 
 // CreatePayout creates a new payout batch.
@@ -153,7 +156,7 @@ func (h *AdminPayoutHandler) GetStoreRevenue(c *gin.Context) {
 		response.InternalError(c)
 		return
 	}
-	batches, err := h.payoutUC.ListByStore(ctx, storeID, 20, 0)
+	batches, _, err := h.payoutUC.ListByStore(ctx, storeID, 20, 0)
 	if err != nil {
 		response.InternalError(c)
 		return

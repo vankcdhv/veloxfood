@@ -1,9 +1,7 @@
 package v1
 
 import (
-	"net/http"
-	"strconv"
-
+	"project/pkg/pagination"
 	"project/pkg/response"
 	"project/services/review/internal/usecase"
 
@@ -21,21 +19,14 @@ func NewAdminReviewHandler(reviewUC usecase.ReviewUsecase) *AdminReviewHandler {
 
 // ListReported GET /api/v1/admin/reviews/reported?page=1&page_size=20
 func (h *AdminReviewHandler) ListReported(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := pagination.Parse(c)
 
 	reports, total, err := h.reviewUC.ListReportedReviews(c.Request.Context(), page, pageSize)
 	if err != nil {
 		response.HandleError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"status":  http.StatusOK,
-		"message": "success",
-		"data":    reports,
-		"total":   total,
-		"page":    page,
-	})
+	response.Paginated(c, reports, total, page)
 }
 
 // HideReview PATCH /api/v1/admin/reviews/:id/hide
