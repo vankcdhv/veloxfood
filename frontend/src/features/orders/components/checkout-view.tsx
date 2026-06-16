@@ -17,6 +17,7 @@ import type { LocationSelection } from '@/features/locations/components/location
 import { useMyLocations } from '@/features/locations/hooks/use-locations';
 import { formatRoomPath } from '@/features/locations/lib/format-room-path';
 import { publicPromotionApi } from '@/features/promotions/api/promotion-api';
+import { promotionErrorVi } from '@/features/promotions/lib/promotion-error';
 import { formatVnd } from '@/shared/lib/format-vnd';
 import { useMyWallet } from '@/features/wallet/hooks/use-wallet';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
@@ -212,7 +213,7 @@ function CheckoutContent() {
       if (result.Applicable) {
         toast.success(`Áp mã thành công — tiết kiệm ${formatVnd(result.ItemDiscount + result.ShipDiscount)}`);
       } else {
-        toast.error(result.ErrorReason || 'Mã không hợp lệ');
+        toast.error(promotionErrorVi(result.ErrorReason));
       }
     } catch (e) {
       toast.error(getApiErrorMessage(e, 'Không kiểm tra được mã'));
