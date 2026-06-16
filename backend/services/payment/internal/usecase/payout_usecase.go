@@ -82,19 +82,39 @@ func parseDateOr(s string, fallback time.Time) time.Time {
 }
 
 func (uc *payoutUsecase) CreateBatch(ctx context.Context, req CreatePayoutRequest) (*entity.PayoutBatch, error) {
-	// Derive the amount and order set server-side from the settleable summary —
-	// never trust the client-supplied total_amount/order_ids, which could inflate
-	// the payout or include already-settled orders.
+	// Always re-derive amounts server-side from the settleable summary — never
+	// trust client totals. The client MAY pass order_ids to pay out only a subset
+	// (period/per-order filter); we keep only ids that are genuinely settleable
+	// and sum their server-side amounts, so a client can neither inflate the
+	// total nor include already-settled / foreign orders.
 	summary, err := uc.GetSettleableSummary(ctx, req.StoreID)
 	if err != nil {
 		return nil, err
 	}
-	if summary.Total <= 0 {
-		return nil, ErrNothingToSettle
-	}
-	orderIDs := make([]string, 0, len(summary.Orders))
+	settleableByID := make(map[string]int64, len(summary.Orders))
 	for _, o := range summary.Orders {
-		orderIDs = append(orderIDs, o.OrderID)
+		settleableByID[o.OrderID] = o.Amount
+	}
+
+	var orderIDs []string
+	var total int64
+	if len(req.OrderIDs) > 0 {
+		// Subset selected by the admin — intersect with the settleable set.
+		for _, id := range req.OrderIDs {
+			if amt, ok := settleableByID[id]; ok {
+				orderIDs = append(orderIDs, id)
+				total += amt
+			}
+		}
+	} else {
+		// No selection → pay out everything settleable (back-compat).
+		for _, o := range summary.Orders {
+			orderIDs = append(orderIDs, o.OrderID)
+			total += o.Amount
+		}
+	}
+	if total <= 0 || len(orderIDs) == 0 {
+		return nil, ErrNothingToSettle
 	}
 	orderIDsJSON, _ := json.Marshal(orderIDs)
 	// Persist the batch period; fall back to today when the client omits it so
@@ -106,7 +126,7 @@ func (uc *payoutUsecase) CreateBatch(ctx context.Context, req CreatePayoutReques
 		PeriodFrom:  periodFrom,
 		PeriodTo:    periodTo,
 		OrderIDs:    orderIDsJSON,
-		TotalAmount: summary.Total,
+		TotalAmount: total,
 		Status:      entity.PayoutPending,
 	}
 

@@ -86,12 +86,14 @@ func (h *AdminPayoutHandler) CreatePayout(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	var req struct {
-		StoreID    string `json:"store_id"`
-		PeriodFrom string `json:"period_from"`
-		PeriodTo   string `json:"period_to"`
+		StoreID    string   `json:"store_id"`
+		PeriodFrom string   `json:"period_from"`
+		PeriodTo   string   `json:"period_to"`
+		OrderIDs   []string `json:"order_ids"`
 	}
-	// total_amount/order_ids are derived server-side from the settleable summary,
-	// so the client only needs to name the store + (optional) period.
+	// order_ids is an OPTIONAL subset selected by the admin (period / per-order
+	// filter). total_amount is always re-derived server-side; an empty order_ids
+	// means "pay out everything settleable".
 	if err := c.ShouldBindJSON(&req); err != nil || req.StoreID == "" {
 		response.BadRequest(c, "store_id required")
 		return
@@ -101,6 +103,7 @@ func (h *AdminPayoutHandler) CreatePayout(c *gin.Context) {
 		StoreID:    req.StoreID,
 		PeriodFrom: req.PeriodFrom,
 		PeriodTo:   req.PeriodTo,
+		OrderIDs:   req.OrderIDs,
 	})
 	if err != nil {
 		if err == usecase.ErrNothingToSettle {
