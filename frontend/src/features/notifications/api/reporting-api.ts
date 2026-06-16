@@ -1,6 +1,6 @@
 import { http } from '@/shared/lib/http-client';
 import { API_PREFIX } from '@/shared/config/constants';
-import type { ApiResponse } from '@/shared/api/api-response';
+import type { ApiResponse, PaginatedData, PaginatedResponse } from '@/shared/api/api-response';
 
 // Analytics summary returned by GET /api/v1/admin/analytics?period=day
 export interface AnalyticsSummary {
@@ -40,11 +40,11 @@ export const reportingApi = {
       }),
     ),
 
-  // GET /api/v1/admin/orders/recent?limit=N
-  recentOrders: async (limit = 20): Promise<RecentOrderRow[]> =>
+  // GET /api/v1/admin/orders/recent?page=N&page_size=N
+  recentOrders: async (page = 1, pageSize = 20): Promise<PaginatedData<RecentOrderRow>> =>
     unwrap(
-      await http.get<ApiResponse<RecentOrderRow[]>>(`${API_PREFIX}/admin/orders/recent`, {
-        params: { limit },
+      await http.get<PaginatedResponse<RecentOrderRow>>(`${API_PREFIX}/admin/orders/recent`, {
+        params: { page, page_size: pageSize },
       }),
     ),
 };

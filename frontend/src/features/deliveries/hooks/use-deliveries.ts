@@ -7,25 +7,28 @@ export const deliveryKeys = {
   available: () => [...deliveryKeys.all, 'available'] as const,
   mine: () => [...deliveryKeys.all, 'mine'] as const,
   orderShipper: (orderId: string) => [...deliveryKeys.all, 'order-shipper', orderId] as const,
-  adminIncidents: () => [...deliveryKeys.all, 'admin-incidents'] as const,
+  adminIncidents: (page: number) => [...deliveryKeys.all, 'admin-incidents', page] as const,
 };
 
+const INCIDENTS_PAGE_SIZE = 20;
+
 // Admin: list every delivery incident reported by shippers. Polls every 30s.
-export function useAdminIncidents() {
+export function useAdminIncidents(page = 1) {
   return useQuery({
-    queryKey: deliveryKeys.adminIncidents(),
-    queryFn: deliveryApi.adminListIncidents,
+    queryKey: deliveryKeys.adminIncidents(page),
+    queryFn: () => deliveryApi.adminListIncidents(page, INCIDENTS_PAGE_SIZE),
     refetchInterval: 30_000,
   });
 }
 
-// Admin: mark an incident resolved, then refresh the list.
+// Admin: mark an incident resolved, then refresh the list (all pages).
 export function useResolveIncident() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deliveryApi.adminResolveIncident(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: deliveryKeys.adminIncidents() });
+      // Invalidate all incident pages by matching the base key prefix.
+      qc.invalidateQueries({ queryKey: [...deliveryKeys.all, 'admin-incidents'] });
     },
   });
 }

@@ -29,11 +29,31 @@ const DELETE_DESC: Record<DeleteKind, string> = {
   room: 'Phòng này sẽ bị xoá khỏi hệ thống.',
 };
 
+const COL_CAP = 15;
+
 // Master-detail manager: Buildings → Floors → Rooms (3 selectable columns).
 export function LocationTreeManager() {
   const [buildingId, setBuildingId] = useState<string | null>(null);
   const [floorId, setFloorId] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingDelete | null>(null);
+
+  const [visibleBuildings, setVisibleBuildings] = useState(COL_CAP);
+  const [visibleFloors, setVisibleFloors] = useState(COL_CAP);
+  const [visibleRooms, setVisibleRooms] = useState(COL_CAP);
+
+  // Reset child column visible counts when the parent selection changes
+  // (adjust-state-during-render — avoids a setState-in-effect cascade).
+  const [prevBuildingId, setPrevBuildingId] = useState(buildingId);
+  if (buildingId !== prevBuildingId) {
+    setPrevBuildingId(buildingId);
+    setVisibleFloors(COL_CAP);
+    setVisibleRooms(COL_CAP);
+  }
+  const [prevFloorId, setPrevFloorId] = useState(floorId);
+  if (floorId !== prevFloorId) {
+    setPrevFloorId(floorId);
+    setVisibleRooms(COL_CAP);
+  }
 
   const buildings = useAdminBuildings();
   const floors = useAdminFloors(buildingId);
@@ -72,7 +92,7 @@ export function LocationTreeManager() {
         onAdd={(name) => m.createBuilding.mutate({ name, address: '' }, { onError: err })}
         adding={m.createBuilding.isPending}
       >
-        {buildings.data?.map((b) => (
+        {buildings.data?.slice(0, visibleBuildings).map((b) => (
           <Row
             key={b.ID}
             label={b.Name}
@@ -83,6 +103,13 @@ export function LocationTreeManager() {
           />
         ))}
         {buildings.data?.length === 0 && <Empty>Chưa có toà nhà</Empty>}
+        {(buildings.data?.length ?? 0) > visibleBuildings && (
+          <div className="flex justify-center py-1">
+            <Button variant="outline" size="sm" onClick={() => setVisibleBuildings((v) => v + COL_CAP)}>
+              Xem thêm ({(buildings.data?.length ?? 0) - visibleBuildings})
+            </Button>
+          </div>
+        )}
       </Column>
 
       {/* Floors */}
@@ -95,7 +122,7 @@ export function LocationTreeManager() {
         adding={m.createFloor.isPending}
       >
         {!buildingId && <Empty>Chọn một toà nhà</Empty>}
-        {buildingId && floors.data?.map((f) => (
+        {buildingId && floors.data?.slice(0, visibleFloors).map((f) => (
           <Row
             key={f.ID}
             label={f.Name}
@@ -106,6 +133,13 @@ export function LocationTreeManager() {
           />
         ))}
         {buildingId && floors.data?.length === 0 && <Empty>Chưa có tầng</Empty>}
+        {buildingId && (floors.data?.length ?? 0) > visibleFloors && (
+          <div className="flex justify-center py-1">
+            <Button variant="outline" size="sm" onClick={() => setVisibleFloors((v) => v + COL_CAP)}>
+              Xem thêm ({(floors.data?.length ?? 0) - visibleFloors})
+            </Button>
+          </div>
+        )}
       </Column>
 
       {/* Rooms */}
@@ -118,7 +152,7 @@ export function LocationTreeManager() {
         adding={m.createRoom.isPending}
       >
         {!floorId && <Empty>Chọn một tầng</Empty>}
-        {floorId && rooms.data?.map((r) => (
+        {floorId && rooms.data?.slice(0, visibleRooms).map((r) => (
           <Row
             key={r.ID}
             label={r.Code + (r.Name ? ` · ${r.Name}` : '')}
@@ -126,6 +160,13 @@ export function LocationTreeManager() {
           />
         ))}
         {floorId && rooms.data?.length === 0 && <Empty>Chưa có phòng</Empty>}
+        {floorId && (rooms.data?.length ?? 0) > visibleRooms && (
+          <div className="flex justify-center py-1">
+            <Button variant="outline" size="sm" onClick={() => setVisibleRooms((v) => v + COL_CAP)}>
+              Xem thêm ({(rooms.data?.length ?? 0) - visibleRooms})
+            </Button>
+          </div>
+        )}
       </Column>
     </div>
 

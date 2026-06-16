@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { MapPin, Phone, Truck, Star, Clock, UtensilsCrossed } from 'lucide-react';
+import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
 import { Skeleton } from '@/shared/ui/skeleton';
@@ -270,7 +271,13 @@ interface MenuCategorySectionProps {
   itemSummaries?: Map<string, ItemRatingSummary>;
 }
 
+const CATEGORY_INITIAL = 6;
+
 function MenuCategorySection({ cat, storeId, itemSummaries }: MenuCategorySectionProps) {
+  const [visible, setVisible] = useState(CATEGORY_INITIAL);
+  const visibleItems = cat.Items.slice(0, visible);
+  const remaining = cat.Items.length - visible;
+
   return (
     <div className="space-y-3">
       <h3 className="font-semibold text-base border-b border-border pb-1">{cat.Category.Name}</h3>
@@ -278,7 +285,7 @@ function MenuCategorySection({ cat, storeId, itemSummaries }: MenuCategorySectio
         <p className="text-muted-foreground text-sm pl-1">Không có món nào trong danh mục này.</p>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
-        {cat.Items.map((item) => {
+        {visibleItems.map((item) => {
           const tags = item.Tags
             ? item.Tags.split(',').map((t) => t.trim()).filter(Boolean)
             : [];
@@ -338,6 +345,17 @@ function MenuCategorySection({ cat, storeId, itemSummaries }: MenuCategorySectio
           );
         })}
       </div>
+      {remaining > 0 && (
+        <div className="flex justify-center pt-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setVisible(cat.Items.length)}
+          >
+            Xem thêm trong {cat.Category.Name} ({remaining} món)
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,12 +7,16 @@ import { Button } from '@/shared/ui/button';
 import { Badge } from '@/shared/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
+import { Pagination } from '@/shared/ui/pagination';
+import { usePagedState } from '@/shared/hooks/use-paged-state';
 import { formatVnd } from '@/shared/lib/format-vnd';
 import { formatLateBy } from '@/shared/lib/format-late-by';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useStoreOrders, useOwnerOrderMutations, useStoreOrder } from '../hooks/use-orders';
 import { OrderStatusBadge, orderStatusLabel } from './order-status-badge';
 import type { Order, OrderStatus } from '../types/order';
+
+const PAGE_SIZE = 20;
 
 // Format an RFC3339 string to "HH:MM". Returns '' on invalid input.
 function formatHHMM(rfc3339: string | undefined): string {
@@ -67,10 +71,12 @@ const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
 
 export function VendorOrderPanel({ storeId }: VendorOrderPanelProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Page resets to 1 when the selected store changes.
+  const [page, setPage] = usePagedState(storeId);
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <OrderList storeId={storeId} selectedId={selectedId} onSelect={setSelectedId} />
+      <OrderList storeId={storeId} selectedId={selectedId} onSelect={setSelectedId} page={page} onPageChange={setPage} />
       {selectedId && (
         <OrderActions storeId={storeId} orderId={selectedId} />
       )}
@@ -82,13 +88,18 @@ function OrderList({
   storeId,
   selectedId,
   onSelect,
+  page,
+  onPageChange,
 }: {
   storeId: string;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  page: number;
+  onPageChange: (p: number) => void;
 }) {
-  const { data, isLoading, isError, refetch, isFetching } = useStoreOrders(storeId);
+  const { data, isLoading, isError, refetch, isFetching } = useStoreOrders(storeId, page, PAGE_SIZE);
   const orders = data?.items ?? [];
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
 
   return (
     <div className="space-y-3">
@@ -150,6 +161,8 @@ function OrderList({
           </button>
         ))}
       </div>
+
+      <Pagination page={page} totalPages={totalPages} onChange={onPageChange} />
     </div>
   );
 }

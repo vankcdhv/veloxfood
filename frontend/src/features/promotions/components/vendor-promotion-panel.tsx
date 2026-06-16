@@ -7,12 +7,16 @@ import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { Badge } from '@/shared/ui/badge';
+import { Pagination } from '@/shared/ui/pagination';
+import { usePagedState } from '@/shared/hooks/use-paged-state';
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { usePromotionMutations, usePromotions } from '../hooks/use-promotions';
 import { PromotionStatusBadge } from './promotion-status-badge';
 import { PromotionFormDialog } from './promotion-form-dialog';
 import type { Promotion, PromotionType, PromotionValueKind } from '../types/promotion';
+
+const PAGE_SIZE = 20;
 
 interface Props {
   storeId: string;
@@ -38,7 +42,12 @@ function formatDate(iso: string): string {
 }
 
 export function VendorPromotionPanel({ storeId }: Props) {
-  const { data: promotions, isLoading, isError } = usePromotions(storeId);
+  // Page resets to 1 when the selected store changes.
+  const [page, setPage] = usePagedState(storeId);
+
+  const { data, isLoading, isError } = usePromotions(storeId, page);
+  const promotions = data?.items ?? [];
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
   const m = usePromotionMutations(storeId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Promotion | undefined>(undefined);
@@ -95,13 +104,13 @@ export function VendorPromotionPanel({ storeId }: Props) {
             <p className="text-destructive text-sm">Không tải được danh sách voucher.</p>
           )}
 
-          {!isLoading && !isError && (!promotions || promotions.length === 0) && (
+          {!isLoading && !isError && promotions.length === 0 && (
             <p className="text-muted-foreground text-sm py-4 text-center">
               Chưa có voucher nào. Nhấn &quot;Tạo voucher&quot; để bắt đầu.
             </p>
           )}
 
-          {!isLoading && !isError && promotions && promotions.length > 0 && (
+          {!isLoading && !isError && promotions.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -132,6 +141,8 @@ export function VendorPromotionPanel({ storeId }: Props) {
               </table>
             </div>
           )}
+
+          <Pagination page={page} totalPages={totalPages} onChange={setPage} />
         </CardContent>
       </Card>
 

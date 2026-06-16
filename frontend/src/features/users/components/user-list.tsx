@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { Input } from '@/shared/ui/input';
 import { Button } from '@/shared/ui/button';
 import { Badge } from '@/shared/ui/badge';
+import { Pagination } from '@/shared/ui/pagination';
+import { usePagedState } from '@/shared/hooks/use-paged-state';
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useUsers, useSuspendUser, useReactivateUser } from '../hooks/use-users';
@@ -24,10 +26,14 @@ const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: 'pending', label: 'Chờ duyệt' },
 ];
 
+const PAGE_SIZE = 20;
+
 export function UserList() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  // Page resets to 1 whenever the search/status filter changes.
+  const [page, setPage] = usePagedState(`${search}|${status}`);
   const [pending, setPending] = useState<{ user: AdminUser; action: 'suspend' | 'reactivate' } | null>(null);
 
   // Debounce the search box.
@@ -39,9 +45,10 @@ export function UserList() {
   const { data, isLoading, isError, error, refetch, isFetching } = useUsers({
     search: search || undefined,
     status: status || undefined,
-    page: 1,
-    page_size: 50,
+    page,
+    page_size: PAGE_SIZE,
   });
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
   const suspend = useSuspendUser();
   const reactivate = useReactivateUser();
   const busy = suspend.isPending || reactivate.isPending;
@@ -128,6 +135,8 @@ export function UserList() {
           ))}
         </ul>
       )}
+
+      <Pagination page={page} totalPages={totalPages} onChange={setPage} />
 
       <ConfirmDialog
         open={!!pending}

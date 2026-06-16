@@ -24,7 +24,8 @@ function useAnalytics() {
 function useRecentOrders() {
   return useQuery({
     queryKey: ['admin', 'recent-orders'],
-    queryFn: () => reportingApi.recentOrders(20),
+    // Dashboard widget shows the first page (20 newest); unwrap to the array.
+    queryFn: () => reportingApi.recentOrders(1, 20).then((p) => p.items),
     refetchInterval: 120_000,
   });
 }

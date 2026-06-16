@@ -5,7 +5,7 @@ import type { CreatePayoutBody } from '../types/payout';
 export const payoutKeys = {
   all: ['payouts'] as const,
   settlement: (storeId: string) => [...payoutKeys.all, 'settlement', storeId] as const,
-  batches: (storeId: string) => [...payoutKeys.all, 'batches', storeId] as const,
+  batches: (storeId: string, page: number) => [...payoutKeys.all, 'batches', storeId, page] as const,
 };
 
 export const useSettlement = (storeId: string) =>
@@ -15,10 +15,12 @@ export const useSettlement = (storeId: string) =>
     enabled: !!storeId,
   });
 
-export const usePayoutBatches = (storeId: string) =>
+const BATCHES_PAGE_SIZE = 20;
+
+export const usePayoutBatches = (storeId: string, page = 1) =>
   useQuery({
-    queryKey: payoutKeys.batches(storeId),
-    queryFn: () => payoutApi.listBatches(storeId),
+    queryKey: payoutKeys.batches(storeId, page),
+    queryFn: () => payoutApi.listBatches(storeId, page, BATCHES_PAGE_SIZE),
     enabled: !!storeId,
   });
 
@@ -27,7 +29,8 @@ export function usePayoutMutations(storeId: string) {
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: payoutKeys.settlement(storeId) });
-    qc.invalidateQueries({ queryKey: payoutKeys.batches(storeId) });
+    // Invalidate all batch pages by matching without the page segment.
+    qc.invalidateQueries({ queryKey: [...payoutKeys.all, 'batches', storeId] });
   };
 
   return {

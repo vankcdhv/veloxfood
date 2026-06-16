@@ -3,9 +3,10 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, UtensilsCrossed } from 'lucide-react';
+import { Loader2, Search, UtensilsCrossed } from 'lucide-react';
 import { useQueries } from '@tanstack/react-query';
 import { Skeleton } from '@/shared/ui/skeleton';
+import { useInfiniteScroll } from '@/shared/hooks/use-infinite-scroll';
 import { formatVnd } from '@/shared/lib/format-vnd';
 import { ROUTES } from '@/shared/config/constants';
 import { useMenuItemSearch } from '@/features/stores/hooks/use-stores';
@@ -86,7 +87,14 @@ function SearchContent() {
     [router, searchParams],
   );
 
-  const { data: results, isLoading, isError } = useMenuItemSearch(debouncedQ);
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useMenuItemSearch(debouncedQ);
+  const results = useMemo(() => data?.pages.flatMap((p) => p.items) ?? [], [data]);
+  const total = data?.pages[0]?.total ?? 0;
+
+  const loadMoreRef = useInfiniteScroll(fetchNextPage, {
+    enabled: !!hasNextPage && !isFetchingNextPage,
+  });
 
   return (
     <div className="space-y-5">
@@ -107,8 +115,12 @@ function SearchContent() {
       <SearchResults
         q={debouncedQ}
         results={results}
+        total={total}
         isLoading={isLoading}
         isError={isError}
+        hasNextPage={!!hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        loadMoreRef={loadMoreRef}
       />
     </div>
   );
@@ -116,16 +128,29 @@ function SearchContent() {
 
 interface SearchResultsProps {
   q: string;
-  results: ReturnType<typeof useMenuItemSearch>['data'];
+  results: MenuItemSearchResult[];
+  total: number;
   isLoading: boolean;
   isError: boolean;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  loadMoreRef: React.RefObject<HTMLDivElement | null>;
 }
 
-function SearchResults({ q, results, isLoading, isError }: SearchResultsProps) {
+function SearchResults({
+  q,
+  results,
+  total,
+  isLoading,
+  isError,
+  hasNextPage,
+  isFetchingNextPage,
+  loadMoreRef,
+}: SearchResultsProps) {
   // Collect distinct store IDs from current results so we can batch-fetch
   // per-item rating summaries across all stores in parallel.
   const storeIds = useMemo(
-    () => [...new Set((results ?? []).map((r) => r.StoreID))],
+    () => [...new Set(results.map((r) => r.StoreID))],
     [results],
   );
 
@@ -190,7 +215,7 @@ function SearchResults({ q, results, isLoading, isError }: SearchResultsProps) {
   }
 
   // No results
-  if (!results || results.length === 0) {
+  if (results.length === 0) {
     return (
       <div className="py-10 text-center">
         <UtensilsCrossed className="text-muted-foreground/40 mx-auto mb-3 h-10 w-10" />
@@ -204,7 +229,7 @@ function SearchResults({ q, results, isLoading, isError }: SearchResultsProps) {
   return (
     <div className="space-y-2">
       <p className="text-muted-foreground text-xs">
-        {results.length} kết quả cho &ldquo;{q}&rdquo;
+        {total} kết quả cho &ldquo;{q}&rdquo;
       </p>
       {results.map((r) => {
         const mapped = toMenuItem(r);
@@ -264,6 +289,13 @@ function SearchResults({ q, results, isLoading, isError }: SearchResultsProps) {
           </div>
         );
       })}
+
+      {/* Infinite-scroll sentinel */}
+      {hasNextPage && (
+        <div ref={loadMoreRef} className="flex justify-center py-6">
+          {isFetchingNextPage && <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />}
+        </div>
+      )}
     </div>
   );
 }

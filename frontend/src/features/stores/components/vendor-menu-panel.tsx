@@ -57,40 +57,19 @@ export function VendorMenuPanel({ storeId }: Props) {
           <p className="text-muted-foreground text-sm">Chưa có danh mục nào. Thêm danh mục trước.</p>
         )}
         {menu?.map(({ Category: cat, Items: items }) => (
-          <Card key={cat.ID}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold">{cat.Name}</CardTitle>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setAddTarget(cat)}
-                  className="h-7 gap-1 text-xs"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Thêm món
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2 pt-0">
-              {items.length === 0 && (
-                <p className="text-muted-foreground text-xs">Chưa có món nào.</p>
-              )}
-              {items.map((item) => (
-                <MenuItemRow
-                  key={item.ID}
-                  storeId={storeId}
-                  item={item}
-                  onToggle={() => toggleStatus(item)}
-                  onEdit={() => setEditTarget(item)}
-                  onDelete={() => setDeleteTarget(item)}
-                  onOptionGroups={() => setOptGroupTarget(item)}
-                  toggling={m.setMenuItemStatus.isPending}
-                  deleting={m.deleteMenuItem.isPending}
-                />
-              ))}
-            </CardContent>
-          </Card>
+          <VendorCategoryCard
+            key={cat.ID}
+            storeId={storeId}
+            cat={cat}
+            items={items}
+            onAddItem={() => setAddTarget(cat)}
+            onEditItem={(item) => setEditTarget(item)}
+            onDeleteItem={(item) => setDeleteTarget(item)}
+            onOptionGroups={(item) => setOptGroupTarget(item)}
+            toggling={m.setMenuItemStatus.isPending}
+            deleting={m.deleteMenuItem.isPending}
+            onToggleStatus={toggleStatus}
+          />
         ))}
       </div>
 
@@ -127,6 +106,78 @@ export function VendorMenuPanel({ storeId }: Props) {
         onConfirm={confirmDelete}
       />
     </>
+  );
+}
+
+// ---------- Category card with per-category show-more cap ----------
+
+const VENDOR_CAT_INITIAL = 6;
+
+function VendorCategoryCard({
+  storeId, cat, items, onAddItem, onEditItem, onDeleteItem, onOptionGroups,
+  toggling, deleting, onToggleStatus,
+}: {
+  storeId: string;
+  cat: Category;
+  items: MenuItem[];
+  onAddItem: () => void;
+  onEditItem: (item: MenuItem) => void;
+  onDeleteItem: (item: MenuItem) => void;
+  onOptionGroups: (item: MenuItem) => void;
+  toggling: boolean;
+  deleting: boolean;
+  onToggleStatus: (item: MenuItem) => void;
+}) {
+  const [visible, setVisible] = useState(VENDOR_CAT_INITIAL);
+  const visibleItems = items.slice(0, visible);
+  const remaining = items.length - visible;
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold">{cat.Name}</CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onAddItem}
+            className="h-7 gap-1 text-xs"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Thêm món
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2 pt-0">
+        {items.length === 0 && (
+          <p className="text-muted-foreground text-xs">Chưa có món nào.</p>
+        )}
+        {visibleItems.map((item) => (
+          <MenuItemRow
+            key={item.ID}
+            storeId={storeId}
+            item={item}
+            onToggle={() => onToggleStatus(item)}
+            onEdit={() => onEditItem(item)}
+            onDelete={() => onDeleteItem(item)}
+            onOptionGroups={() => onOptionGroups(item)}
+            toggling={toggling}
+            deleting={deleting}
+          />
+        ))}
+        {remaining > 0 && (
+          <div className="flex justify-center pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setVisible(items.length)}
+            >
+              Xem thêm ({remaining} món)
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

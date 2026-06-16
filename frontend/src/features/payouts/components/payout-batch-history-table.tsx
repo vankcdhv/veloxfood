@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/button';
 import { Badge } from '@/shared/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
+import { Pagination } from '@/shared/ui/pagination';
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog';
 import { formatVnd } from '@/shared/lib/format-vnd';
 import { formatDate, formatDateTime } from '@/shared/lib/format-date';
@@ -14,12 +15,17 @@ import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { usePayoutBatches, usePayoutMutations } from '../hooks/use-payouts';
 import type { PayoutBatch } from '../types/payout';
 
+const PAGE_SIZE = 20;
+
 interface Props {
   storeId: string;
 }
 
 export function PayoutBatchHistoryTable({ storeId }: Props) {
-  const { data: batches, isLoading, isError } = usePayoutBatches(storeId);
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError } = usePayoutBatches(storeId, page);
+  const batches = data?.items ?? [];
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
   const { executeBatch } = usePayoutMutations(storeId);
   const [executeTarget, setExecuteTarget] = useState<PayoutBatch | null>(null);
 
@@ -52,13 +58,13 @@ export function PayoutBatchHistoryTable({ storeId }: Props) {
           <p className="text-destructive text-sm">Không tải được lịch sử chi trả.</p>
         )}
 
-        {!isLoading && !isError && (!batches || batches.length === 0) && (
+        {!isLoading && !isError && batches.length === 0 && (
           <div className="border-border bg-muted/40 text-muted-foreground flex h-24 items-center justify-center rounded-lg border border-dashed text-sm">
             Chưa có đợt chi trả nào.
           </div>
         )}
 
-        {batches && batches.length > 0 && (
+        {batches.length > 0 && (
           <div className="space-y-2">
             {batches.map((batch) => (
               <BatchRow
@@ -70,6 +76,8 @@ export function PayoutBatchHistoryTable({ storeId }: Props) {
             ))}
           </div>
         )}
+
+        <Pagination page={page} totalPages={totalPages} onChange={setPage} />
       </CardContent>
 
       <ConfirmDialog

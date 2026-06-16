@@ -7,11 +7,14 @@ import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
+import { Pagination } from '@/shared/ui/pagination';
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog';
 import { formatDateTime } from '@/shared/lib/format-date';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
 import { useAdminIncidents, useResolveIncident } from '../hooks/use-deliveries';
 import { incidentTypeLabel, type AdminIncident } from '../types/delivery';
+
+const PAGE_SIZE = 20;
 
 const STATUS_BADGE: Record<string, { variant: 'warning' | 'success'; label: string }> = {
   OPEN: { variant: 'warning', label: 'Chưa xử lý' },
@@ -21,7 +24,10 @@ const STATUS_BADGE: Record<string, { variant: 'warning' | 'success'; label: stri
 // AdminIncidentsTable lists every incident shippers reported, with the resolved
 // order code + shipper name and a link to the evidence photo (no raw UUIDs).
 export function AdminIncidentsTable() {
-  const { data: incidents, isLoading, isError } = useAdminIncidents();
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError } = useAdminIncidents(page);
+  const incidents = data?.items ?? [];
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
   const resolve = useResolveIncident();
   const [pendingResolve, setPendingResolve] = useState<AdminIncident | null>(null);
 
@@ -50,7 +56,7 @@ export function AdminIncidentsTable() {
     return <p className="text-destructive text-sm py-12 text-center">Không tải được danh sách sự cố.</p>;
   }
 
-  if (!incidents || incidents.length === 0) {
+  if (!isLoading && incidents.length === 0) {
     return (
       <div className="text-muted-foreground flex flex-col items-center gap-3 py-20">
         <AlertTriangle className="h-10 w-10 opacity-30" />
@@ -111,6 +117,8 @@ export function AdminIncidentsTable() {
           </Card>
         );
       })}
+
+      <Pagination page={page} totalPages={totalPages} onChange={setPage} />
 
       <ConfirmDialog
         open={!!pendingResolve}

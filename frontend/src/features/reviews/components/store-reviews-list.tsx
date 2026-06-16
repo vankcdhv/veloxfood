@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageSquare } from 'lucide-react';
+import { Loader2, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { getApiErrorMessage } from '@/shared/lib/api-error';
+import { useInfiniteScroll } from '@/shared/hooks/use-infinite-scroll';
 import { useStoreReviews, useReportReview } from '../hooks/use-reviews';
 import { StarRatingDisplay } from './star-rating-input';
 import type { Review } from '../types/review';
@@ -15,7 +16,17 @@ interface StoreReviewsListProps {
 }
 
 export function StoreReviewsList({ storeId }: StoreReviewsListProps) {
-  const { data, isLoading, isError } = useStoreReviews(storeId);
+  const {
+    data,
+    isLoading,
+    isError,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useStoreReviews(storeId);
+  const sentinelRef = useInfiniteScroll(fetchNextPage, { enabled: !!hasNextPage && !isFetchingNextPage });
+  const reviews = data?.pages.flatMap((p) => p.Items) ?? [];
+  const total = data?.pages[0]?.Total ?? 0;
 
   if (isLoading) {
     return (
@@ -31,8 +42,6 @@ export function StoreReviewsList({ storeId }: StoreReviewsListProps) {
     return <p className="text-destructive text-sm text-center py-8">Không tải được đánh giá.</p>;
   }
 
-  const reviews = data?.Items ?? [];
-
   if (reviews.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
@@ -44,10 +53,16 @@ export function StoreReviewsList({ storeId }: StoreReviewsListProps) {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">{data?.Total ?? reviews.length} đánh giá</p>
+      <p className="text-sm text-muted-foreground">{total} đánh giá</p>
       {reviews.map((review) => (
         <ReviewCard key={review.ID} review={review} />
       ))}
+      <div ref={sentinelRef} />
+      {isFetchingNextPage && (
+        <div className="flex justify-center py-2">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        </div>
+      )}
     </div>
   );
 }

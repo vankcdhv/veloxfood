@@ -1,6 +1,6 @@
 import { http } from '@/shared/lib/http-client';
 import { API_PREFIX } from '@/shared/config/constants';
-import type { ApiResponse } from '@/shared/api/api-response';
+import type { ApiResponse, PaginatedData, PaginatedResponse } from '@/shared/api/api-response';
 import type { CreatePayoutBody, PayoutBatch, SettlementPreview } from '../types/payout';
 
 const ADMIN_SETTLEMENTS = `${API_PREFIX}/admin/settlements`;
@@ -20,10 +20,10 @@ export const payoutApi = {
       params: { store_id: storeId },
     })),
 
-  // List payout batch history for a store.
-  listBatches: async (storeId: string, limit = 20, offset = 0): Promise<PayoutBatch[]> =>
-    unwrap(await http.get<ApiResponse<PayoutBatch[]>>(ADMIN_PAYOUTS, {
-      params: { store_id: storeId, limit, offset },
+  // List payout batch history for a store (paginated).
+  listBatches: async (storeId: string, page = 1, pageSize = 20): Promise<PaginatedData<PayoutBatch>> =>
+    unwrap(await http.get<PaginatedResponse<PayoutBatch>>(ADMIN_PAYOUTS, {
+      params: { store_id: storeId, page, page_size: pageSize },
     })),
 
   // Create a new payout batch from settleable orders.

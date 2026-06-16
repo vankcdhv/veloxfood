@@ -1,11 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { adminStoreApi, browseStoreApi, searchApi, vendorStoreApi } from '../api/store-api';
 import type { MenuCategory } from '../types/store';
+
+const BROWSE_PAGE_SIZE = 12;
+const SEARCH_PAGE_SIZE = 12;
 
 export const storeKeys = {
   all: ['stores'] as const,
   menuItemSearch: (q: string) => ['menu-items', 'search', q] as const,
   browseList: () => [...storeKeys.all, 'browse', 'list'] as const,
+  browseInfinite: (q: string) => [...storeKeys.all, 'browse', 'infinite', q] as const,
   myList: () => [...storeKeys.all, 'mine'] as const,
   browseDetail: (id: string) => [...storeKeys.all, 'browse', 'detail', id] as const,
   browseMenu: (id: string) => [...storeKeys.all, 'browse', 'menu', id] as const,
@@ -23,8 +27,22 @@ export const storeKeys = {
 };
 
 // ---- Public browse ----
+// Full store list (≤100) for store-name lookup maps — NOT the rendered grid.
 export const useStores = () =>
   useQuery({ queryKey: storeKeys.browseList(), queryFn: browseStoreApi.list });
+
+// Infinite-scroll page of stores for the browse grid. q filters by name server-side.
+export const useBrowseStores = (q: string) =>
+  useInfiniteQuery({
+    queryKey: storeKeys.browseInfinite(q.trim()),
+    queryFn: ({ pageParam }) =>
+      browseStoreApi.listPage({ q: q.trim(), limit: BROWSE_PAGE_SIZE, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((n, p) => n + p.items.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
+  });
 
 // Returns only the stores owned by the authenticated user (vendor console).
 export const useMyStores = () =>
@@ -64,11 +82,17 @@ export const useStoreMenu = (id: string) =>
     },
   });
 
-// Search dishes by name across all active stores. Debounce in the caller.
+// Search dishes by name across all active stores (infinite scroll). Debounce in the caller.
 export const useMenuItemSearch = (q: string) =>
-  useQuery({
-    queryKey: storeKeys.menuItemSearch(q),
-    queryFn: () => searchApi.menuItems(q),
+  useInfiniteQuery({
+    queryKey: storeKeys.menuItemSearch(q.trim()),
+    queryFn: ({ pageParam }) =>
+      searchApi.menuItems(q.trim(), { limit: SEARCH_PAGE_SIZE, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((n, p) => n + p.items.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
     enabled: q.trim().length >= 1,
   });
 

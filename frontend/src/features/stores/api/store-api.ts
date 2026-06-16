@@ -1,6 +1,6 @@
 import { http } from '@/shared/lib/http-client';
 import { API_PREFIX } from '@/shared/config/constants';
-import type { ApiResponse } from '@/shared/api/api-response';
+import type { ApiResponse, PaginatedData } from '@/shared/api/api-response';
 import type {
   Category,
   Combo,
@@ -28,22 +28,48 @@ function unwrap<T>(res: { data: ApiResponse<T> }): T {
 
 const MENU_ITEMS = `${API_PREFIX}/menu-items`;
 
+// Number of stores / dishes a single "fetch everything" lookup pulls. Used by
+// non-grid consumers (store-name maps, selectors) that need the full set rather
+// than an infinite-scroll page.
+const LOOKUP_LIMIT = 100;
+
+function emptyPage<T>(): PaginatedData<T> {
+  return { items: [], total: 0, page: 1 };
+}
+
 // ---- Global search ----
 export const searchApi = {
-  // Returns best-match dish results across all active stores. Blank q → empty [].
-  menuItems: async (q: string, limit = 24): Promise<MenuItemSearchResult[]> => {
-    if (!q.trim()) return [];
-    const res = await http.get<ApiResponse<MenuItemSearchResult[]>>(`${MENU_ITEMS}/search`, {
-      params: { q, limit },
-    });
-    if (res.data.data === undefined || res.data.data === null) return [];
-    return res.data.data;
+  // Paginated best-match dish results across all active stores (infinite scroll).
+  // Blank q → empty page.
+  menuItems: async (
+    q: string,
+    { limit = 12, offset = 0 }: { limit?: number; offset?: number } = {},
+  ): Promise<PaginatedData<MenuItemSearchResult>> => {
+    if (!q.trim()) return emptyPage<MenuItemSearchResult>();
+    return unwrap(
+      await http.get<ApiResponse<PaginatedData<MenuItemSearchResult>>>(`${MENU_ITEMS}/search`, {
+        params: { q, limit, offset },
+      }),
+    );
   },
 };
 
 // ---- Public browse ----
 export const browseStoreApi = {
-  list: async () => unwrap(await http.get<ApiResponse<Store[]>>(STORES)),
+  // Full list (≤ LOOKUP_LIMIT) for store-name lookup maps. Not for rendering grids.
+  list: async () =>
+    unwrap(
+      await http.get<ApiResponse<PaginatedData<Store>>>(STORES, { params: { limit: LOOKUP_LIMIT } }),
+    ).items,
+  // Paginated page for the browse grid (infinite scroll). q filters by name server-side.
+  listPage: async (
+    { q, saleStatus, limit = 12, offset = 0 }: { q?: string; saleStatus?: string; limit?: number; offset?: number } = {},
+  ): Promise<PaginatedData<Store>> =>
+    unwrap(
+      await http.get<ApiResponse<PaginatedData<Store>>>(STORES, {
+        params: { q: q || undefined, sale_status: saleStatus || undefined, limit, offset },
+      }),
+    ),
   // Returns only the stores owned by the authenticated user (vendor console).
   mine: async () => unwrap(await http.get<ApiResponse<Store[]>>(`${STORES}/mine`)),
   get: async (id: string) => unwrap(await http.get<ApiResponse<Store>>(`${STORES}/${id}`)),
@@ -197,7 +223,11 @@ export const vendorStoreApi = {
 
 // ---- Admin ----
 export const adminStoreApi = {
-  list: async () => unwrap(await http.get<ApiResponse<Store[]>>(ADMIN)),
+  // Full list (≤ LOOKUP_LIMIT) — admin store picker / payout selector need every store.
+  list: async () =>
+    unwrap(
+      await http.get<ApiResponse<PaginatedData<Store>>>(ADMIN, { params: { limit: LOOKUP_LIMIT } }),
+    ).items,
   create: async (body: { vendor_id: string; owner_user_id: string; name: string }) =>
     unwrap(await http.post<ApiResponse<Store>>(ADMIN, body)),
   update: async (id: string, body: Partial<{ name: string; business_type: string; address: string; phone: string }>) =>

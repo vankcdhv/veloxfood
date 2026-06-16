@@ -4,19 +4,22 @@ import type { CreatePromotionBody, UpdatePromotionBody } from '../types/promotio
 
 export const promotionKeys = {
   all: ['promotions'] as const,
-  list: (storeId: string) => [...promotionKeys.all, 'list', storeId] as const,
+  list: (storeId: string, page: number) => [...promotionKeys.all, 'list', storeId, page] as const,
 };
 
-export const usePromotions = (storeId: string) =>
+const PROMOTIONS_PAGE_SIZE = 20;
+
+export const usePromotions = (storeId: string, page = 1) =>
   useQuery({
-    queryKey: promotionKeys.list(storeId),
-    queryFn: () => vendorPromotionApi.list(storeId),
+    queryKey: promotionKeys.list(storeId, page),
+    queryFn: () => vendorPromotionApi.list(storeId, page, PROMOTIONS_PAGE_SIZE),
     enabled: !!storeId,
   });
 
 export function usePromotionMutations(storeId: string) {
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: promotionKeys.list(storeId) });
+  // Invalidate all pages by matching the base prefix (storeId without page).
+  const invalidate = () => qc.invalidateQueries({ queryKey: [...promotionKeys.all, 'list', storeId] });
 
   return {
     create: useMutation({

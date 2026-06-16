@@ -5,6 +5,8 @@ import { Check, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
+import { Pagination } from '@/shared/ui/pagination';
+import { usePagedState } from '@/shared/hooks/use-paged-state';
 import { Skeleton } from '@/shared/ui/skeleton';
 import {
   Dialog,
@@ -31,9 +33,14 @@ const STATUS_BADGE: Record<ShipperStatus, { variant: 'warning' | 'success' | 'de
   rejected: { variant: 'destructive', label: 'Từ chối' },
 };
 
+const PAGE_SIZE = 20;
+
 export function ShipperApprovalList() {
   const [status, setStatus] = useState<ShipperStatus>('pending');
-  const { data, isLoading, isError } = useShippers({ status, page: 1, page_size: 50 });
+  // Page resets to 1 when the status tab changes.
+  const [page, setPage] = usePagedState(status);
+  const { data, isLoading, isError } = useShippers({ status, page, page_size: PAGE_SIZE });
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
   const approve = useApproveShipper();
   const [rejectTarget, setRejectTarget] = useState<ShipperProfile | null>(null);
 
@@ -133,6 +140,8 @@ export function ShipperApprovalList() {
           </tbody>
         </table>
       </div>
+
+      <Pagination page={page} totalPages={totalPages} onChange={setPage} />
 
       <RejectDialog target={rejectTarget} onClose={() => setRejectTarget(null)} />
     </div>

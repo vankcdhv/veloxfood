@@ -1,6 +1,6 @@
 import { http } from '@/shared/lib/http-client';
 import { API_PREFIX } from '@/shared/config/constants';
-import type { ApiResponse } from '@/shared/api/api-response';
+import type { ApiResponse, PaginatedData, PaginatedResponse } from '@/shared/api/api-response';
 import type {
   CreatePromotionBody,
   Promotion,
@@ -19,8 +19,10 @@ function unwrap<T>(res: { data: ApiResponse<T> }): T {
 }
 
 export const vendorPromotionApi = {
-  list: async (storeId: string) =>
-    unwrap(await http.get<ApiResponse<Promotion[]>>(`${STORES}/${storeId}/promotions`)),
+  list: async (storeId: string, page = 1, pageSize = 20): Promise<PaginatedData<Promotion>> =>
+    unwrap(await http.get<PaginatedResponse<Promotion>>(`${STORES}/${storeId}/promotions`, {
+      params: { page, page_size: pageSize },
+    })),
 
   create: async (storeId: string, body: CreatePromotionBody) =>
     unwrap(await http.post<ApiResponse<Promotion>>(`${STORES}/${storeId}/promotions`, body)),

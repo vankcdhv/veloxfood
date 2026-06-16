@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { adminReviewApi, reviewApi } from '../api/review-api';
 import type { CreateReviewBody, ReplyReviewBody, ReportReviewBody } from '../types/review';
 
@@ -11,10 +11,18 @@ export const reviewKeys = {
   reported: () => [...reviewKeys.all, 'admin', 'reported'] as const,
 };
 
-export function useStoreReviews(storeId: string, page = 1, pageSize = 20) {
-  return useQuery({
-    queryKey: [...reviewKeys.byStore(storeId), page, pageSize],
-    queryFn: () => reviewApi.listByStore(storeId, page, pageSize),
+const STORE_REVIEWS_PAGE_SIZE = 20;
+
+export function useStoreReviews(storeId: string) {
+  return useInfiniteQuery({
+    queryKey: reviewKeys.byStore(storeId),
+    queryFn: ({ pageParam = 1 }) =>
+      reviewApi.listByStore(storeId, pageParam as number, STORE_REVIEWS_PAGE_SIZE),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, p) => sum + p.Items.length, 0);
+      return loaded < lastPage.Total ? allPages.length + 1 : undefined;
+    },
     enabled: !!storeId,
   });
 }
@@ -78,11 +86,13 @@ export function useReportReview() {
   });
 }
 
+const REPORTED_PAGE_SIZE = 20;
+
 // Admin hooks
-export function useReportedReviews(skip = 0, limit = 20) {
+export function useReportedReviews(page = 1) {
   return useQuery({
-    queryKey: [...reviewKeys.reported(), skip, limit],
-    queryFn: () => adminReviewApi.listReported(skip, limit),
+    queryKey: [...reviewKeys.reported(), page],
+    queryFn: () => adminReviewApi.listReported(page, REPORTED_PAGE_SIZE),
   });
 }
 

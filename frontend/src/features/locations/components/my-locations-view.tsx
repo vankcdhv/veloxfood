@@ -80,9 +80,15 @@ function AddLocationCard() {
   );
 }
 
+const LOCATIONS_INITIAL = 10;
+const LOCATIONS_STEP = 10;
+
 function SavedLocationsCard() {
   const { data, isLoading } = useMyLocations();
   const { remove, setDefault } = useMyLocationMutations();
+  const [visible, setVisible] = useState(LOCATIONS_INITIAL);
+  const visibleLocs = (data ?? []).slice(0, visible);
+  const remaining = (data?.length ?? 0) - visible;
 
   return (
     <Card>
@@ -95,7 +101,7 @@ function SavedLocationsCard() {
           <p className="text-muted-foreground text-sm">Chưa có vị trí nào.</p>
         )}
         <ul className="space-y-2">
-          {data?.map((loc) => (
+          {visibleLocs.map((loc) => (
             <li key={loc.ID} className="border-border flex items-center gap-3 rounded-lg border p-3">
               <MapPin className="text-primary h-5 w-5 shrink-0" />
               <div className="min-w-0 flex-1">
@@ -116,6 +122,17 @@ function SavedLocationsCard() {
             </li>
           ))}
         </ul>
+        {remaining > 0 && (
+          <div className="flex justify-center pt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setVisible((v) => v + LOCATIONS_STEP)}
+            >
+              Xem thêm ({remaining})
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

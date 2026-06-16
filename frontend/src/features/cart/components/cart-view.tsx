@@ -160,6 +160,8 @@ function CartContent() {
   );
 }
 
+const CART_GROUP_INITIAL = 8;
+
 function StoreCartGroup({
   group,
   meta,
@@ -175,7 +177,10 @@ function StoreCartGroup({
   onToggle: (menuItemId: string) => void;
   onRemove: (menuItemId: string) => void;
 }) {
+  const [visible, setVisible] = useState(CART_GROUP_INITIAL);
   const subtotal = group.Items.reduce((s, it) => s + it.PriceSnapshot * it.Qty, 0);
+  const visibleItems = group.Items.slice(0, visible);
+  const remaining = group.Items.length - visible;
 
   return (
     <Card className={locked ? 'opacity-50' : ''}>
@@ -193,7 +198,7 @@ function StoreCartGroup({
         </div>
 
         <div className="divide-y divide-border">
-          {group.Items.map((item) => (
+          {visibleItems.map((item) => (
             <CartItemRow
               key={item.MenuItemID}
               item={item}
@@ -205,6 +210,18 @@ function StoreCartGroup({
             />
           ))}
         </div>
+
+        {remaining > 0 && (
+          <div className="flex justify-center px-4 py-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setVisible((v) => v + remaining)}
+            >
+              Xem thêm ({remaining})
+            </Button>
+          </div>
+        )}
 
         <div className="flex items-center justify-between px-4 py-2.5 text-sm">
           <span className="text-muted-foreground">Tạm tính cửa hàng</span>

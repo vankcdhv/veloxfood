@@ -71,10 +71,10 @@ export function useReorder() {
 
 // ---- Owner / staff hooks ----
 
-export function useStoreOrders(storeId: string, page = 1) {
+export function useStoreOrders(storeId: string, page = 1, pageSize = 20) {
   return useQuery({
     queryKey: orderKeys.storeList(storeId, page),
-    queryFn: () => ownerOrderApi.list(storeId, page),
+    queryFn: () => ownerOrderApi.list(storeId, page, pageSize),
     enabled: !!storeId,
     refetchInterval: 15_000,
   });

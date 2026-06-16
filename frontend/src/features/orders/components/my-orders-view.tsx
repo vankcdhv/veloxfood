@@ -2,9 +2,10 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Package } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
+import { Pagination } from '@/shared/ui/pagination';
 import { Skeleton } from '@/shared/ui/skeleton';
 import { RoleGuard } from '@/features/auth/components/role-guard';
 import { ROUTES } from '@/shared/config/constants';
@@ -80,33 +81,7 @@ function OrderListContent() {
         />
       ))}
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-4 pt-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Trước
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            Trang {page}/{totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1"
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          >
-            Sau
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
+      <Pagination page={page} totalPages={totalPages} onChange={setPage} />
     </div>
   );
 }

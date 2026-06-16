@@ -1,16 +1,20 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { usePagedState } from '@/shared/hooks/use-paged-state';
 import { useQuery } from '@tanstack/react-query';
 import { Search } from 'lucide-react';
 import { Input } from '@/shared/ui/input';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Skeleton } from '@/shared/ui/skeleton';
+import { Pagination } from '@/shared/ui/pagination';
 import { formatVnd } from '@/shared/lib/format-vnd';
 import { reportingApi } from '@/features/notifications/api/reporting-api';
 import { useStores } from '@/features/stores/hooks/use-stores';
 import { OrderStatusBadge } from './order-status-badge';
 import type { OrderStatus } from '../types/order';
+
+const PAGE_SIZE = 20;
 
 const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: '', label: 'Tất cả trạng thái' },
@@ -30,17 +34,22 @@ function formatDatetime(iso: string): string {
   });
 }
 
-// Admin order oversight. Reuses GET /admin/orders/recent (reporting). Recent-only
-// (no server pagination) — filters apply client-side; enough for monitoring.
+// Admin order oversight. Reuses GET /admin/orders/recent (reporting). Server-paginated
+// (page/page_size). Client-side status/search filters apply to the CURRENT page only
+// (the reporting endpoint has no server-side status filter).
 export function AdminOrdersTable() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  // Page resets to 1 when filters change.
+  const [page, setPage] = usePagedState(`${search}|${status}`);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['admin', 'orders', 'recent', 100],
-    queryFn: () => reportingApi.recentOrders(100),
+    queryKey: ['admin', 'orders', 'recent', page, PAGE_SIZE],
+    queryFn: () => reportingApi.recentOrders(page, PAGE_SIZE),
     refetchInterval: 20_000,
   });
+
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
 
   // Resolve store names client-side (reporting facts only carry store_id).
   const { data: stores } = useStores();
@@ -51,7 +60,8 @@ export function AdminOrdersTable() {
   }, [stores]);
 
   const rows = useMemo(() => {
-    const all = data ?? [];
+    // Filters scope to the loaded page only — server has no status/search filter.
+    const all = data?.items ?? [];
     const q = search.trim().toUpperCase();
     return all.filter(
       (o) =>
@@ -112,6 +122,8 @@ export function AdminOrdersTable() {
           )}
         </CardContent>
       </Card>
+
+      <Pagination page={page} totalPages={totalPages} onChange={setPage} />
     </div>
   );
 }

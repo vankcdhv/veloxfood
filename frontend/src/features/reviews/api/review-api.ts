@@ -1,6 +1,6 @@
 import { http } from '@/shared/lib/http-client';
 import { API_PREFIX } from '@/shared/config/constants';
-import type { ApiResponse } from '@/shared/api/api-response';
+import type { ApiResponse, PaginatedData, PaginatedResponse } from '@/shared/api/api-response';
 import type {
   CreateReviewBody,
   ItemRatingSummary,
@@ -78,12 +78,12 @@ export const reviewApi = {
 };
 
 export const adminReviewApi = {
-  // GET /api/v1/admin/reviews/reported
-  listReported: async (skip = 0, limit = 20): Promise<ReviewListResponse> =>
+  // GET /api/v1/admin/reviews/reported?page=N&page_size=N
+  listReported: async (page = 1, pageSize = 20): Promise<PaginatedData<Review>> =>
     unwrap(
-      await http.get<ApiResponse<ReviewListResponse>>(
+      await http.get<PaginatedResponse<Review>>(
         `${API_PREFIX}/admin/reviews/reported`,
-        { params: { skip, limit } },
+        { params: { page, page_size: pageSize } },
       ),
     ),
 

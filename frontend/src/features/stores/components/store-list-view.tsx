@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Search, Store as StoreIcon } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Loader2, Search, Store as StoreIcon } from 'lucide-react';
 import { Skeleton } from '@/shared/ui/skeleton';
-import { useStores } from '../hooks/use-stores';
+import { useInfiniteScroll } from '@/shared/hooks/use-infinite-scroll';
+import { useBrowseStores } from '../hooks/use-stores';
 import { StoreCard } from './store-card';
 
 type ModeFilter = 'all' | 'open' | 'pickup';
@@ -15,19 +16,33 @@ const FILTERS: { key: ModeFilter; label: string }[] = [
 ];
 
 export function StoreListView() {
-  const { data, isLoading, isError } = useStores();
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<ModeFilter>('all');
 
+  // Debounce the typed query before it hits the server (name filter).
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useBrowseStores(debouncedQuery);
+
+  const loadMoreRef = useInfiniteScroll(fetchNextPage, {
+    enabled: !!hasNextPage && !isFetchingNextPage,
+  });
+
+  // "Đang mở"/"Tự đến lấy" refine the already-loaded pages client-side
+  // (OpenNow is computed per-request, not filterable in SQL).
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return (data ?? []).filter((s) => {
-      if (q && !`${s.Name} ${s.BusinessType ?? ''}`.toLowerCase().includes(q)) return false;
+    const all = data?.pages.flatMap((p) => p.items) ?? [];
+    return all.filter((s) => {
       if (mode === 'open' && !s.OpenNow) return false;
       if (mode === 'pickup' && !s.PickupEnabled) return false;
       return true;
     });
-  }, [data, query, mode]);
+  }, [data, mode]);
 
   if (isLoading) {
     return (
@@ -83,7 +98,9 @@ export function StoreListView() {
         <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
           <StoreIcon className="h-10 w-10 opacity-30" />
           <p className="text-sm">
-            {data?.length ? 'Không có cửa hàng nào khớp bộ lọc.' : 'Chưa có cửa hàng nào.'}
+            {(data?.pages[0]?.total ?? 0) > 0
+              ? 'Không có cửa hàng nào khớp bộ lọc.'
+              : 'Chưa có cửa hàng nào.'}
           </p>
         </div>
       ) : (
@@ -91,6 +108,13 @@ export function StoreListView() {
           {filtered.map((store) => (
             <StoreCard key={store.ID} store={store} href={`/stores/${store.ID}`} />
           ))}
+        </div>
+      )}
+
+      {/* Infinite-scroll sentinel + loading indicator */}
+      {hasNextPage && (
+        <div ref={loadMoreRef} className="flex justify-center py-6">
+          {isFetchingNextPage && <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />}
         </div>
       )}
     </div>

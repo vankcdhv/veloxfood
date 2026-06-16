@@ -1,6 +1,6 @@
 import { http } from '@/shared/lib/http-client';
 import { API_PREFIX } from '@/shared/config/constants';
-import type { ApiResponse } from '@/shared/api/api-response';
+import type { ApiResponse, PaginatedData, PaginatedResponse } from '@/shared/api/api-response';
 import type {
   AdminIncident,
   AvailableDelivery,
@@ -51,9 +51,11 @@ export const deliveryApi = {
     return res.data.data?.shipper_id ?? '';
   },
 
-  // GET /api/v1/admin/incidents — all delivery incidents for admin review.
-  adminListIncidents: async (): Promise<AdminIncident[]> =>
-    unwrap(await http.get<ApiResponse<AdminIncident[]>>(`${API_PREFIX}/admin/incidents`)),
+  // GET /api/v1/admin/incidents?page=N&page_size=N
+  adminListIncidents: async (page = 1, pageSize = 20): Promise<PaginatedData<AdminIncident>> =>
+    unwrap(await http.get<PaginatedResponse<AdminIncident>>(`${API_PREFIX}/admin/incidents`, {
+      params: { page, page_size: pageSize },
+    })),
 
   // PATCH /api/v1/admin/incidents/:id/resolve — mark an incident resolved.
   adminResolveIncident: async (id: string): Promise<void> => {
