@@ -19,6 +19,7 @@ import { ROLE_IDS } from '@/shared/config/roles';
 import { useAdminStores, useAdminStoreMutations } from '../hooks/use-stores';
 import { SaleStatusBadge } from './sale-status-badge';
 import { useUsers } from '@/features/users/hooks/use-users';
+import { assignUserRole } from '@/features/users/api/user-api';
 import type { AdminUser } from '@/features/users/types/user';
 import type { Store } from '../types/store';
 
@@ -153,8 +154,24 @@ function CreateStoreDialog({ open, onClose }: { open: boolean; onClose: () => vo
     create.mutate(
       { vendor_id: vendorId, owner_user_id: selectedOwner.id, name: name.trim() },
       {
-        onSuccess: () => {
-          toast.success('Đã tạo cửa hàng.');
+        onSuccess: async () => {
+          // Grant the owner the VENDOR_OWNER role scoped to this store's vendor
+          // so they can actually manage it. Without this the store exists but
+          // every owner-side management call is rejected (HasVendorPermission
+          // store.manage fails). Store creation already succeeded, so a grant
+          // failure is surfaced but non-fatal.
+          try {
+            await assignUserRole(selectedOwner.id, {
+              role_id: ROLE_IDS.vendorOwner,
+              scope_type: 'vendor',
+              scope_id: vendorId,
+            });
+            toast.success('Đã tạo cửa hàng và cấp quyền quản lý cho chủ quán.');
+          } catch (e) {
+            toast.warning(
+              getApiErrorMessage(e, 'Đã tạo cửa hàng nhưng chưa cấp được quyền quản lý cho chủ quán.'),
+            );
+          }
           onClose();
         },
         onError: (e) => toast.error(getApiErrorMessage(e, 'Tạo cửa hàng thất bại')),

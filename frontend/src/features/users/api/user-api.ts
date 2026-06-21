@@ -58,3 +58,14 @@ export async function suspendUser(userId: string, reason = ''): Promise<void> {
 export async function reactivateUser(userId: string): Promise<void> {
   await http.post<ApiResponse<null>>(`${USERS_PATH}/${userId}/reactivate`, {});
 }
+
+export interface AssignRoleInput {
+  role_id: string;
+  scope_type: 'global' | 'vendor';
+  scope_id?: string | null;
+}
+
+// Grant a role to a user, optionally scoped (e.g. VENDOR_OWNER on a vendor).
+export async function assignUserRole(userId: string, input: AssignRoleInput): Promise<void> {
+  await http.post<ApiResponse<null>>(`${USERS_PATH}/${userId}/roles`, input);
+}
