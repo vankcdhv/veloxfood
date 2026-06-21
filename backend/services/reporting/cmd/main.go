@@ -36,9 +36,10 @@ func main() {
 			slog.Error("reporting: auth setup failed — protected routes disabled", "err", err)
 		} else {
 			cfg.AuthMiddleware = authMW
-			// store.approve gates admin BI routes; without it any authenticated
-			// user could read platform-wide analytics.
-			cfg.AdminPermission = authmw.PermissionRequired(checker, "store.approve")
+			// audit.read gates platform-wide BI routes — the semantically correct
+			// "read operational/audit data" permission held by both ADMIN and
+			// SUPER_ADMIN. (Previously store.approve, which a super-admin lacked.)
+			cfg.AdminPermission = authmw.PermissionRequired(checker, "audit.read")
 			cfg.AdminHandler = v1.NewAdminAnalyticsHandler(analyticsUC)
 
 			// Store client lets per-store report routes verify the caller owns
