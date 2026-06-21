@@ -88,3 +88,7 @@ worktrees/
 
 .cache
 .idea
+.gstack/
+
+# Local dev run logs (service/frontend stdout)
+.run-logs/
