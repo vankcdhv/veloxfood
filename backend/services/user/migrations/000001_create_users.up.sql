@@ -182,7 +182,9 @@ CREATE INDEX IF NOT EXISTS idx_otp_lookup ON otp_codes(destination, purpose, use
 INSERT INTO roles (id, code, name, scope_type, is_system) VALUES
   (gen_random_uuid(), 'SUPER_ADMIN',         'Super Admin',          'global', TRUE),
   (gen_random_uuid(), 'SCHOOL_ADMIN',         'School Admin',         'global', TRUE),
-  (gen_random_uuid(), 'VENDOR_OWNER',         'Vendor Owner',         'vendor', TRUE),
+  -- Fixed id: the web client embeds this UUID (ROLE_IDS.vendorOwner) to filter
+  -- store-owner accounts in the admin "create store" picker. Keep in sync.
+  ('754a8e4d-4e3b-4241-ba40-619f411aba3b', 'VENDOR_OWNER', 'Vendor Owner', 'vendor', TRUE),
   (gen_random_uuid(), 'VENDOR_STAFF_KITCHEN', 'Vendor Staff Kitchen', 'vendor', TRUE),
   (gen_random_uuid(), 'VENDOR_STAFF_CASHIER', 'Vendor Staff Cashier', 'vendor', TRUE),
   (gen_random_uuid(), 'STUDENT',              'Student',              'global', TRUE),
