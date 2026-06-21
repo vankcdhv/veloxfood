@@ -38,6 +38,7 @@ export const ROUTES = {
     resetPassword: '/reset-password',
   },
   registerShipper: '/register-shipper',
+  registerSeller: '/register-seller',
   support: {
     help: '/help',
     contact: '/contact',

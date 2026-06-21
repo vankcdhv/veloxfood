@@ -96,6 +96,15 @@ export function UserMenu({ showAdminLink = false, align = 'end' }: UserMenuProps
           <MapPin className="mr-2 h-4 w-4" />
           Vị trí đã lưu
         </DropdownMenuItem>
+        {!isVendor && (
+          <DropdownMenuItem
+            onClick={() => router.push(ROUTES.registerSeller)}
+            className="cursor-pointer"
+          >
+            <Store className="mr-2 h-4 w-4" />
+            Đăng ký bán hàng
+          </DropdownMenuItem>
+        )}
         {isShipper ? (
           <DropdownMenuItem
             onClick={() => router.push(ROUTES.account.deliveries)}
