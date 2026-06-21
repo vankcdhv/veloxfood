@@ -20,7 +20,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         </div>
 
         <footer className="text-muted-foreground text-center text-xs">
-          © {new Date().getFullYear()} VeloxFood · Course project Hệ thống phân tán
+          © {new Date().getFullYear()} VeloxFood · Món ngon mỗi ngày, giao tận tay bạn.
         </footer>
       </main>
     </div>

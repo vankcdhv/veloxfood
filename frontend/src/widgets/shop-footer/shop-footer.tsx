@@ -14,7 +14,7 @@ export function ShopFooter() {
           <div className="space-y-3">
             <BrandMark href={ROUTES.shop.root} />
             <p className="text-muted-foreground text-sm">
-              Nền tảng đặt món ăn — frontend cho project Hệ thống phân tán.
+              Món ngon mỗi ngày, giao tận tay bạn.
             </p>
           </div>
 
@@ -46,8 +46,8 @@ export function ShopFooter() {
         </div>
 
         <div className="border-border text-muted-foreground mt-10 flex flex-col gap-2 border-t pt-6 text-xs sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} VeloxFood · Course project Hệ thống phân tán</p>
-          <p>Made with Next.js 16 + Go microservices</p>
+          <p>© {new Date().getFullYear()} VeloxFood</p>
+          <p>Đặt món ngon — nhanh, dễ, đúng vị.</p>
         </div>
       </div>
     </footer>

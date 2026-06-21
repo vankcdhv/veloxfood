@@ -5,9 +5,7 @@ export const metadata = { title: 'Cài đặt hệ thống' };
 
 const PLATFORM_INFO = [
   { label: 'Tên hệ thống', value: 'VeloxFood' },
-  { label: 'Phiên bản', value: 'v0.1.0 · base' },
-  { label: 'Bối cảnh', value: 'Distributed System Course' },
-  { label: 'Cổng API', value: 'Kong Gateway · /api/v1' },
+  { label: 'Phiên bản', value: '1.0' },
 ];
 
 const PAYMENT_INFO = [

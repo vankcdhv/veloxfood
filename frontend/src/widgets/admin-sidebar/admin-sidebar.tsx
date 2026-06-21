@@ -38,8 +38,8 @@ export function AdminSidebar() {
       </div>
       <AdminNav />
       <div className="border-border text-muted-foreground border-t p-4 text-xs">
-        <p>Distributed System Course</p>
-        <p>v0.1.0 · base</p>
+        <p className="text-foreground font-medium">VeloxFood</p>
+        <p>Hệ thống quản trị đặt món</p>
       </div>
     </aside>
   );
