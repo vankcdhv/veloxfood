@@ -16,11 +16,18 @@ import (
 )
 
 // ShipperListItem enriches a ShipperProfile with the applicant's identity
-// fields so the admin list never surfaces raw user_id UUIDs.
+// fields so the admin list never surfaces raw user_id UUIDs. Fields carry
+// explicit snake_case json tags (the web client expects snake_case); embedding
+// the entity directly would leak its untagged PascalCase field names.
 type ShipperListItem struct {
-	*entity.ShipperProfile
-	FullName string  `json:"full_name"`
-	Email    *string `json:"email"`
+	UserID             string               `json:"user_id"`
+	IDDocumentPhotoURL string               `json:"id_document_photo_url"`
+	PortraitPhotoURL   string               `json:"portrait_photo_url"`
+	Status             entity.ShipperStatus `json:"status"`
+	ApprovedAt         *time.Time           `json:"approved_at"`
+	CreatedAt          time.Time            `json:"created_at"`
+	FullName           string               `json:"full_name"`
+	Email              *string              `json:"email"`
 }
 
 // AdminShipperUsecase covers admin approval of shipper applications.
@@ -117,9 +124,14 @@ func (uc *adminShipperUsecase) ListPendingEnriched(ctx context.Context, status *
 	for i, p := range profiles {
 		u := byID[p.UserID]
 		items[i] = &ShipperListItem{
-			ShipperProfile: p,
-			FullName:       u.FullName,
-			Email:          u.Email,
+			UserID:             p.UserID,
+			IDDocumentPhotoURL: p.IDDocumentPhotoURL,
+			PortraitPhotoURL:   p.PortraitPhotoURL,
+			Status:             p.Status,
+			ApprovedAt:         p.ApprovedAt,
+			CreatedAt:          p.CreatedAt,
+			FullName:           u.FullName,
+			Email:              u.Email,
 		}
 	}
 	return items, total, nil

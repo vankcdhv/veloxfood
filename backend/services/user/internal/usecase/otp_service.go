@@ -63,8 +63,13 @@ func (s *otpService) Generate(ctx context.Context, userID *string, purpose entit
 
 	subject := otpSubject(purpose)
 	if err := s.mailer.SendOTP(ctx, destination, subject, code); err != nil {
-		// soft fail: OTP persisted, delivery failure is logged, not fatal
+		// soft fail: OTP persisted, delivery failure is logged, not fatal.
 		slog.WarnContext(ctx, "otp email send failed", "destination", destination, "err", err)
+		// Dev fallback: when email delivery is unavailable (e.g. SMTP not
+		// configured) the code is otherwise unrecoverable (stored hashed), which
+		// blocks registration end-to-end. Surface it in logs so a developer can
+		// complete the flow. Only emitted on delivery failure.
+		slog.WarnContext(ctx, "otp delivery unavailable — dev fallback code", "destination", destination, "code", code, "purpose", purpose)
 	}
 	return code, nil
 }
