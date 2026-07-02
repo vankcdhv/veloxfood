@@ -48,6 +48,11 @@ func (r *RedisCache) Close() error {
 	return r.client.Close()
 }
 
+// Ping verifies the Redis connection — used by readiness probes.
+func (r *RedisCache) Ping(ctx context.Context) error {
+	return r.client.Ping(ctx).Err()
+}
+
 // Scan iterates over keys matching pattern using SCAN cursor (non-blocking).
 // Returns all matching keys. Intended for cache invalidation, not hot paths.
 func (r *RedisCache) Scan(ctx context.Context, pattern string) ([]string, error) {

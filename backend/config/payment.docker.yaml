@@ -13,6 +13,8 @@ database:
   password: dev_password
   name: payment_db
   ssl_mode: disable
+  auto_migrate: true
+  migrations_path: /migrations
 
 redis:
   addr: redis:6379

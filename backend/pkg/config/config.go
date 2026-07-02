@@ -106,6 +106,11 @@ type DatabaseConfig struct {
 	Password string `mapstructure:"password"`
 	Name     string `mapstructure:"name"`
 	SSLMode  string `mapstructure:"ssl_mode"`
+	// AutoMigrate runs pending golang-migrate migrations on service start.
+	// MigrationsPath must be set explicitly when enabled — the service name
+	// does not reliably map to a migrations directory.
+	AutoMigrate    bool   `mapstructure:"auto_migrate"`
+	MigrationsPath string `mapstructure:"migrations_path"`
 }
 
 type RedisConfig struct {

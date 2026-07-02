@@ -13,6 +13,8 @@ database:
   password: dev_password
   name: location_db
   ssl_mode: disable
+  auto_migrate: true
+  migrations_path: services/location/migrations
 
 redis:
   addr: localhost:17380
