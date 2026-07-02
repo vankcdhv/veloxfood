@@ -12,6 +12,7 @@ import { formatRoomPath } from '@/features/locations/lib/format-room-path';
 import { LocationPicker } from '@/features/locations/components/location-picker';
 import type { LocationSelection } from '@/features/locations/components/location-picker';
 import { AddToCartButton } from '@/features/cart/components/add-to-cart-button';
+import { FavoriteButton } from '@/features/favorites/components/favorite-button';
 import { StoreReviewsList } from '@/features/reviews/components/store-reviews-list';
 import { MenuItemDetailDialog } from '@/features/reviews/components/menu-item-detail-dialog';
 import { StarRatingDisplay } from '@/features/reviews/components/star-rating-input';
@@ -68,6 +69,7 @@ export function StoreDetailView({ storeId }: StoreDetailViewProps) {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="font-serif text-2xl font-bold">{store.Name}</h1>
+          <FavoriteButton type="store" id={store.ID} name={store.Name} />
           <SaleStatusBadge status={store.SaleStatus} />
           {store.PickupEnabled && (
             <Badge variant="secondary">Tự lấy</Badge>

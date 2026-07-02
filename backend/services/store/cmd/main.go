@@ -43,6 +43,7 @@ func main() {
 		catalogUC := usecase.NewCatalogUsecase(catalogRepo)
 		shipFeeUC := usecase.NewShipFeeUsecase(shippingRepo, roomResolver)
 		hoursUC := usecase.NewHoursUsecase(deps.DB, shippingRepo, outboxRepo)
+		favoriteUC := usecase.NewFavoriteUsecase(persistence.NewFavoriteGormRepository(deps.DB))
 
 		// ── MinIO uploader ────────────────────────────────────────────────────
 		uploader := buildUploader(deps)
@@ -58,6 +59,7 @@ func main() {
 			cfg.PermChecker = permChecker
 			cfg.VendorHandler = v1.NewVendorStoreHandler(storeUC, catalogUC, shipFeeUC, hoursUC, permChecker, uploader)
 			cfg.AdminHandler = v1.NewAdminStoreHandler(storeUC, hoursUC)
+			cfg.FavoriteHandler = v1.NewFavoriteHandler(favoriteUC, hoursUC)
 		}
 
 		handlerhttp.RegisterRoutes(r, cfg)

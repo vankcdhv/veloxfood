@@ -18,6 +18,7 @@ import {
 import { ROUTES } from '@/shared/config/constants';
 import { useMenuItemSearch } from '@/features/stores/hooks/use-stores';
 import { AddToCartButton } from '@/features/cart/components/add-to-cart-button';
+import { FavoriteButton } from '@/features/favorites/components/favorite-button';
 import { MenuItemDetailDialog } from '@/features/reviews/components/menu-item-detail-dialog';
 import { reviewApi } from '@/features/reviews/api/review-api';
 import { reviewKeys } from '@/features/reviews/hooks/use-reviews';
@@ -377,13 +378,16 @@ function SearchResults({
 
             {/* Info */}
             <div className="min-w-0 flex-1 space-y-1">
-              {/* Name + star rating line; opens detail dialog with reviews on click */}
-              <MenuItemDetailDialog
-                storeId={r.StoreID}
-                item={mapped}
-                avg={summary?.Avg ?? 0}
-                count={summary?.Count ?? 0}
-              />
+              {/* Name + star rating line (opens detail dialog) + favorite heart */}
+              <div className="flex items-start justify-between gap-2">
+                <MenuItemDetailDialog
+                  storeId={r.StoreID}
+                  item={mapped}
+                  avg={summary?.Avg ?? 0}
+                  count={summary?.Count ?? 0}
+                />
+                <FavoriteButton type="item" id={r.ID} name={r.Name} className="-my-1" />
+              </div>
 
               {/* Description */}
               {r.Description && (

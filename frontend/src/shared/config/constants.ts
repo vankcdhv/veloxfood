@@ -18,6 +18,7 @@ export const ROUTES = {
   },
   account: {
     profile: '/account/profile',
+    favorites: '/account/favorites',
     locations: '/account/locations',
     store: '/account/store',
     wallet: '/account/wallet',

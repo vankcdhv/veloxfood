@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
 import { StarRatingDisplay } from '@/features/reviews/components/star-rating-input';
 import { useStoreRatingSummary } from '@/features/reviews/hooks/use-reviews';
+import { FavoriteButton } from '@/features/favorites/components/favorite-button';
 import { StoreOpenBadge } from './sale-status-badge';
 import type { Store } from '../types/store';
 
@@ -43,7 +44,7 @@ export function StoreCard({ store, href }: StoreCardProps) {
           <StoreOpenBadge openNow={store.OpenNow} status={store.SaleStatus} />
         </div>
 
-        {/* Rating row — always reserved so cards stay uniform */}
+        {/* Rating row — always reserved so cards stay uniform; heart on the right */}
         <div className="mt-3 flex items-center gap-1.5 text-xs">
           {rating && rating.Count > 0 ? (
             <>
@@ -54,6 +55,7 @@ export function StoreCard({ store, href }: StoreCardProps) {
           ) : (
             <span className="text-muted-foreground/60">Chưa có đánh giá</span>
           )}
+          <FavoriteButton type="store" id={store.ID} name={store.Name} className="ml-auto -my-1" />
         </div>
 
         {/* Meta row: prep-time ETA + today's hours (data already returned by the

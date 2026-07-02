@@ -187,6 +187,13 @@ services:
         strip_path: false
         regex_priority: 100
 
+      # /api/v1/me/favorites/* (must beat user-me at priority 10)
+      - name: store-me-favorites
+        paths:
+          - ~/api/v1/me/favorites(/.*)?$
+        strip_path: false
+        regex_priority: 100
+
       # /api/v1/categories/*
       - name: store-categories
         paths:

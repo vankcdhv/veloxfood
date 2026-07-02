@@ -9,11 +9,12 @@ import (
 
 // RouterConfig bundles all handlers and middleware for the store service.
 type RouterConfig struct {
-	BrowseHandler  *v1.StoreBrowseHandler
-	VendorHandler  *v1.VendorStoreHandler
-	AdminHandler   *v1.AdminStoreHandler
-	AuthMiddleware gin.HandlerFunc
-	PermChecker    authmw.PermissionChecker
+	BrowseHandler   *v1.StoreBrowseHandler
+	VendorHandler   *v1.VendorStoreHandler
+	AdminHandler    *v1.AdminStoreHandler
+	FavoriteHandler *v1.FavoriteHandler
+	AuthMiddleware  gin.HandlerFunc
+	PermChecker     authmw.PermissionChecker
 }
 
 // RegisterRoutes mounts all store service routes onto the engine.
@@ -48,6 +49,16 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 		stores.GET("/:id/menu", h.GetMenu)
 		stores.GET("/:id/categories", h.ListCategories)
 		stores.GET("/:id/ship-fee", h.GetShipFee)
+	}
+
+	// ── Customer favorites (any authenticated user, owner-implicit) ───────────
+	if cfg.FavoriteHandler != nil {
+		h := cfg.FavoriteHandler
+		fav := protected.Group("/me/favorites")
+		fav.GET("", h.List)
+		fav.GET("/ids", h.ListIDs)
+		fav.PUT("/:type/:id", h.Add)
+		fav.DELETE("/:type/:id", h.Remove)
 	}
 
 	// ── Vendor owner: manage their own store ──────────────────────────────────
