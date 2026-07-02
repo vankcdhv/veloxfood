@@ -7,7 +7,18 @@ import type { NextConfig } from 'next';
 // The previous per-service rewrites are preserved below as a reference comment.
 const GATEWAY_URL = process.env.GATEWAY_URL ?? 'http://localhost:17000';
 
+// MinIO serves public images (menu photos, store avatars, review photos).
+// Override MINIO_PUBLIC_HOST/PORT when object storage moves off localhost.
+const MINIO_HOST = process.env.MINIO_PUBLIC_HOST ?? 'localhost';
+const MINIO_PORT = process.env.MINIO_PUBLIC_PORT ?? '17090';
+
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      { protocol: 'http', hostname: MINIO_HOST, port: MINIO_PORT, pathname: '/veloxfood/**' },
+      { protocol: 'https', hostname: MINIO_HOST, pathname: '/veloxfood/**' },
+    ],
+  },
   async redirects() {
     return [
       // Front door is the storefront, not the UI-kit scaffold at `/`.

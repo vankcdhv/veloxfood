@@ -58,7 +58,7 @@ export function AdminHoursChangeReview({ storeId }: Props) {
   }
 
   return (
-    <div className="border-border overflow-hidden rounded-lg border">
+    <div className="border-border overflow-x-auto rounded-lg border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-muted-foreground">
           <tr>

@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { UtensilsCrossed } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 
@@ -10,11 +11,17 @@ interface ItemThumbnailProps {
 
 // ItemThumbnail renders a dish/store image with the standard fallback tile
 // when no image exists. Shared by search results, menu lists and cards.
+// next/image resizes + lazy-loads, keeping list pages light on bandwidth.
 export function ItemThumbnail({ src, alt, className }: ItemThumbnailProps) {
   if (src) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt={alt} className={cn('h-16 w-16 shrink-0 rounded-lg object-cover', className)} />
+      <Image
+        src={src}
+        alt={alt}
+        width={64}
+        height={64}
+        className={cn('h-16 w-16 shrink-0 rounded-lg object-cover', className)}
+      />
     );
   }
   return (

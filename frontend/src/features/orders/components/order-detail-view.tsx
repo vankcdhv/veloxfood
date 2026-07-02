@@ -204,6 +204,11 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
         </div>
       </div>
 
+      {/* Desired-time / ETA banner — only while the order is in flight */}
+      {!isClosed && liveStatus !== 'COMPLETED' && displayOrder.DesiredTime && (
+        <DesiredTimeBanner desiredTime={displayOrder.DesiredTime} status={liveStatus} />
+      )}
+
       {/* Status timeline */}
       {!isClosed && <StatusTimeline order={displayOrder} />}
 
@@ -367,6 +372,50 @@ function desiredTimeLabel(rfc3339?: string): string {
   const d = new Date(rfc3339);
   if (Number.isNaN(d.getTime())) return 'Sớm nhất có thể';
   return `${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} hôm nay`;
+}
+
+// DesiredTimeBanner shows the promised receive time with a live countdown, and
+// flips to a late warning once the time passes without delivery. Re-renders
+// every 30s so the remaining minutes stay fresh.
+function DesiredTimeBanner({ desiredTime, status }: { desiredTime: string; status: OrderStatus }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const target = new Date(desiredTime).getTime();
+  if (Number.isNaN(target)) return null;
+  const deliveredish = status === 'DELIVERED';
+  const minutesLeft = Math.round((target - now) / 60_000);
+  const timeStr = new Date(desiredTime).toLocaleTimeString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  if (deliveredish) return null;
+
+  const late = minutesLeft < 0;
+  return (
+    <Card className={late ? 'border-destructive/50 bg-destructive/5' : 'border-primary/40 bg-primary/5'}>
+      <CardContent className="flex items-center gap-3 py-3 text-sm">
+        <Circle className={`h-2.5 w-2.5 shrink-0 fill-current ${late ? 'text-destructive' : 'text-primary'}`} />
+        {late ? (
+          <span className="text-destructive">
+            Đã quá giờ nhận mong muốn ({timeStr}) <strong>{Math.abs(minutesLeft)} phút</strong>. Quán
+            hoặc tài xế có thể đang trễ — bạn có thể liên hệ hỗ trợ nếu cần.
+          </span>
+        ) : (
+          <span>
+            Dự kiến nhận lúc <strong>{timeStr}</strong>
+            {minutesLeft > 0 && (
+              <span className="text-muted-foreground"> · còn khoảng {minutesLeft} phút</span>
+            )}
+          </span>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function paymentStatusLabel(status: string): string {

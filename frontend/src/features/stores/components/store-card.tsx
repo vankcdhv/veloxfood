@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Clock, Package, Truck, UtensilsCrossed } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Badge } from '@/shared/ui/badge';
@@ -26,8 +27,13 @@ export function StoreCard({ store, href }: StoreCardProps) {
         {/* Header: cuisine icon + name (clamped) + status badge (no wrap) */}
         <div className="flex items-start gap-3">
           {store.AvatarURL ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={store.AvatarURL} alt={store.Name} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+            <Image
+              src={store.AvatarURL}
+              alt={store.Name}
+              width={40}
+              height={40}
+              className="h-10 w-10 shrink-0 rounded-lg object-cover"
+            />
           ) : (
             <div className="bg-primary/10 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
               <UtensilsCrossed className="h-5 w-5" />
