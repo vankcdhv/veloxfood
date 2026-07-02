@@ -8,10 +8,41 @@ import (
 
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/response"
+	"project/pkg/storage"
 	"project/services/store/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )
+
+// imageUpload is a validated multipart image ready to stream to storage.
+type imageUpload struct {
+	file        io.ReadCloser
+	contentType string
+	ext         string
+	size        int64
+}
+
+// requireImageUpload validates a multipart image field: present, ≤5MB, and an
+// accepted image content-type. Writes the 400 response itself on failure.
+func requireImageUpload(c *gin.Context, field string) (imageUpload, bool) {
+	file, header, err := c.Request.FormFile(field)
+	if err != nil {
+		response.BadRequest(c, field+" file required")
+		return imageUpload{}, false
+	}
+	if header.Size > storage.MaxImageBytes {
+		_ = file.Close()
+		response.BadRequest(c, field+" exceeds 5MB")
+		return imageUpload{}, false
+	}
+	ct := header.Header.Get("Content-Type")
+	if !storage.AllowedImageType(ct) {
+		_ = file.Close()
+		response.BadRequest(c, field+" must be a JPEG, PNG or WebP image")
+		return imageUpload{}, false
+	}
+	return imageUpload{file: file, contentType: ct, ext: filepath.Ext(header.Filename), size: header.Size}, true
+}
 
 // VendorStoreHandler handles vendor-owner operations on their own store.
 // Every mutating route checks that the authenticated user holds store.manage
@@ -302,16 +333,14 @@ func (h *VendorStoreHandler) UploadMenuItemImage(c *gin.Context) {
 		return
 	}
 
-	file, header, err := c.Request.FormFile("image")
-	if err != nil {
-		response.BadRequest(c, "image file required")
+	img, ok := requireImageUpload(c, "image")
+	if !ok {
 		return
 	}
-	defer file.Close()
+	defer img.file.Close()
 
-	ext := filepath.Ext(header.Filename)
-	objectKey := fmt.Sprintf("stores/%s/menu/%s%s", storeID, itemID, ext)
-	url, err := h.uploader.Put(c.Request.Context(), objectKey, header.Header.Get("Content-Type"), file.(io.Reader), header.Size)
+	objectKey := fmt.Sprintf("stores/%s/menu/%s%s", storeID, itemID, img.ext)
+	url, err := h.uploader.Put(c.Request.Context(), objectKey, img.contentType, img.file, img.size)
 	if err != nil {
 		response.InternalError(c)
 		return
@@ -332,16 +361,14 @@ func (h *VendorStoreHandler) UploadAvatar(c *gin.Context) {
 		return
 	}
 
-	file, header, err := c.Request.FormFile("image")
-	if err != nil {
-		response.BadRequest(c, "image file required")
+	img, ok := requireImageUpload(c, "image")
+	if !ok {
 		return
 	}
-	defer file.Close()
+	defer img.file.Close()
 
-	ext := filepath.Ext(header.Filename)
-	objectKey := fmt.Sprintf("stores/%s/avatar%s", storeID, ext)
-	url, err := h.uploader.Put(c.Request.Context(), objectKey, header.Header.Get("Content-Type"), file.(io.Reader), header.Size)
+	objectKey := fmt.Sprintf("stores/%s/avatar%s", storeID, img.ext)
+	url, err := h.uploader.Put(c.Request.Context(), objectKey, img.contentType, img.file, img.size)
 	if err != nil {
 		response.InternalError(c)
 		return

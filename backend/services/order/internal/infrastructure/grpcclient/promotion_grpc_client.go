@@ -4,11 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"project/pkg/trace"
+	"project/pkg/grpcx"
 	promotionv1 "project/proto/promotion/v1"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // PromotionApplyResult is the outcome of ApplyPromotion.
@@ -26,11 +23,7 @@ type PromotionClient struct {
 
 // NewPromotionClient dials the promotion service.
 func NewPromotionClient(addr string) (*PromotionClient, error) {
-	conn, err := grpc.NewClient(
-		addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(trace.UnaryClientInterceptor()),
-	)
+	conn, err := grpcx.Dial(addr)
 	if err != nil {
 		return nil, fmt.Errorf("promotion grpc client: dial %s: %w", addr, err)
 	}

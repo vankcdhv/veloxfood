@@ -4,11 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"project/pkg/trace"
+	"project/pkg/grpcx"
 	locationv1 "project/proto/location/v1"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // LocationClient implements usecase.LocationResolver by calling the location
@@ -20,11 +17,7 @@ type LocationClient struct {
 // NewLocationClient dials the location service and returns a LocationClient.
 // addr is typically cfg.LocationService.GRPCAddr.
 func NewLocationClient(addr string) (*LocationClient, error) {
-	conn, err := grpc.NewClient(
-		addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(trace.UnaryClientInterceptor()),
-	)
+	conn, err := grpcx.Dial(addr)
 	if err != nil {
 		return nil, fmt.Errorf("location grpc client: dial %s: %w", addr, err)
 	}

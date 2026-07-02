@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"project/pkg/trace"
+	"project/pkg/grpcx"
 	userv1 "project/proto/user/v1"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // UserInfo is the minimal customer contact info the store owner needs.
@@ -27,11 +24,7 @@ type UserClient struct {
 // NewUserClient dials the user service. Returns nil on failure — callers must
 // nil-check and degrade gracefully (contact fields stay empty).
 func NewUserClient(addr string) (*UserClient, error) {
-	conn, err := grpc.NewClient(
-		addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(trace.UnaryClientInterceptor()),
-	)
+	conn, err := grpcx.Dial(addr)
 	if err != nil {
 		return nil, fmt.Errorf("user grpc client: dial %s: %w", addr, err)
 	}

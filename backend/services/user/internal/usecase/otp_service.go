@@ -27,6 +27,7 @@ type otpService struct {
 	mailer      mailer.Mailer
 	ttl         time.Duration
 	maxAttempts int
+	env         string
 }
 
 func NewOTPService(
@@ -34,12 +35,14 @@ func NewOTPService(
 	m mailer.Mailer,
 	ttl time.Duration,
 	maxAttempts int,
+	env string,
 ) OTPService {
 	return &otpService{
 		repo:        repo,
 		mailer:      m,
 		ttl:         ttl,
 		maxAttempts: maxAttempts,
+		env:         env,
 	}
 }
 
@@ -68,8 +71,11 @@ func (s *otpService) Generate(ctx context.Context, userID *string, purpose entit
 		// Dev fallback: when email delivery is unavailable (e.g. SMTP not
 		// configured) the code is otherwise unrecoverable (stored hashed), which
 		// blocks registration end-to-end. Surface it in logs so a developer can
-		// complete the flow. Only emitted on delivery failure.
-		slog.WarnContext(ctx, "otp delivery unavailable — dev fallback code", "destination", destination, "code", code, "purpose", purpose)
+		// complete the flow. Never emitted in production — a plaintext OTP in
+		// centralized logs would defeat the second factor.
+		if s.env != "production" {
+			slog.WarnContext(ctx, "otp delivery unavailable — dev fallback code", "destination", destination, "code", code, "purpose", purpose)
+		}
 	}
 	return code, nil
 }

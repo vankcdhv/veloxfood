@@ -9,6 +9,7 @@ import (
 
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/response"
+	"project/pkg/storage"
 	"project/services/delivery/internal/entity"
 	"project/services/delivery/internal/usecase"
 
@@ -172,15 +173,14 @@ func (h *ShipperDeliveryHandler) UploadIncidentPhoto(c *gin.Context) {
 	defer file.Close()
 
 	// Reject oversized uploads (max 5MB) and non-image content types.
-	const maxIncidentPhotoBytes = 5 << 20
-	if header.Size > maxIncidentPhotoBytes {
+	if header.Size > storage.MaxImageBytes {
 		c.JSON(http.StatusBadRequest, response.Response{
 			Status: http.StatusBadRequest, Message: "bad request", Error: "image too large (max 5MB)",
 		})
 		return
 	}
 	contentType := header.Header.Get("Content-Type")
-	if !allowedImageType(contentType) {
+	if !storage.AllowedImageType(contentType) {
 		c.JSON(http.StatusBadRequest, response.Response{
 			Status: http.StatusBadRequest, Message: "bad request", Error: "unsupported image type",
 		})
@@ -197,17 +197,6 @@ func (h *ShipperDeliveryHandler) UploadIncidentPhoto(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, response.Response{Status: http.StatusOK, Message: "ok", Data: gin.H{"photo_url": url}})
-}
-
-// allowedImageType reports whether the multipart content type is an accepted
-// incident-evidence image format.
-func allowedImageType(contentType string) bool {
-	switch contentType {
-	case "image/jpeg", "image/png", "image/webp":
-		return true
-	default:
-		return false
-	}
 }
 
 // GetOrderShipper returns the shipper assigned to the caller's order, so the

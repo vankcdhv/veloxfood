@@ -6,12 +6,10 @@ import (
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/auth/remotechecker"
 	authstore "project/pkg/auth/store"
-	"project/pkg/trace"
+	"project/pkg/grpcx"
 	userv1 "project/proto/user/v1"
 
 	"github.com/gin-gonic/gin"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // buildAuth wires JWT verification (public key only — reporting does not issue tokens)
@@ -30,11 +28,7 @@ func buildAuth(deps app.Dependencies) (gin.HandlerFunc, authmw.PermissionChecker
 		return nil, nil, err
 	}
 
-	conn, err := grpc.NewClient(
-		cfg.UserService.GRPCAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(trace.UnaryClientInterceptor()),
-	)
+	conn, err := grpcx.Dial(cfg.UserService.GRPCAddr)
 	if err != nil {
 		return nil, nil, err
 	}

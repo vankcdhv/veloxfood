@@ -8,8 +8,8 @@ import (
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/auth/remotechecker"
 	"project/pkg/auth/store"
+	"project/pkg/grpcx"
 	"project/pkg/middleware"
-	"project/pkg/trace"
 	locationv1 "project/proto/location/v1"
 	userv1 "project/proto/user/v1"
 	grpchandler "project/services/location/internal/handler/grpc"
@@ -20,7 +20,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -75,11 +74,7 @@ func buildAuth(deps app.Dependencies) (gin.HandlerFunc, authmw.PermissionChecker
 		return nil, nil, err
 	}
 
-	conn, err := grpc.NewClient(
-		cfg.UserService.GRPCAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(trace.UnaryClientInterceptor()),
-	)
+	conn, err := grpcx.Dial(cfg.UserService.GRPCAddr)
 	if err != nil {
 		return nil, nil, err
 	}

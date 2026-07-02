@@ -5,12 +5,11 @@ import (
 
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/response"
+	"project/pkg/storage"
 	"project/services/user/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )
-
-const maxShipperPhotoBytes = 5 << 20 // 5 MB per photo
 
 // ShipperHandler handles shipper self-registration.
 type ShipperHandler struct {
@@ -81,16 +80,16 @@ func readPhoto(c *gin.Context, field string) (photo, error) {
 	if err != nil {
 		return photo{}, &fieldError{field: field, msg: field + " is required"}
 	}
-	if header.Size > maxShipperPhotoBytes {
+	if header.Size > storage.MaxImageBytes {
 		return photo{}, &fieldError{field: field, msg: field + " exceeds 5MB"}
+	}
+	ct := header.Header.Get("Content-Type")
+	if !storage.AllowedImageType(ct) {
+		return photo{}, &fieldError{field: field, msg: field + " must be a JPEG, PNG or WebP image"}
 	}
 	f, err := header.Open()
 	if err != nil {
 		return photo{}, &fieldError{field: field, msg: "cannot read " + field}
-	}
-	ct := header.Header.Get("Content-Type")
-	if ct == "" {
-		ct = "application/octet-stream"
 	}
 	return photo{
 		file: usecase.UploadFile{

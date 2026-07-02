@@ -4,14 +4,12 @@ import (
 	"project/pkg/app"
 	authjwt "project/pkg/auth/jwt"
 	authmw "project/pkg/auth/middleware"
-	authstore "project/pkg/auth/store"
 	remotechecker "project/pkg/auth/remotechecker"
-	"project/pkg/trace"
+	authstore "project/pkg/auth/store"
+	"project/pkg/grpcx"
 	userv1 "project/proto/user/v1"
 
 	"github.com/gin-gonic/gin"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // buildAuth wires JWT verification (public key only) + remote permission checker.
@@ -29,11 +27,7 @@ func buildAuth(deps app.Dependencies) (gin.HandlerFunc, error) {
 		return nil, err
 	}
 
-	conn, err := grpc.NewClient(
-		cfg.UserService.GRPCAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(trace.UnaryClientInterceptor()),
-	)
+	conn, err := grpcx.Dial(cfg.UserService.GRPCAddr)
 	if err != nil {
 		return nil, err
 	}

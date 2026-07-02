@@ -4,11 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"project/pkg/trace"
+	"project/pkg/grpcx"
 	storev1 "project/proto/store/v1"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // StoreOwnership holds ownership data needed for reply authorisation.
@@ -27,11 +24,7 @@ type storeGRPCClient struct{ client storev1.StoreServiceClient }
 
 // NewStoreClient dials the store gRPC service at addr and returns a StoreClient.
 func NewStoreClient(addr string) (StoreClient, error) {
-	conn, err := grpc.NewClient(
-		addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(trace.UnaryClientInterceptor()),
-	)
+	conn, err := grpcx.Dial(addr)
 	if err != nil {
 		return nil, fmt.Errorf("store grpc client: dial %s: %w", addr, err)
 	}

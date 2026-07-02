@@ -4,11 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"project/pkg/trace"
+	"project/pkg/grpcx"
 	orderv1 "project/proto/order/v1"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // OrderResult is the order data needed by the review service.
@@ -29,11 +26,7 @@ type orderGRPCClient struct{ client orderv1.OrderServiceClient }
 
 // NewOrderClient dials the order service and returns an OrderClient.
 func NewOrderClient(addr string) (OrderClient, error) {
-	conn, err := grpc.NewClient(
-		addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(trace.UnaryClientInterceptor()),
-	)
+	conn, err := grpcx.Dial(addr)
 	if err != nil {
 		return nil, fmt.Errorf("order grpc client: dial %s: %w", addr, err)
 	}

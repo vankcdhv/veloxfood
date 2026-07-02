@@ -9,6 +9,17 @@ plugins:
       generator: uuid
       echo_downstream: true
 
+  # Baseline abuse protection: per-IP budget across the whole API. Auth and
+  # KYC-upload routes carry a much tighter per-route override below (Kong picks
+  # the most specific plugin instance: route > service > global).
+  - name: rate-limiting
+    config:
+      minute: 300
+      policy: local
+      limit_by: ip
+      fault_tolerant: true
+      hide_client_headers: false
+
   - name: cors
     config:
       origins:
@@ -45,6 +56,14 @@ services:
           - ~/api/v1/auth(/.*)?$
         strip_path: false
         regex_priority: 100
+        plugins:
+          # Login/OTP/reset are brute-force targets — tight per-IP budget.
+          - name: rate-limiting
+            config:
+              minute: 10
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
 
       # /api/v1/roles/*
       - name: user-roles
@@ -94,6 +113,14 @@ services:
           - ~/api/v1/shipper(/.*)?$
         strip_path: false
         regex_priority: 100
+        plugins:
+          # KYC uploads are expensive (multipart → MinIO) — keep the budget tight.
+          - name: rate-limiting
+            config:
+              minute: 10
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
 
       # /api/v1/me/* — catch-all for /me routes NOT claimed by specific services.
       # Lower priority than all specific /me/* routes below.

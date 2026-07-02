@@ -41,7 +41,7 @@ func buildAuthHandler(deps app.Dependencies) (*v1.AuthHandler, error) {
 	otpRepo := persistence.NewOTPGormRepository(deps.DB)
 	resetRepo := persistence.NewPasswordResetGormRepository(deps.DB)
 
-	otpSvc := usecase.NewOTPService(otpRepo, m, cfg.OTP.TTL, cfg.OTP.MaxAttempts)
+	otpSvc := usecase.NewOTPService(otpRepo, m, cfg.OTP.TTL, cfg.OTP.MaxAttempts, cfg.App.Env)
 
 	auditLogger := audit.NewGormLogger(deps.DB)
 	authUC := usecase.NewAuthUsecase(userRepo, otpRepo, resetRepo, jwtSvc, authStore, m, otpSvc, auditLogger)

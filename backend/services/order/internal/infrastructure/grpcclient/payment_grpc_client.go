@@ -4,11 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"project/pkg/trace"
+	"project/pkg/grpcx"
 	paymentv1 "project/proto/payment/v1"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // PaymentCaptureResult is the outcome of Payment.Capture.
@@ -26,11 +23,7 @@ type PaymentClient struct {
 
 // NewPaymentClient dials the payment service.
 func NewPaymentClient(addr string) (*PaymentClient, error) {
-	conn, err := grpc.NewClient(
-		addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(trace.UnaryClientInterceptor()),
-	)
+	conn, err := grpcx.Dial(addr)
 	if err != nil {
 		return nil, fmt.Errorf("payment grpc client: dial %s: %w", addr, err)
 	}

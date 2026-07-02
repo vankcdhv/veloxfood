@@ -160,7 +160,7 @@ func setupTestApp(t *testing.T) *testApp {
 	invitationRepo := persistence.NewInvitationGormRepository(db)
 	outboxRepo := persistence.NewOutboxGormRepository(db)
 
-	otpSvc := usecase.NewOTPService(otpRepo, mc, cfg.OTP.TTL, cfg.OTP.MaxAttempts)
+	otpSvc := usecase.NewOTPService(otpRepo, mc, cfg.OTP.TTL, cfg.OTP.MaxAttempts, cfg.App.Env)
 	authUC := usecase.NewAuthUsecase(userRepo, otpRepo, resetRepo, jwtSvc, authRedis, mc, otpSvc, auditLogger)
 	rbacUC := usecase.NewRBACUsecase(rbacRepo, cache)
 	profileUC := usecase.NewProfileUsecase(userRepo, membershipRepo, rbacUC)

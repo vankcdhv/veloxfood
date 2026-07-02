@@ -4,11 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"project/pkg/trace"
+	"project/pkg/grpcx"
 	userv1 "project/proto/user/v1"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // UserClient implements usecase.UserDirectory by calling the user service over gRPC.
@@ -19,11 +16,7 @@ type UserClient struct {
 // NewUserClient dials the user service and returns a UserClient.
 // addr is typically cfg.UserService.GRPCAddr.
 func NewUserClient(addr string) (*UserClient, error) {
-	conn, err := grpc.NewClient(
-		addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(trace.UnaryClientInterceptor()),
-	)
+	conn, err := grpcx.Dial(addr)
 	if err != nil {
 		return nil, fmt.Errorf("user grpc client: dial %s: %w", addr, err)
 	}
