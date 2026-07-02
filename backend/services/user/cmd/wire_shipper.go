@@ -18,21 +18,26 @@ type shipperHandlers struct {
 }
 
 // buildShipperHandlers wires shipper registration + admin approval.
-// uploader may be nil when MinIO is unavailable — registration is then disabled.
-func buildShipperHandlers(deps app.Dependencies, rbacUC usecase.RBACUsecase, uploader usecase.FileUploader) *shipperHandlers {
+// kyc may be nil when MinIO is unavailable — registration is then disabled and
+// the admin list falls back to raw object keys instead of presigned URLs.
+func buildShipperHandlers(deps app.Dependencies, rbacUC usecase.RBACUsecase, kyc *storage.Client) *shipperHandlers {
 	shipperRepo := persistence.NewShipperProfileGormRepository(deps.DB)
 	roleRepo := persistence.NewRoleGormRepository(deps.DB)
 	outboxRepo := persistence.NewOutboxGormRepository(deps.DB)
 	auditLogger := audit.NewGormLogger(deps.DB)
 
-	adminShipperUC := usecase.NewAdminShipperUsecase(deps.DB, shipperRepo, roleRepo, outboxRepo, rbacUC, auditLogger)
+	var signer usecase.ObjectURLSigner
+	if kyc != nil {
+		signer = kyc
+	}
+	adminShipperUC := usecase.NewAdminShipperUsecase(deps.DB, shipperRepo, roleRepo, outboxRepo, rbacUC, auditLogger, signer)
 
 	out := &shipperHandlers{
 		adminShipperHandler: v1.NewAdminShipperHandler(adminShipperUC),
 	}
 
-	if uploader != nil {
-		registerUC := usecase.NewShipperRegisterUsecase(deps.DB, shipperRepo, outboxRepo, uploader, auditLogger)
+	if kyc != nil {
+		registerUC := usecase.NewShipperRegisterUsecase(deps.DB, shipperRepo, outboxRepo, kyc, auditLogger)
 		out.shipperHandler = v1.NewShipperHandler(registerUC)
 	} else {
 		slog.Warn("minio uploader unavailable — shipper registration disabled")
@@ -42,11 +47,13 @@ func buildShipperHandlers(deps app.Dependencies, rbacUC usecase.RBACUsecase, upl
 	return out
 }
 
-// newMinioUploader builds the MinIO client, returning nil on failure (logged).
-func newMinioUploader(deps app.Dependencies) usecase.FileUploader {
-	client, err := storage.NewClient(deps.Config.MinIO)
+// newKYCStorage builds the private-bucket MinIO client for KYC documents,
+// returning nil on failure (logged). Documents in this bucket are only
+// reachable through presigned URLs.
+func newKYCStorage(deps app.Dependencies) *storage.Client {
+	client, err := storage.NewPrivateClient(deps.Config.MinIO)
 	if err != nil {
-		slog.Error("minio client init failed — uploads disabled", "err", err)
+		slog.Error("minio private client init failed — KYC uploads disabled", "err", err)
 		return nil
 	}
 	return client

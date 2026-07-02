@@ -3,13 +3,16 @@
 -- vendor-scoped role grant existed, so HasVendorPermission(store.manage) returned
 -- false and every store-management action (menu, avatar, ship-fee, promotions…)
 -- was rejected with 403. This backfills the grants so the owner console works.
+--
+-- The ops user id and VENDOR_OWNER role id are resolved by email/code rather
+-- than hard-coded: seed 000005 generates the user id with gen_random_uuid(),
+-- so a fixed UUID here breaks the users(id) FK on any freshly-migrated
+-- database. No-ops when either row is absent.
 INSERT INTO user_roles (user_id, role_id, scope_type, scope_id)
-SELECT
-    'a835f18b-4877-4bda-99d1-dbf8ae09d649',  -- ops user
-    '754a8e4d-4e3b-4241-ba40-619f411aba3b',  -- VENDOR_OWNER role
-    'vendor',
-    v.id
-FROM (VALUES
+SELECT u.id, r.id, 'vendor', v.id
+FROM users u
+JOIN roles r ON r.code = 'VENDOR_OWNER'
+CROSS JOIN (VALUES
     ('5eed0000-0000-0000-0000-000000000001'::uuid),
     ('5eed0000-0000-0000-0000-000000000002'::uuid),
     ('5eed0000-0000-0000-0000-000000000003'::uuid),
@@ -31,10 +34,11 @@ FROM (VALUES
     ('5eed0000-0000-0000-0000-000000000019'::uuid),
     ('5eed0000-0000-0000-0000-000000000020'::uuid)
 ) AS v(id)
-WHERE NOT EXISTS (
+WHERE u.email = 'ops@velox.test'
+  AND NOT EXISTS (
     SELECT 1 FROM user_roles ur
-    WHERE ur.user_id = 'a835f18b-4877-4bda-99d1-dbf8ae09d649'
-      AND ur.role_id = '754a8e4d-4e3b-4241-ba40-619f411aba3b'
+    WHERE ur.user_id = u.id
+      AND ur.role_id = r.id
       AND ur.scope_type = 'vendor'
       AND ur.scope_id = v.id
 );

@@ -174,7 +174,8 @@ func setupTestApp(t *testing.T) *testApp {
 	// Shipper (register + admin approve) with an in-memory fake uploader.
 	shipperRepo := persistence.NewShipperProfileGormRepository(db)
 	shipperRegisterUC := usecase.NewShipperRegisterUsecase(db, shipperRepo, outboxRepo, fakeUploader{}, auditLogger)
-	adminShipperUC := usecase.NewAdminShipperUsecase(db, shipperRepo, roleRepo, outboxRepo, rbacUC, auditLogger)
+	// nil signer: tests assert on raw object keys, no MinIO in the loop.
+	adminShipperUC := usecase.NewAdminShipperUsecase(db, shipperRepo, roleRepo, outboxRepo, rbacUC, auditLogger, nil)
 
 	authMW := authmw.AuthRequired(jwtSvc, authRedis)
 

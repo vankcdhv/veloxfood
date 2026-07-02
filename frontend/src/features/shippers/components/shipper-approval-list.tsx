@@ -72,11 +72,12 @@ export function ShipperApprovalList() {
         ))}
       </div>
 
-      <div className="border-border overflow-hidden rounded-lg border">
+      <div className="border-border overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-muted-foreground">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Người dùng</th>
+              <th className="px-4 py-3 text-left font-medium">Giấy tờ</th>
               <th className="px-4 py-3 text-left font-medium">Ngày nộp</th>
               <th className="px-4 py-3 text-left font-medium">Trạng thái</th>
               <th className="px-4 py-3 text-right font-medium">Hành động</th>
@@ -85,21 +86,21 @@ export function ShipperApprovalList() {
           <tbody className="divide-border divide-y">
             {isLoading && (
               <tr>
-                <td colSpan={4} className="px-4 py-4">
+                <td colSpan={5} className="px-4 py-4">
                   <Skeleton className="h-6 w-full" />
                 </td>
               </tr>
             )}
             {isError && (
               <tr>
-                <td colSpan={4} className="text-destructive px-4 py-6 text-center">
+                <td colSpan={5} className="text-destructive px-4 py-6 text-center">
                   Không tải được danh sách.
                 </td>
               </tr>
             )}
             {!isLoading && !isError && (data?.items.length ?? 0) === 0 && (
               <tr>
-                <td colSpan={4} className="text-muted-foreground px-4 py-10 text-center">
+                <td colSpan={5} className="text-muted-foreground px-4 py-10 text-center">
                   Không có hồ sơ nào ở trạng thái này.
                 </td>
               </tr>
@@ -109,6 +110,9 @@ export function ShipperApprovalList() {
                 <td className="px-4 py-3">
                   <p className="text-sm font-medium">{s.full_name || '—'}</p>
                   {s.email && <p className="text-muted-foreground text-xs">{s.email}</p>}
+                </td>
+                <td className="px-4 py-3">
+                  <KYCPhotos item={s} />
                 </td>
                 <td className="px-4 py-3">{new Date(s.created_at).toLocaleString('vi-VN')}</td>
                 <td className="px-4 py-3">
@@ -145,6 +149,55 @@ export function ShipperApprovalList() {
 
       <RejectDialog target={rejectTarget} onClose={() => setRejectTarget(null)} />
     </div>
+  );
+}
+
+// KYCPhotos renders CCCD + portrait thumbnails; clicking opens the full-size
+// image in a dialog. URLs are presigned by the backend and expire in ~15
+// minutes — the list refetch hands out fresh ones, so nothing is cached here.
+function KYCPhotos({ item }: { item: ShipperProfile }) {
+  const [preview, setPreview] = useState<{ url: string; label: string } | null>(null);
+  const photos = [
+    { url: item.id_document_photo_url, label: 'Giấy tờ tuỳ thân' },
+    { url: item.portrait_photo_url, label: 'Ảnh chân dung' },
+  ].filter((p) => p.url && p.url.startsWith('http'));
+
+  if (photos.length === 0) {
+    return <span className="text-muted-foreground text-xs">Không có ảnh</span>;
+  }
+
+  return (
+    <>
+      <div className="flex gap-2">
+        {photos.map((p) => (
+          <button
+            key={p.label}
+            onClick={() => setPreview(p)}
+            aria-label={`Xem ${p.label}`}
+            className="focus-visible:ring-ring rounded-md focus-visible:ring-2 focus-visible:outline-none"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={p.url}
+              alt={p.label}
+              className="border-border h-10 w-14 rounded-md border object-cover"
+            />
+          </button>
+        ))}
+      </div>
+      <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{preview?.label}</DialogTitle>
+            <DialogDescription>Ảnh do người đăng ký tải lên khi nộp hồ sơ shipper.</DialogDescription>
+          </DialogHeader>
+          {preview && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={preview.url} alt={preview.label} className="max-h-[70vh] w-full rounded-lg object-contain" />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

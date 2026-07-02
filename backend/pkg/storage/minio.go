@@ -20,6 +20,7 @@ type Client struct {
 	mc         *minio.Client
 	bucket     string
 	publicBase string // "<scheme>://<endpoint>/<bucket>" — prefix for object URLs
+	private    bool   // private buckets have no anon-read policy; Put returns the key
 }
 
 // NewClient builds a MinIO client, ensures the bucket exists, and makes it
@@ -64,13 +65,49 @@ func NewClient(cfg config.MinIOConfig) (*Client, error) {
 	}, nil
 }
 
-// Put uploads an object and returns its public URL.
+// NewPrivateClient builds a MinIO client against cfg.PrivateBucket for
+// sensitive uploads (KYC documents). The bucket keeps the default private
+// policy — objects are only reachable via PresignedURL — and Put returns the
+// object key (not a URL) so callers persist keys and sign on read.
+func NewPrivateClient(cfg config.MinIOConfig) (*Client, error) {
+	if cfg.PrivateBucket == "" {
+		return nil, fmt.Errorf("minio: private_bucket is not configured")
+	}
+	mc, err := minio.New(cfg.Endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
+		Secure: cfg.UseSSL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("minio: init client: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	exists, err := mc.BucketExists(ctx, cfg.PrivateBucket)
+	if err != nil {
+		return nil, fmt.Errorf("minio: bucket check: %w", err)
+	}
+	if !exists {
+		if err := mc.MakeBucket(ctx, cfg.PrivateBucket, minio.MakeBucketOptions{}); err != nil {
+			return nil, fmt.Errorf("minio: make bucket: %w", err)
+		}
+	}
+
+	return &Client{mc: mc, bucket: cfg.PrivateBucket, private: true}, nil
+}
+
+// Put uploads an object. Public clients return the object's public URL;
+// private clients return the object key for later presigning.
 func (c *Client) Put(ctx context.Context, objectKey, contentType string, r io.Reader, size int64) (string, error) {
 	_, err := c.mc.PutObject(ctx, c.bucket, objectKey, r, size, minio.PutObjectOptions{
 		ContentType: contentType,
 	})
 	if err != nil {
 		return "", fmt.Errorf("minio: put object: %w", err)
+	}
+	if c.private {
+		return objectKey, nil
 	}
 	return fmt.Sprintf("%s/%s", c.publicBase, objectKey), nil
 }

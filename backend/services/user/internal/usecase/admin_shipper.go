@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"project/pkg/audit"
@@ -30,6 +31,17 @@ type ShipperListItem struct {
 	Email              *string              `json:"email"`
 }
 
+// ObjectURLSigner mints short-lived GET URLs for private object keys. KYC
+// documents live in a private bucket, so the admin list must sign each key
+// before the browser can render it.
+type ObjectURLSigner interface {
+	PresignedURL(ctx context.Context, objectKey string, expiry time.Duration) (string, error)
+}
+
+// kycURLExpiry keeps signed KYC links short-lived; the admin UI refetches the
+// list and receives fresh URLs, so nothing needs to outlive a review session.
+const kycURLExpiry = 15 * time.Minute
+
 // AdminShipperUsecase covers admin approval of shipper applications.
 type AdminShipperUsecase interface {
 	ListPending(ctx context.Context, status *entity.ShipperStatus, page, pageSize int) ([]*entity.ShipperProfile, int64, error)
@@ -45,6 +57,7 @@ type adminShipperUsecase struct {
 	outboxRepo  repository.OutboxRepository
 	rbacUC      RBACUsecase
 	auditLogger audit.Logger
+	signer      ObjectURLSigner // nil when object storage is unavailable
 }
 
 func NewAdminShipperUsecase(
@@ -54,6 +67,7 @@ func NewAdminShipperUsecase(
 	outboxRepo repository.OutboxRepository,
 	rbacUC RBACUsecase,
 	auditLogger audit.Logger,
+	signer ObjectURLSigner,
 ) AdminShipperUsecase {
 	return &adminShipperUsecase{
 		db:          db,
@@ -62,6 +76,7 @@ func NewAdminShipperUsecase(
 		outboxRepo:  outboxRepo,
 		rbacUC:      rbacUC,
 		auditLogger: auditLogger,
+		signer:      signer,
 	}
 }
 
@@ -125,8 +140,8 @@ func (uc *adminShipperUsecase) ListPendingEnriched(ctx context.Context, status *
 		u := byID[p.UserID]
 		items[i] = &ShipperListItem{
 			UserID:             p.UserID,
-			IDDocumentPhotoURL: p.IDDocumentPhotoURL,
-			PortraitPhotoURL:   p.PortraitPhotoURL,
+			IDDocumentPhotoURL: uc.signKYCURL(ctx, p.IDDocumentPhotoURL),
+			PortraitPhotoURL:   uc.signKYCURL(ctx, p.PortraitPhotoURL),
 			Status:             p.Status,
 			ApprovedAt:         p.ApprovedAt,
 			CreatedAt:          p.CreatedAt,
@@ -135,6 +150,21 @@ func (uc *adminShipperUsecase) ListPendingEnriched(ctx context.Context, status *
 		}
 	}
 	return items, total, nil
+}
+
+// signKYCURL converts a private-bucket object key into a short-lived signed
+// URL. Values that are already absolute URLs (records from before the private
+// bucket existed) and signing failures pass through unchanged.
+func (uc *adminShipperUsecase) signKYCURL(ctx context.Context, key string) string {
+	if key == "" || uc.signer == nil || strings.HasPrefix(key, "http://") || strings.HasPrefix(key, "https://") {
+		return key
+	}
+	signed, err := uc.signer.PresignedURL(ctx, key, kycURLExpiry)
+	if err != nil {
+		slog.WarnContext(ctx, "kyc presign failed, returning raw key", "key", key, "err", err)
+		return key
+	}
+	return signed
 }
 
 func (uc *adminShipperUsecase) Approve(ctx context.Context, adminID, shipperUserID string) error {

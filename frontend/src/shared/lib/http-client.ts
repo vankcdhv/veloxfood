@@ -1,4 +1,5 @@
-import axios, { type AxiosInstance } from 'axios';
+import axios, { isAxiosError, type AxiosInstance } from 'axios';
+import { toast } from 'sonner';
 import { env } from './env';
 import { generateTraceId, TRACE_ID_HEADER } from './trace-id';
 import { attachAuthRefreshInterceptor } from './auth-refresh';
@@ -19,3 +20,13 @@ http.interceptors.request.use((config) => {
 
 // 401 → single-flight cookie refresh + retry.
 attachAuthRefreshInterceptor(http);
+
+// 429 (gateway rate limit) → one friendly toast instead of a raw error per
+// caller. The id dedupes bursts: many parallel requests tripping the limit
+// only surface a single notification.
+http.interceptors.response.use(undefined, (error) => {
+  if (isAxiosError(error) && error.response?.status === 429) {
+    toast.error('Bạn thao tác quá nhanh. Vui lòng thử lại sau ít phút.', { id: 'rate-limited' });
+  }
+  return Promise.reject(error);
+});

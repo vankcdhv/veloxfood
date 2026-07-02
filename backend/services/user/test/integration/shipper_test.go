@@ -3,8 +3,10 @@ package integration
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"testing"
 )
 
@@ -46,12 +48,17 @@ func registerAndLogin(t *testing.T, app *testApp, email string) (token, userID s
 }
 
 // multipartPhotos builds a multipart body with id_document + portrait files.
+// Each part declares an image content-type — the handler whitelists
+// JPEG/PNG/WebP and rejects untyped parts.
 func multipartPhotos(t *testing.T) (*bytes.Buffer, string) {
 	t.Helper()
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 	for _, field := range []string{"id_document", "portrait"} {
-		fw, err := mw.CreateFormFile(field, field+".jpg")
+		hdr := textproto.MIMEHeader{}
+		hdr.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, field, field+".jpg"))
+		hdr.Set("Content-Type", "image/jpeg")
+		fw, err := mw.CreatePart(hdr)
 		if err != nil {
 			t.Fatalf("create form file %s: %v", field, err)
 		}

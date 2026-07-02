@@ -87,7 +87,10 @@ type MinIOConfig struct {
 	AccessKey string `mapstructure:"access_key"`
 	SecretKey string `mapstructure:"secret_key"`
 	Bucket    string `mapstructure:"bucket"`
-	UseSSL    bool   `mapstructure:"use_ssl"`
+	// PrivateBucket stores sensitive uploads (KYC documents) with no anonymous
+	// read policy — objects are only reachable through presigned URLs.
+	PrivateBucket string `mapstructure:"private_bucket"`
+	UseSSL        bool   `mapstructure:"use_ssl"`
 }
 
 type AppConfig struct {

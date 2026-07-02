@@ -62,9 +62,9 @@ func main() {
 			cfg.AdminUserHandler = admin.adminUserHandler
 			cfg.AdminVendorHandler = admin.adminVendorHandler
 
-			// Shipper registration + admin approval (MinIO-backed uploads).
-			uploader := newMinioUploader(deps)
-			shipper := buildShipperHandlers(deps, rbac.rbacUC, uploader)
+			// Shipper registration + admin approval (private-bucket KYC uploads).
+			kyc := newKYCStorage(deps)
+			shipper := buildShipperHandlers(deps, rbac.rbacUC, kyc)
 			cfg.ShipperHandler = shipper.shipperHandler
 			cfg.AdminShipperHandler = shipper.adminShipperHandler
 		}

@@ -68,4 +68,5 @@ minio:
   access_key: "minioadmin"
   secret_key: "minioadmin"
   bucket: "veloxfood"
+  private_bucket: "veloxfood-private"
   use_ssl: false
