@@ -532,8 +532,7 @@ func TestPlaceOrder_PICKUP_ZeroShipFee(t *testing.T) {
 
 func TestPlaceOrder_WithDesiredTime_Persisted(t *testing.T) {
 	env := setupEnv(t)
-	// desired_time = now + 1 hour (today, in the future, within close 23:00)
-	desired := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	desired := desiredTimeInOneHourOrSkip(t)
 	w := env.do(t, "POST", "/api/v1/orders", buildPlaceOrderBody("COD", "DELIVERY", desired))
 	if w.Code != http.StatusCreated {
 		t.Fatalf("desired_time happy path: expected 201, got %d — %s", w.Code, w.Body.String())
@@ -648,7 +647,7 @@ func TestAdvanceStatus_PENDING_to_CONFIRMED(t *testing.T) {
 
 func TestOrderReady_DesiredTimeInEvent(t *testing.T) {
 	env := setupEnv(t)
-	desired := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	desired := desiredTimeInOneHourOrSkip(t)
 	orderID := mustPlaceOrderWithDesiredTime(t, env, desired)
 
 	// Advance to READY via CONFIRMED → PREPARING → READY.
@@ -792,6 +791,21 @@ func buildPlaceOrderBody(paymentMethod, fulfillment, desiredTime string) string 
 func mustPlaceOrder(t *testing.T, env *testEnv) string {
 	t.Helper()
 	return mustPlaceOrderWithDesiredTime(t, env, "")
+}
+
+// desiredTimeInOneHourOrSkip returns now+1h as the order's desired time.
+// Desired times must fall on the same day and before the stub store's 23:00
+// close, so when the suite runs after 22:00 local there is no valid value —
+// skip instead of failing on the business rule.
+func desiredTimeInOneHourOrSkip(t *testing.T) string {
+	t.Helper()
+	now := time.Now()
+	dt := now.Add(time.Hour)
+	closeAt := time.Date(now.Year(), now.Month(), now.Day(), 23, 0, 0, 0, now.Location())
+	if dt.Day() != now.Day() || dt.After(closeAt) {
+		t.Skip("no valid same-day desired_time this close to store close (23:00)")
+	}
+	return dt.UTC().Format(time.RFC3339)
 }
 
 func mustPlaceOrderWithDesiredTime(t *testing.T, env *testEnv, desiredTime string) string {
