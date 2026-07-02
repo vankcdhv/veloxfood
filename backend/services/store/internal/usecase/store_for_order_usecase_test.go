@@ -214,7 +214,7 @@ func (m *mockCatalogRepo) RemoveComboItem(ctx context.Context, comboID string, m
 func (m *mockCatalogRepo) ListComboItems(ctx context.Context, comboID string) ([]*entity.ComboItem, error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockCatalogRepo) SearchMenuItems(ctx context.Context, q string, limit, offset int) ([]repository.SearchMenuItemRow, int64, error) {
+func (m *mockCatalogRepo) SearchMenuItems(ctx context.Context, f repository.SearchMenuItemsFilter, limit, offset int) ([]repository.SearchMenuItemRow, int64, error) {
 	return nil, 0, errors.New("not implemented")
 }
 

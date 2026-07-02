@@ -7,6 +7,7 @@ import (
 
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/response"
+	"project/services/store/internal/repository"
 	"project/services/store/internal/usecase"
 
 	"github.com/gin-gonic/gin"
@@ -162,17 +163,50 @@ func (h *StoreBrowseHandler) ListMyStores(c *gin.Context) {
 	response.Success(c, stores)
 }
 
-// SearchMenuItems GET /api/v1/menu-items/search?q=<text>&limit=12&offset=0
+// SearchMenuItems GET /api/v1/menu-items/search
+//
+//	?q=<text>&limit=12&offset=0
+//	&sort=price_asc|price_desc          (default: relevance)
+//	&price_min=<vnd>&price_max=<vnd>
+//	&store_id=<uuid>
+//
 // Public endpoint — no auth required. Returns sellable menu items whose name
 // matches q accent-insensitively across all active stores, paginated for
-// infinite scroll. Empty q → empty page.
+// infinite scroll. Empty q → empty page. Each row carries OpenNow so the
+// client can filter/badge closed stores.
 func (h *StoreBrowseHandler) SearchMenuItems(c *gin.Context) {
-	q := c.Query("q")
+	ctx := c.Request.Context()
+	filter := repository.SearchMenuItemsFilter{
+		Q:       c.Query("q"),
+		Sort:    c.Query("sort"),
+		StoreID: c.Query("store_id"),
+	}
+	if n, err := strconv.ParseInt(c.Query("price_min"), 10, 64); err == nil && n > 0 {
+		filter.PriceMin = n
+	}
+	if n, err := strconv.ParseInt(c.Query("price_max"), 10, 64); err == nil && n > 0 {
+		filter.PriceMax = n
+	}
+
 	limit, offset := parseLimitOffset(c, 12)
-	items, total, err := h.catalogUC.SearchMenuItems(c.Request.Context(), q, limit, offset)
+	items, total, err := h.catalogUC.SearchMenuItems(ctx, filter, limit, offset)
 	if err != nil {
 		response.HandleError(c, err)
 		return
+	}
+
+	// Annotate open-now per distinct store on this page (hours + sale status).
+	now := time.Now()
+	openByStore := make(map[string]bool)
+	for i := range items {
+		open, seen := openByStore[items[i].StoreID]
+		if !seen {
+			if openRes, err := h.hoursUC.IsOpenNow(ctx, items[i].StoreID, items[i].SaleStatus, now); err == nil {
+				open = openRes.OpenNow
+			}
+			openByStore[items[i].StoreID] = open
+		}
+		items[i].OpenNow = open
 	}
 	response.Paginated(c, items, total, offset/limit+1)
 }

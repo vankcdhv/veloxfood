@@ -3,19 +3,45 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Loader2, Search, UtensilsCrossed } from 'lucide-react';
+import { Clock, History, Search, UtensilsCrossed, X } from 'lucide-react';
 import { useQueries } from '@tanstack/react-query';
 import { Skeleton } from '@/shared/ui/skeleton';
+import { ItemThumbnail } from '@/shared/ui/item-thumbnail';
+import { InfiniteScrollSentinel } from '@/shared/ui/infinite-scroll-sentinel';
 import { useInfiniteScroll } from '@/shared/hooks/use-infinite-scroll';
 import { formatVnd } from '@/shared/lib/format-vnd';
+import {
+  addSearchHistory,
+  getSearchHistory,
+  removeSearchHistory,
+} from '@/shared/lib/search-history';
 import { ROUTES } from '@/shared/config/constants';
 import { useMenuItemSearch } from '@/features/stores/hooks/use-stores';
 import { AddToCartButton } from '@/features/cart/components/add-to-cart-button';
 import { MenuItemDetailDialog } from '@/features/reviews/components/menu-item-detail-dialog';
 import { reviewApi } from '@/features/reviews/api/review-api';
 import { reviewKeys } from '@/features/reviews/hooks/use-reviews';
-import type { MenuItem, MenuItemSearchResult, SaleStatus } from '@/features/stores/types/store';
+import type {
+  MenuItem,
+  MenuItemSearchResult,
+  MenuItemSearchSort,
+} from '@/features/stores/types/store';
 import type { ItemRatingSummary } from '@/features/reviews/types/review';
+
+// Price-range presets (VND). Kept coarse — campus meals cluster under 100k.
+const PRICE_RANGES = [
+  { key: 'all', label: 'Mọi giá', min: 0, max: 0 },
+  { key: 'lt25', label: 'Dưới 25k', min: 0, max: 25_000 },
+  { key: '25to50', label: '25k – 50k', min: 25_000, max: 50_000 },
+  { key: 'gt50', label: 'Trên 50k', min: 50_000, max: 0 },
+] as const;
+type PriceRangeKey = (typeof PRICE_RANGES)[number]['key'];
+
+const SORT_OPTIONS: { key: MenuItemSearchSort; label: string }[] = [
+  { key: 'relevance', label: 'Liên quan nhất' },
+  { key: 'price_asc', label: 'Giá tăng dần' },
+  { key: 'price_desc', label: 'Giá giảm dần' },
+];
 
 // Map a search result to the MenuItem shape expected by reused components.
 // Search only returns currently sellable items, so Status is always 'on'.
@@ -61,12 +87,23 @@ function SearchContent() {
 
   const [inputValue, setInputValue] = useState(initialQ);
   const [debouncedQ, setDebouncedQ] = useState(initialQ);
+  const [sort, setSort] = useState<MenuItemSearchSort>('relevance');
+  const [priceKey, setPriceKey] = useState<PriceRangeKey>('all');
+  const [openOnly, setOpenOnly] = useState(false);
+  const [history, setHistory] = useState<string[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const historyRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Autofocus on mount
+  // Autofocus on mount; history read client-side only (localStorage), deferred
+  // a tick so hydration completes before the recent-search chips appear.
   useEffect(() => {
     inputRef.current?.focus();
+    const t = setTimeout(() => setHistory(getSearchHistory()), 0);
+    return () => {
+      clearTimeout(t);
+      if (historyRef.current) clearTimeout(historyRef.current);
+    };
   }, []);
 
   const handleInput = useCallback(
@@ -83,13 +120,41 @@ function SearchContent() {
         }
         router.replace(`${ROUTES.search}?${params.toString()}`);
       }, 300);
+      // Record the term once typing settles — avoids saving every keystroke.
+      if (historyRef.current) clearTimeout(historyRef.current);
+      if (value.trim().length >= 2) {
+        historyRef.current = setTimeout(() => setHistory(addSearchHistory(value)), 1500);
+      }
     },
     [router, searchParams],
   );
 
+  const pickHistory = useCallback(
+    (term: string) => {
+      setInputValue(term);
+      setDebouncedQ(term);
+      setHistory(addSearchHistory(term));
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('q', term);
+      router.replace(`${ROUTES.search}?${params.toString()}`);
+    },
+    [router, searchParams],
+  );
+
+  const range = PRICE_RANGES.find((r) => r.key === priceKey) ?? PRICE_RANGES[0];
+  const filters = useMemo(
+    () => ({ sort, priceMin: range.min, priceMax: range.max }),
+    [sort, range.min, range.max],
+  );
+
   const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useMenuItemSearch(debouncedQ);
-  const results = useMemo(() => data?.pages.flatMap((p) => p.items) ?? [], [data]);
+    useMenuItemSearch(debouncedQ, filters);
+  const results = useMemo(() => {
+    const rows = data?.pages.flatMap((p) => p.items) ?? [];
+    // "Đang mở" narrows the loaded rows client-side (open state is computed
+    // per store server-side but is not a SQL filter).
+    return openOnly ? rows.filter((r) => r.OpenNow) : rows;
+  }, [data, openOnly]);
   const total = data?.pages[0]?.total ?? 0;
 
   const loadMoreRef = useInfiniteScroll(fetchNextPage, {
@@ -110,6 +175,75 @@ function SearchContent() {
           className="border-input bg-background focus-visible:ring-ring h-11 w-full rounded-xl border py-2 pl-10 pr-4 text-sm shadow-sm transition focus-visible:outline-none focus-visible:ring-2"
         />
       </div>
+
+      {/* Recent searches — only when the box is empty */}
+      {!inputValue.trim() && history.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+            <History className="h-3.5 w-3.5" /> Tìm kiếm gần đây
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {history.map((term) => (
+              <span
+                key={term}
+                className="border-border bg-muted/40 inline-flex items-center gap-1 rounded-full border py-1 pl-3 pr-1 text-sm"
+              >
+                <button onClick={() => pickHistory(term)} className="hover:text-primary">
+                  {term}
+                </button>
+                <button
+                  onClick={() => setHistory(removeSearchHistory(term))}
+                  aria-label={`Xoá "${term}" khỏi lịch sử`}
+                  className="text-muted-foreground hover:text-destructive rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Filter / sort bar — only meaningful once there is a query */}
+      {debouncedQ.trim() && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as MenuItemSearchSort)}
+            aria-label="Sắp xếp kết quả"
+            className="border-input bg-background focus-visible:ring-ring h-9 rounded-lg border px-2 focus-visible:outline-none focus-visible:ring-2"
+          >
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={priceKey}
+            onChange={(e) => setPriceKey(e.target.value as PriceRangeKey)}
+            aria-label="Lọc theo khoảng giá"
+            className="border-input bg-background focus-visible:ring-ring h-9 rounded-lg border px-2 focus-visible:outline-none focus-visible:ring-2"
+          >
+            {PRICE_RANGES.map((r) => (
+              <option key={r.key} value={r.key}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => setOpenOnly((v) => !v)}
+            aria-pressed={openOnly}
+            className={`focus-visible:ring-ring inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 transition focus-visible:outline-none focus-visible:ring-2 ${
+              openOnly
+                ? 'border-green-600 bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400'
+                : 'border-input bg-background text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Clock className="h-3.5 w-3.5" /> Đang mở
+          </button>
+        </div>
+      )}
 
       {/* Result area */}
       <SearchResults
@@ -239,19 +373,7 @@ function SearchResults({
             key={r.ID}
             className="flex items-start gap-3 rounded-xl border border-border p-3 transition hover:border-orange-500/50 hover:bg-orange-50/50 dark:hover:bg-orange-950/20"
           >
-            {/* Thumbnail */}
-            {r.ImageURL ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={r.ImageURL}
-                alt={r.Name}
-                className="h-16 w-16 shrink-0 rounded-lg object-cover"
-              />
-            ) : (
-              <div className="bg-muted text-muted-foreground/40 flex h-16 w-16 shrink-0 items-center justify-center rounded-lg">
-                <UtensilsCrossed className="h-6 w-6" />
-              </div>
-            )}
+            <ItemThumbnail src={r.ImageURL} alt={r.Name} />
 
             {/* Info */}
             <div className="min-w-0 flex-1 space-y-1">
@@ -280,7 +402,7 @@ function SearchResults({
                     >
                       {r.StoreName}
                     </Link>
-                    <SaleStatusHint status={r.SaleStatus} />
+                    <OpenNowHint open={r.OpenNow} />
                   </p>
                 </div>
                 <AddToCartButton item={mapped} />
@@ -290,24 +412,23 @@ function SearchResults({
         );
       })}
 
-      {/* Infinite-scroll sentinel */}
-      {hasNextPage && (
-        <div ref={loadMoreRef} className="flex justify-center py-6">
-          {isFetchingNextPage && <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />}
-        </div>
-      )}
+      <InfiniteScrollSentinel
+        loadMoreRef={loadMoreRef}
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+      />
     </div>
   );
 }
 
-function SaleStatusHint({ status }: { status: SaleStatus }) {
-  if (status === 'OPEN') {
-    return <span className="ml-1 text-green-600">· Đang mở</span>;
-  }
-  if (status === 'PAUSED') {
-    return <span className="ml-1 text-yellow-600">· Tạm dừng</span>;
-  }
-  return <span className="ml-1 text-destructive">· Đóng</span>;
+// OpenNowHint reflects the server-computed open state (hours + sale status),
+// which is what actually gates ordering.
+function OpenNowHint({ open }: { open: boolean }) {
+  return open ? (
+    <span className="ml-1 text-green-600">· Đang mở</span>
+  ) : (
+    <span className="text-destructive ml-1">· Đang đóng cửa</span>
+  );
 }
 
 function SearchSkeleton() {

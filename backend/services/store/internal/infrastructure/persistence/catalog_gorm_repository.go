@@ -360,22 +360,51 @@ func (r *catalogGormRepository) ListComboItems(ctx context.Context, comboID stri
 }
 
 // SearchMenuItems performs accent-insensitive fuzzy search on menu item names
-// across all non-deleted stores with status='on'. Ordered by trigram similarity
-// descending so the best match appears first.
-func (r *catalogGormRepository) SearchMenuItems(ctx context.Context, q string, limit, offset int) ([]repository.SearchMenuItemRow, int64, error) {
+// across all non-deleted stores with status='on'. Default order is trigram
+// similarity descending; the filter can narrow by price/store and reorder by
+// price.
+func (r *catalogGormRepository) SearchMenuItems(ctx context.Context, f repository.SearchMenuItemsFilter, limit, offset int) ([]repository.SearchMenuItemRow, int64, error) {
+	where := `menu_items.deleted_at IS NULL
+	  AND menu_items.status = 'on'
+	  AND stores.deleted_at IS NULL
+	  AND f_unaccent(lower(menu_items.name)) ILIKE '%' || f_unaccent(lower(?)) || '%'`
+	args := []any{f.Q}
+	if f.PriceMin > 0 {
+		where += " AND menu_items.price >= ?"
+		args = append(args, f.PriceMin)
+	}
+	if f.PriceMax > 0 {
+		where += " AND menu_items.price <= ?"
+		args = append(args, f.PriceMax)
+	}
+	if f.StoreID != "" {
+		where += " AND stores.id = ?"
+		args = append(args, f.StoreID)
+	}
+
 	// Total matches (for pagination) — same WHERE as the page query.
 	var total int64
 	if err := r.db.WithContext(ctx).Raw(`
 		SELECT count(*)
 		FROM menu_items
 		JOIN stores ON stores.id = menu_items.store_id
-		WHERE menu_items.deleted_at IS NULL
-		  AND menu_items.status = 'on'
-		  AND stores.deleted_at IS NULL
-		  AND f_unaccent(lower(menu_items.name)) ILIKE '%' || f_unaccent(lower(?)) || '%'
-	`, q).Scan(&total).Error; err != nil {
+		WHERE `+where, args...).Scan(&total).Error; err != nil {
 		return nil, 0, err
 	}
+
+	// ORDER BY comes from a fixed set — user input is never interpolated.
+	orderBy := ""
+	pageArgs := append([]any{}, args...)
+	switch f.Sort {
+	case "price_asc":
+		orderBy = "menu_items.price ASC, menu_items.name"
+	case "price_desc":
+		orderBy = "menu_items.price DESC, menu_items.name"
+	default:
+		orderBy = "similarity(f_unaccent(lower(menu_items.name)), f_unaccent(lower(?))) DESC, menu_items.name"
+		pageArgs = append(pageArgs, f.Q)
+	}
+	pageArgs = append(pageArgs, limit, offset)
 
 	var rows []repository.SearchMenuItemRow
 	err := r.db.WithContext(ctx).Raw(`
@@ -390,13 +419,9 @@ func (r *catalogGormRepository) SearchMenuItems(ctx context.Context, q string, l
 			stores.sale_status     AS sale_status
 		FROM menu_items
 		JOIN stores ON stores.id = menu_items.store_id
-		WHERE menu_items.deleted_at IS NULL
-		  AND menu_items.status = 'on'
-		  AND stores.deleted_at IS NULL
-		  AND f_unaccent(lower(menu_items.name)) ILIKE '%' || f_unaccent(lower(?)) || '%'
-		ORDER BY similarity(f_unaccent(lower(menu_items.name)), f_unaccent(lower(?))) DESC,
-		         menu_items.name
+		WHERE `+where+`
+		ORDER BY `+orderBy+`
 		LIMIT ? OFFSET ?
-	`, q, q, limit, offset).Scan(&rows).Error
+	`, pageArgs...).Scan(&rows).Error
 	return rows, total, err
 }

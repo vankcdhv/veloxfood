@@ -141,5 +141,17 @@ export interface MenuItemSearchResult {
   StoreID: string;
   StoreName: string;
   SaleStatus: SaleStatus;
+  // Store is currently open (operating hours + sale status), server-computed.
+  OpenNow: boolean;
+}
+
+export type MenuItemSearchSort = 'relevance' | 'price_asc' | 'price_desc';
+
+// Server-side narrowing for menu-item search. Zero/empty values are omitted.
+export interface MenuItemSearchFilters {
+  sort?: MenuItemSearchSort;
+  priceMin?: number;
+  priceMax?: number;
+  storeId?: string;
 }
 

@@ -17,6 +17,19 @@ type SearchMenuItemRow struct {
 	StoreID     string `json:"StoreID"`
 	StoreName   string `json:"StoreName"`
 	SaleStatus  string `json:"SaleStatus"`
+	// OpenNow is filled by the handler (operating hours + sale status), not SQL.
+	OpenNow bool `json:"OpenNow" gorm:"-"`
+}
+
+// SearchMenuItemsFilter narrows and orders cross-store menu-item search.
+// Zero values mean "no constraint". Sort accepts price_asc | price_desc;
+// anything else keeps relevance (trigram similarity) order.
+type SearchMenuItemsFilter struct {
+	Q        string
+	Sort     string
+	PriceMin int64
+	PriceMax int64
+	StoreID  string
 }
 
 // CatalogRepository manages Categories, MenuItems, OptionGroups,
@@ -108,7 +121,8 @@ type CatalogRepository interface {
 	// ---- Global search ----
 
 	// SearchMenuItems performs accent-insensitive fuzzy name search across all
-	// active stores, paginated. Results are ordered by trigram similarity desc,
-	// then name. Returns the page rows plus the total match count.
-	SearchMenuItems(ctx context.Context, q string, limit, offset int) ([]SearchMenuItemRow, int64, error)
+	// active stores, paginated. Default order is trigram similarity desc, then
+	// name; the filter can narrow by price range / store and reorder by price.
+	// Returns the page rows plus the total match count.
+	SearchMenuItems(ctx context.Context, f SearchMenuItemsFilter, limit, offset int) ([]SearchMenuItemRow, int64, error)
 }

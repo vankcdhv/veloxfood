@@ -1,14 +1,18 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Search, Store as StoreIcon, X } from 'lucide-react';
+import { Search, Store as StoreIcon, X } from 'lucide-react';
+import { useQueries } from '@tanstack/react-query';
 import { Skeleton } from '@/shared/ui/skeleton';
+import { InfiniteScrollSentinel } from '@/shared/ui/infinite-scroll-sentinel';
 import { useInfiniteScroll } from '@/shared/hooks/use-infinite-scroll';
+import { reviewApi } from '@/features/reviews/api/review-api';
+import { reviewKeys } from '@/features/reviews/hooks/use-reviews';
 import { useBrowseStores } from '../hooks/use-stores';
 import { StoreCard } from './store-card';
 
 type ModeFilter = 'all' | 'open' | 'pickup';
-type SortKey = 'featured' | 'name';
+type SortKey = 'featured' | 'rating' | 'name';
 
 const FILTERS: { key: ModeFilter; label: string }[] = [
   { key: 'all', label: 'Tất cả' },
@@ -18,6 +22,7 @@ const FILTERS: { key: ModeFilter; label: string }[] = [
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: 'featured', label: 'Nổi bật' },
+  { key: 'rating', label: 'Đánh giá cao' },
   { key: 'name', label: 'Tên A → Z' },
 ];
 
@@ -42,11 +47,31 @@ export function StoreListView({ initialCuisine }: { initialCuisine?: string }) {
     enabled: !!hasNextPage && !isFetchingNextPage,
   });
 
+  const loadedStores = useMemo(() => data?.pages.flatMap((p) => p.items) ?? [], [data]);
+
+  // Rating summaries for the loaded stores — same queryKey the StoreCard uses,
+  // so the cache is shared and no duplicate requests fire. Only fetched when
+  // the user actually sorts by rating.
+  const ratingQueries = useQueries({
+    queries: loadedStores.map((s) => ({
+      queryKey: reviewKeys.storeSummary(s.ID),
+      queryFn: () => reviewApi.storeSummary(s.ID),
+      enabled: sort === 'rating',
+    })),
+  });
+  const avgByStore = useMemo(() => {
+    const map = new Map<string, number>();
+    ratingQueries.forEach((q, i) => {
+      const sid = loadedStores[i]?.ID;
+      if (sid && q.data) map.set(sid, q.data.Avg ?? 0);
+    });
+    return map;
+  }, [ratingQueries, loadedStores]);
+
   // Mode + cuisine refine the already-loaded pages client-side (OpenNow is
   // computed per-request and cuisine isn't a server filter yet), then sort.
   const filtered = useMemo(() => {
-    const all = data?.pages.flatMap((p) => p.items) ?? [];
-    const out = all.filter((s) => {
+    const out = loadedStores.filter((s) => {
       if (mode === 'open' && !s.OpenNow) return false;
       if (mode === 'pickup' && !s.PickupEnabled) return false;
       if (cuisine && s.BusinessType !== cuisine) return false;
@@ -54,12 +79,15 @@ export function StoreListView({ initialCuisine }: { initialCuisine?: string }) {
     });
     if (sort === 'name') {
       out.sort((a, b) => a.Name.localeCompare(b.Name, 'vi'));
+    } else if (sort === 'rating') {
+      // Highest average first; unrated stores sink to the end.
+      out.sort((a, b) => (avgByStore.get(b.ID) ?? -1) - (avgByStore.get(a.ID) ?? -1));
     } else {
       // Featured: open stores first (stable within group preserves name order).
       out.sort((a, b) => Number(b.OpenNow ?? false) - Number(a.OpenNow ?? false));
     }
     return out;
-  }, [data, mode, cuisine, sort]);
+  }, [loadedStores, mode, cuisine, sort, avgByStore]);
 
   if (isLoading) {
     return (
@@ -154,12 +182,11 @@ export function StoreListView({ initialCuisine }: { initialCuisine?: string }) {
         </div>
       )}
 
-      {/* Infinite-scroll sentinel + loading indicator */}
-      {hasNextPage && (
-        <div ref={loadMoreRef} className="flex justify-center py-6">
-          {isFetchingNextPage && <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />}
-        </div>
-      )}
+      <InfiniteScrollSentinel
+        loadMoreRef={loadMoreRef}
+        hasNextPage={!!hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+      />
     </div>
   );
 }

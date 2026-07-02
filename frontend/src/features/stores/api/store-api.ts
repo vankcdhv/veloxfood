@@ -7,6 +7,7 @@ import type {
   ComboItem,
   HoursChangeRequest,
   MenuItem,
+  MenuItemSearchFilters,
   MenuItemSearchResult,
   Option,
   OptionGroup,
@@ -40,15 +41,24 @@ function emptyPage<T>(): PaginatedData<T> {
 // ---- Global search ----
 export const searchApi = {
   // Paginated best-match dish results across all active stores (infinite scroll).
-  // Blank q → empty page.
+  // Blank q → empty page. Filters map to server-side sort/price/store narrowing.
   menuItems: async (
     q: string,
     { limit = 12, offset = 0 }: { limit?: number; offset?: number } = {},
+    filters: MenuItemSearchFilters = {},
   ): Promise<PaginatedData<MenuItemSearchResult>> => {
     if (!q.trim()) return emptyPage<MenuItemSearchResult>();
     return unwrap(
       await http.get<ApiResponse<PaginatedData<MenuItemSearchResult>>>(`${MENU_ITEMS}/search`, {
-        params: { q, limit, offset },
+        params: {
+          q,
+          limit,
+          offset,
+          ...(filters.sort && filters.sort !== 'relevance' ? { sort: filters.sort } : {}),
+          ...(filters.priceMin ? { price_min: filters.priceMin } : {}),
+          ...(filters.priceMax ? { price_max: filters.priceMax } : {}),
+          ...(filters.storeId ? { store_id: filters.storeId } : {}),
+        },
       }),
     );
   },

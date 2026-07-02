@@ -1,13 +1,14 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { adminStoreApi, browseStoreApi, searchApi, vendorStoreApi } from '../api/store-api';
-import type { MenuCategory } from '../types/store';
+import type { MenuCategory, MenuItemSearchFilters } from '../types/store';
 
 const BROWSE_PAGE_SIZE = 12;
 const SEARCH_PAGE_SIZE = 12;
 
 export const storeKeys = {
   all: ['stores'] as const,
-  menuItemSearch: (q: string) => ['menu-items', 'search', q] as const,
+  menuItemSearch: (q: string, filters: MenuItemSearchFilters = {}) =>
+    ['menu-items', 'search', q, filters] as const,
   browseList: () => [...storeKeys.all, 'browse', 'list'] as const,
   browseInfinite: (q: string) => [...storeKeys.all, 'browse', 'infinite', q] as const,
   myList: () => [...storeKeys.all, 'mine'] as const,
@@ -83,11 +84,11 @@ export const useStoreMenu = (id: string) =>
   });
 
 // Search dishes by name across all active stores (infinite scroll). Debounce in the caller.
-export const useMenuItemSearch = (q: string) =>
+export const useMenuItemSearch = (q: string, filters: MenuItemSearchFilters = {}) =>
   useInfiniteQuery({
-    queryKey: storeKeys.menuItemSearch(q.trim()),
+    queryKey: storeKeys.menuItemSearch(q.trim(), filters),
     queryFn: ({ pageParam }) =>
-      searchApi.menuItems(q.trim(), { limit: SEARCH_PAGE_SIZE, offset: pageParam }),
+      searchApi.menuItems(q.trim(), { limit: SEARCH_PAGE_SIZE, offset: pageParam }, filters),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((n, p) => n + p.items.length, 0);
