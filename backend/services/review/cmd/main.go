@@ -5,6 +5,7 @@ import (
 
 	"project/pkg/app"
 	"project/pkg/middleware"
+	"project/pkg/storage"
 	reviewv1 "project/proto/review/v1"
 	reviewevent "project/services/review/internal/handler/event"
 	grpchandler "project/services/review/internal/handler/grpc"
@@ -50,9 +51,17 @@ func main() {
 			permChecker,
 		)
 
+		// ── Review photo storage (public bucket; nil disables uploads) ────────
+		var photoUploader v1.ReviewPhotoUploader
+		if client, err := storage.NewClient(deps.Config.MinIO); err != nil {
+			slog.Error("review: minio init failed — photo uploads disabled", "err", err)
+		} else {
+			photoUploader = client
+		}
+
 		// ── HTTP router ───────────────────────────────────────────────────────
 		handlerhttp.RegisterRoutes(r, handlerhttp.RouterConfig{
-			CustomerHandler: v1.NewCustomerReviewHandler(reviewUC),
+			CustomerHandler: v1.NewCustomerReviewHandler(reviewUC, photoUploader),
 			OwnerHandler:    v1.NewOwnerReviewHandler(reviewUC),
 			AdminHandler:    v1.NewAdminReviewHandler(reviewUC),
 			AuthMiddleware:  authMW,

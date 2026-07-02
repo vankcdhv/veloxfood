@@ -1,14 +1,21 @@
 package v1
 
 import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"path/filepath"
 	"strconv"
 
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/response"
+	"project/pkg/storage"
 	"project/services/review/internal/entity"
 	"project/services/review/internal/usecase"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // reviewListResponse is the storefront-facing shape for a page of reviews.
@@ -17,13 +24,19 @@ type reviewListResponse struct {
 	Total int64            `json:"Total"`
 }
 
+// ReviewPhotoUploader stores a review photo and returns its public URL.
+type ReviewPhotoUploader interface {
+	Put(ctx context.Context, objectKey, contentType string, r io.Reader, size int64) (string, error)
+}
+
 // CustomerReviewHandler handles customer-facing review operations.
 type CustomerReviewHandler struct {
 	reviewUC usecase.ReviewUsecase
+	uploader ReviewPhotoUploader // nil when object storage is unavailable
 }
 
-func NewCustomerReviewHandler(reviewUC usecase.ReviewUsecase) *CustomerReviewHandler {
-	return &CustomerReviewHandler{reviewUC: reviewUC}
+func NewCustomerReviewHandler(reviewUC usecase.ReviewUsecase, uploader ReviewPhotoUploader) *CustomerReviewHandler {
+	return &CustomerReviewHandler{reviewUC: reviewUC, uploader: uploader}
 }
 
 // CreateReview POST /api/v1/orders/:id/reviews
@@ -60,13 +73,15 @@ func (h *CustomerReviewHandler) CreateReview(c *gin.Context) {
 	response.Created(c, rev)
 }
 
-// ListStoreReviews GET /api/v1/stores/:id/reviews?page=1&page_size=20
+// ListStoreReviews GET /api/v1/stores/:id/reviews?page=1&page_size=20&rating=5
+// rating 1–5 narrows to that star; omitted/0 returns all.
 func (h *CustomerReviewHandler) ListStoreReviews(c *gin.Context) {
 	storeID := c.Param("id")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	rating, _ := strconv.Atoi(c.DefaultQuery("rating", "0"))
 
-	reviews, total, err := h.reviewUC.ListStoreReviews(c.Request.Context(), storeID, page, pageSize)
+	reviews, total, err := h.reviewUC.ListStoreReviews(c.Request.Context(), storeID, rating, page, pageSize)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -75,14 +90,50 @@ func (h *CustomerReviewHandler) ListStoreReviews(c *gin.Context) {
 }
 
 // StoreRatingSummary GET /api/v1/stores/:id/reviews/summary
-// Returns the store's average rating + review count (STORE-targeted reviews).
+// Returns the store's average rating, review count and per-star histogram
+// (STORE-targeted reviews).
 func (h *CustomerReviewHandler) StoreRatingSummary(c *gin.Context) {
-	avg, count, err := h.reviewUC.GetStoreRatingSummary(c.Request.Context(), c.Param("id"))
+	summary, err := h.reviewUC.GetStoreRatingSummary(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		response.HandleError(c, err)
 		return
 	}
-	response.Success(c, gin.H{"Avg": avg, "Count": count})
+	response.Success(c, summary)
+}
+
+// UploadPhoto POST /api/v1/reviews/photos (multipart "image", ≤5MB JPEG/PNG/WebP)
+// Stores the photo and returns its public URL for inclusion in photo_urls when
+// the review is submitted.
+func (h *CustomerReviewHandler) UploadPhoto(c *gin.Context) {
+	if h.uploader == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "photo storage unavailable"})
+		return
+	}
+
+	file, header, err := c.Request.FormFile("image")
+	if err != nil {
+		response.BadRequest(c, "image file required")
+		return
+	}
+	defer file.Close()
+	if header.Size > storage.MaxImageBytes {
+		response.BadRequest(c, "image exceeds 5MB")
+		return
+	}
+	ct := header.Header.Get("Content-Type")
+	if !storage.AllowedImageType(ct) {
+		response.BadRequest(c, "image must be a JPEG, PNG or WebP image")
+		return
+	}
+
+	customerID := authmw.UserIDFromContext(c.Request.Context())
+	objectKey := fmt.Sprintf("reviews/%s/%s%s", customerID, uuid.NewString(), filepath.Ext(header.Filename))
+	url, err := h.uploader.Put(c.Request.Context(), objectKey, ct, file, header.Size)
+	if err != nil {
+		response.InternalError(c)
+		return
+	}
+	response.Success(c, gin.H{"photo_url": url})
 }
 
 // ItemRatingSummaries GET /api/v1/stores/:id/reviews/item-summaries

@@ -25,9 +25,9 @@ func (s *ReviewServiceServer) GetStoreRatingSummary(ctx context.Context, req *re
 	if req.GetStoreId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "store_id is required")
 	}
-	avg, count, err := s.reviewUC.GetStoreRatingSummary(ctx, req.GetStoreId())
+	summary, err := s.reviewUC.GetStoreRatingSummary(ctx, req.GetStoreId())
 	if err != nil {
 		return nil, status.Error(codes.Internal, "rating summary failed")
 	}
-	return &reviewv1.GetStoreRatingSummaryResponse{Avg: avg, Count: count}, nil
+	return &reviewv1.GetStoreRatingSummaryResponse{Avg: summary.Avg, Count: summary.Count}, nil
 }

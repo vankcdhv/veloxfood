@@ -15,10 +15,20 @@ import (
 	"gorm.io/gorm"
 )
 
+// StoreRatingSummary aggregates a store's VISIBLE reviews: average, total and
+// the per-star histogram (Counts[0] = 1★ … Counts[4] = 5★).
+type StoreRatingSummary struct {
+	Avg    float64  `json:"Avg"`
+	Count  int32    `json:"Count"`
+	Counts [5]int32 `json:"Counts"`
+}
+
 // ReviewUsecase exposes all business operations for the review service.
 type ReviewUsecase interface {
 	CreateReview(ctx context.Context, req CreateReviewRequest) (*entity.Review, error)
-	ListStoreReviews(ctx context.Context, storeID string, page, pageSize int) ([]*entity.Review, int64, error)
+	// ListStoreReviews pages VISIBLE store reviews; rating 1–5 filters to that
+	// star, 0 means all.
+	ListStoreReviews(ctx context.Context, storeID string, rating, page, pageSize int) ([]*entity.Review, int64, error)
 	ListItemReviews(ctx context.Context, itemID string, page, pageSize int) ([]*entity.Review, int64, error)
 	GetItemRatingSummaries(ctx context.Context, storeID string) ([]repository.ItemRatingSummary, error)
 	ReplyToReview(ctx context.Context, reviewID, content string) (*entity.ReviewReply, error)
@@ -26,7 +36,7 @@ type ReviewUsecase interface {
 	HideReview(ctx context.Context, reviewID string) error
 	RestoreReview(ctx context.Context, reviewID string) error
 	ListReportedReviews(ctx context.Context, page, pageSize int) ([]*entity.ReviewReport, int64, error)
-	GetStoreRatingSummary(ctx context.Context, storeID string) (avg float64, count int32, err error)
+	GetStoreRatingSummary(ctx context.Context, storeID string) (*StoreRatingSummary, error)
 }
 
 // CreateReviewRequest carries the validated input for a new review.
@@ -171,14 +181,17 @@ func (uc *reviewUsecase) CreateReview(ctx context.Context, req CreateReviewReque
 	return created, nil
 }
 
-func (uc *reviewUsecase) ListStoreReviews(ctx context.Context, storeID string, page, pageSize int) ([]*entity.Review, int64, error) {
+func (uc *reviewUsecase) ListStoreReviews(ctx context.Context, storeID string, rating, page, pageSize int) ([]*entity.Review, int64, error) {
 	if page < 1 {
 		page = 1
 	}
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
-	return uc.reviewRepo.ListByStore(ctx, storeID, pageSize, (page-1)*pageSize)
+	if rating < 0 || rating > 5 {
+		rating = 0
+	}
+	return uc.reviewRepo.ListByStore(ctx, storeID, rating, pageSize, (page-1)*pageSize)
 }
 
 func (uc *reviewUsecase) ListItemReviews(ctx context.Context, itemID string, page, pageSize int) ([]*entity.Review, int64, error) {
@@ -295,10 +308,18 @@ func (uc *reviewUsecase) ListReportedReviews(ctx context.Context, page, pageSize
 	return uc.reportRepo.ListOpen(ctx, pageSize, (page-1)*pageSize)
 }
 
-func (uc *reviewUsecase) GetStoreRatingSummary(ctx context.Context, storeID string) (float64, int32, error) {
+func (uc *reviewUsecase) GetStoreRatingSummary(ctx context.Context, storeID string) (*StoreRatingSummary, error) {
 	// The store's rating reflects STORE-targeted reviews only (per-item reviews
 	// roll up to each menu item, not the store average).
-	return uc.reviewRepo.RatingSummaryByTarget(ctx, "STORE", storeID)
+	avg, count, err := uc.reviewRepo.RatingSummaryByTarget(ctx, "STORE", storeID)
+	if err != nil {
+		return nil, err
+	}
+	counts, err := uc.reviewRepo.RatingDistribution(ctx, "STORE", storeID)
+	if err != nil {
+		return nil, err
+	}
+	return &StoreRatingSummary{Avg: avg, Count: count, Counts: counts}, nil
 }
 
 // isDuplicateError detects Postgres unique-violation errors (code 23505).

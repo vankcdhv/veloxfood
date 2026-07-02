@@ -51,3 +51,10 @@ order_service:
   grpc_addr: order-service:50054
 store_service:
   grpc_addr: store-service:50053
+
+minio:
+  endpoint: "minio:9000"
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+  bucket: "veloxfood"
+  use_ssl: false

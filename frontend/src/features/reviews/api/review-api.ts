@@ -28,14 +28,32 @@ export const reviewApi = {
       ),
     ),
 
-  // GET /api/v1/stores/:storeId/reviews
-  listByStore: async (storeId: string, page = 1, pageSize = 20): Promise<ReviewListResponse> =>
+  // GET /api/v1/stores/:storeId/reviews — rating 1–5 narrows to that star
+  listByStore: async (
+    storeId: string,
+    page = 1,
+    pageSize = 20,
+    rating = 0,
+  ): Promise<ReviewListResponse> =>
     unwrap(
       await http.get<ApiResponse<ReviewListResponse>>(
         `${API_PREFIX}/stores/${storeId}/reviews`,
-        { params: { page, page_size: pageSize } },
+        { params: { page, page_size: pageSize, ...(rating ? { rating } : {}) } },
       ),
     ),
+
+  // POST /api/v1/reviews/photos — multipart image upload, returns its URL
+  uploadPhoto: async (file: File): Promise<string> => {
+    const form = new FormData();
+    form.append('image', file);
+    const res = await http.post<ApiResponse<{ photo_url: string }>>(
+      `${API_PREFIX}/reviews/photos`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    if (!res.data.data?.photo_url) throw new Error(res.data.error ?? 'Upload failed');
+    return res.data.data.photo_url;
+  },
 
   // GET /api/v1/stores/:storeId/reviews/summary — store avg rating + count
   storeSummary: async (storeId: string): Promise<RatingSummary> =>

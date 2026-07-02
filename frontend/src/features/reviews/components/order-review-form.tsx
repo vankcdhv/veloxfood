@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { AxiosError } from 'axios';
 import { useQueryClient } from '@tanstack/react-query';
+import { ImagePlus, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
@@ -11,6 +12,9 @@ import { reviewApi } from '../api/review-api';
 import { reviewKeys } from '../hooks/use-reviews';
 import { StarRatingInput } from './star-rating-input';
 import type { CreateReviewBody } from '../types/review';
+
+const MAX_REVIEW_PHOTOS = 3;
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 interface OrderReviewItem {
   MenuItemID: string;
@@ -36,6 +40,30 @@ export function OrderReviewForm({ orderId, storeId, items = [], shipperId, onSub
   const [itemRatings, setItemRatings] = useState<Record<string, number>>({});
   const [shipperRating, setShipperRating] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  // Uploaded photo URLs, attached to the STORE review on submit.
+  const [photoURLs, setPhotoURLs] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file) return;
+    if (photoURLs.length >= MAX_REVIEW_PHOTOS) return;
+    if (file.size > MAX_PHOTO_BYTES) {
+      toast.error('Ảnh vượt quá 5MB.');
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await reviewApi.uploadPhoto(file);
+      setPhotoURLs((prev) => [...prev, url]);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Không tải được ảnh lên'));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // De-dupe items (an order may list the same dish twice with different slots).
   const uniqueItems = items.filter(
@@ -51,7 +79,13 @@ export function OrderReviewForm({ orderId, storeId, items = [], shipperId, onSub
 
     // Build one STORE review + one ITEM review per rated dish.
     const payloads: CreateReviewBody[] = [
-      { target_type: 'STORE', target_id: storeId, rating: storeRating, comment: comment.trim() },
+      {
+        target_type: 'STORE',
+        target_id: storeId,
+        rating: storeRating,
+        comment: comment.trim(),
+        ...(photoURLs.length > 0 ? { photo_urls: photoURLs } : {}),
+      },
     ];
     for (const it of uniqueItems) {
       const r = itemRatings[it.MenuItemID];
@@ -113,6 +147,45 @@ export function OrderReviewForm({ orderId, storeId, items = [], shipperId, onSub
               disabled={submitting}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
             />
+          </div>
+
+          {/* Photos (attached to the store review) */}
+          <div>
+            <p className="text-sm font-medium mb-1.5">Ảnh món ăn (tuỳ chọn, tối đa {MAX_REVIEW_PHOTOS})</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {photoURLs.map((url) => (
+                <div key={url} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt="Ảnh đánh giá đã tải lên" className="border-border h-16 w-16 rounded-lg border object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setPhotoURLs((prev) => prev.filter((u) => u !== url))}
+                    aria-label="Xoá ảnh"
+                    className="bg-background border-border absolute -right-1.5 -top-1.5 rounded-full border p-0.5 shadow-sm"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {photoURLs.length < MAX_REVIEW_PHOTOS && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading || submitting}
+                  aria-label="Thêm ảnh đánh giá"
+                  className="border-border text-muted-foreground hover:border-primary/50 hover:text-primary flex h-16 w-16 items-center justify-center rounded-lg border border-dashed transition disabled:opacity-50"
+                >
+                  {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImagePlus className="h-5 w-5" />}
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handlePickPhoto}
+                className="hidden"
+              />
+            </div>
           </div>
 
           {uniqueItems.length > 0 && (

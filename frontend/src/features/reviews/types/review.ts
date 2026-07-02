@@ -49,9 +49,11 @@ export interface ReviewListResponse {
 }
 
 // Average rating + count for a store or a single menu item.
+// Counts (store summary only): per-star histogram, index 0 = 1★ … index 4 = 5★.
 export interface RatingSummary {
   Avg: number;
   Count: number;
+  Counts?: [number, number, number, number, number];
 }
 
 // Per-menu-item rating summary (TargetID = menu item ID).

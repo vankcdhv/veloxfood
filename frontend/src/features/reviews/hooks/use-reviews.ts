@@ -13,11 +13,12 @@ export const reviewKeys = {
 
 const STORE_REVIEWS_PAGE_SIZE = 20;
 
-export function useStoreReviews(storeId: string) {
+// rating 1–5 narrows to that star (server-side); 0 = all.
+export function useStoreReviews(storeId: string, rating = 0) {
   return useInfiniteQuery({
-    queryKey: reviewKeys.byStore(storeId),
+    queryKey: [...reviewKeys.byStore(storeId), rating],
     queryFn: ({ pageParam = 1 }) =>
-      reviewApi.listByStore(storeId, pageParam as number, STORE_REVIEWS_PAGE_SIZE),
+      reviewApi.listByStore(storeId, pageParam as number, STORE_REVIEWS_PAGE_SIZE, rating),
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((sum, p) => sum + p.Items.length, 0);
@@ -25,6 +26,11 @@ export function useStoreReviews(storeId: string) {
     },
     enabled: !!storeId,
   });
+}
+
+// Upload one review photo, returns its public URL for photo_urls.
+export function useUploadReviewPhoto() {
+  return useMutation({ mutationFn: (file: File) => reviewApi.uploadPhoto(file) });
 }
 
 // Store-level average rating + count (for the store card / header).

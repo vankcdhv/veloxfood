@@ -21,13 +21,18 @@ type ReviewRepository interface {
 	Create(ctx context.Context, tx *gorm.DB, r *entity.Review) error
 	GetByID(ctx context.Context, id string) (*entity.Review, error)
 	GetByOrderAndTarget(ctx context.Context, orderID, targetType, targetID string) (*entity.Review, error)
-	ListByStore(ctx context.Context, storeID string, limit, offset int) ([]*entity.Review, int64, error)
+	// ListByStore returns VISIBLE store reviews; rating 1–5 filters to that
+	// star, 0 means all.
+	ListByStore(ctx context.Context, storeID string, rating, limit, offset int) ([]*entity.Review, int64, error)
 	// ListByTarget returns VISIBLE reviews for one target (e.g. a menu item).
 	ListByTarget(ctx context.Context, targetType, targetID string, limit, offset int) ([]*entity.Review, int64, error)
 	UpdateStatus(ctx context.Context, id, status string) error
 	RatingSummary(ctx context.Context, storeID string) (avg float64, count int32, err error)
 	// RatingSummaryByTarget scopes the summary to one target (STORE or ITEM).
 	RatingSummaryByTarget(ctx context.Context, targetType, targetID string) (avg float64, count int32, err error)
+	// RatingDistribution returns VISIBLE review counts per star for one target;
+	// index 0 holds 1★ … index 4 holds 5★.
+	RatingDistribution(ctx context.Context, targetType, targetID string) ([5]int32, error)
 	// ItemRatingSummaries returns per-item avg+count for all ITEM reviews of a store.
 	ItemRatingSummaries(ctx context.Context, storeID string) ([]ItemRatingSummary, error)
 }

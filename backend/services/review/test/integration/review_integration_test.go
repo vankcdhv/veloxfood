@@ -195,7 +195,8 @@ func setupEnv(t *testing.T, orderClient grpcclient.OrderClient, checker authmw.P
 	})
 
 	handlerhttp.RegisterRoutes(engine, handlerhttp.RouterConfig{
-		CustomerHandler: v1.NewCustomerReviewHandler(reviewUC),
+		// nil uploader: photo upload returns 503 in tests, no MinIO in the loop.
+		CustomerHandler: v1.NewCustomerReviewHandler(reviewUC, nil),
 		OwnerHandler:    v1.NewOwnerReviewHandler(reviewUC),
 		AdminHandler:    v1.NewAdminReviewHandler(reviewUC),
 		AuthMiddleware:  func(c *gin.Context) { c.Next() },

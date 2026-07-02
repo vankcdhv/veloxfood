@@ -46,15 +46,43 @@ func (r *reviewGormRepository) GetByOrderAndTarget(ctx context.Context, orderID,
 	return &rev, nil
 }
 
-func (r *reviewGormRepository) ListByStore(ctx context.Context, storeID string, limit, offset int) ([]*entity.Review, int64, error) {
+func (r *reviewGormRepository) ListByStore(ctx context.Context, storeID string, rating, limit, offset int) ([]*entity.Review, int64, error) {
 	var rows []*entity.Review
 	var total int64
 	base := r.db.WithContext(ctx).Model(&entity.Review{}).Where("store_id = ? AND status = 'VISIBLE'", storeID)
+	if rating >= 1 && rating <= 5 {
+		base = base.Where("rating = ?", rating)
+	}
 	if err := base.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	err := base.Order("created_at DESC").Limit(limit).Offset(offset).Find(&rows).Error
 	return rows, total, err
+}
+
+// RatingDistribution counts VISIBLE reviews per star for one target.
+// Index 0 holds 1★ … index 4 holds 5★.
+func (r *reviewGormRepository) RatingDistribution(ctx context.Context, targetType, targetID string) ([5]int32, error) {
+	var counts [5]int32
+	var rows []struct {
+		Rating int
+		Count  int32
+	}
+	err := r.db.WithContext(ctx).Raw(
+		`SELECT rating, COUNT(*) AS count
+		   FROM reviews
+		  WHERE target_type = ? AND target_id = ? AND status = 'VISIBLE'
+		  GROUP BY rating`, targetType, targetID,
+	).Scan(&rows).Error
+	if err != nil {
+		return counts, err
+	}
+	for _, row := range rows {
+		if row.Rating >= 1 && row.Rating <= 5 {
+			counts[row.Rating-1] = row.Count
+		}
+	}
+	return counts, nil
 }
 
 func (r *reviewGormRepository) ListByTarget(ctx context.Context, targetType, targetID string, limit, offset int) ([]*entity.Review, int64, error) {

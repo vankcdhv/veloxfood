@@ -34,6 +34,8 @@ func RegisterRoutes(r *gin.Engine, cfg RouterConfig) {
 		api.GET("/stores/:id/reviews/summary", h.StoreRatingSummary)
 		api.GET("/stores/:id/reviews/item-summaries", h.ItemRatingSummaries)
 		api.GET("/stores/:id/reviews/items/:itemId", h.ListItemReviews)
+		// POST /api/v1/reviews/photos — upload a review photo, returns its URL
+		api.POST("/reviews/photos", h.UploadPhoto)
 		// POST /api/v1/reviews/:id/report
 		api.POST("/reviews/:id/report", h.ReportReview)
 	}
