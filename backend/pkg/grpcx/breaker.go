@@ -6,11 +6,24 @@ import (
 	"sync"
 	"time"
 
+	"project/pkg/metrics"
+
 	"github.com/sony/gobreaker"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// breakerStateValue maps gobreaker states onto the exported gauge scale.
+func breakerStateValue(s gobreaker.State) float64 {
+	switch s {
+	case gobreaker.StateHalfOpen:
+		return 1
+	case gobreaker.StateOpen:
+		return 2
+	}
+	return 0
+}
 
 // Circuit breaker per target address. When a downstream keeps failing, the
 // breaker opens and callers get an immediate Unavailable instead of stacking
@@ -39,6 +52,7 @@ func breakerFor(addr string) *gobreaker.CircuitBreaker {
 		},
 		OnStateChange: func(name string, from, to gobreaker.State) {
 			slog.Warn("grpc circuit breaker state change", "target", name, "from", from.String(), "to", to.String())
+			metrics.SetBreakerState(name, breakerStateValue(to))
 		},
 		// Only infrastructure-level failures should trip the breaker.
 		// Application errors (NotFound, InvalidArgument…) mean the service is
@@ -65,7 +79,10 @@ func BreakerUnaryInterceptor(addr string) grpc.UnaryClientInterceptor {
 			return nil, invoker(ctx, method, req, reply, cc, opts...)
 		})
 		if err == gobreaker.ErrOpenState || err == gobreaker.ErrTooManyRequests {
-			return status.Error(codes.Unavailable, "circuit breaker open for "+addr)
+			err = status.Error(codes.Unavailable, "circuit breaker open for "+addr)
+		}
+		if err != nil {
+			metrics.RecordGRPCClientError(addr, status.Code(err).String())
 		}
 		return err
 	}

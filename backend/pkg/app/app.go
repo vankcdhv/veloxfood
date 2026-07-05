@@ -17,6 +17,7 @@ import (
 	"project/pkg/config"
 	"project/pkg/database"
 	"project/pkg/logger"
+	"project/pkg/metrics"
 	"project/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -124,6 +125,8 @@ func (a *App) startHTTP(port int) {
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(middleware.RequestLogging())
+	router.Use(metrics.HTTPMiddleware(a.name))
+	router.GET("/metrics", metrics.Handler())
 	// /health is liveness only: the process is up. Orchestrators must use
 	// /readyz before routing traffic — it verifies the dependencies.
 	router.GET("/health", func(c *gin.Context) {

@@ -1,0 +1,28 @@
+# Scrapes /metrics of the 10 Go services. Services run on the host during
+# development (go run, ports 17080-17089) — reach them via host.docker.internal.
+global:
+  scrape_interval: 10s
+
+scrape_configs:
+  - job_name: veloxfood-services
+    static_configs:
+      - targets: ["host.docker.internal:17080"]
+        labels: { service: user }
+      - targets: ["host.docker.internal:17081"]
+        labels: { service: location }
+      - targets: ["host.docker.internal:17082"]
+        labels: { service: store }
+      - targets: ["host.docker.internal:17083"]
+        labels: { service: order }
+      - targets: ["host.docker.internal:17084"]
+        labels: { service: promotion }
+      - targets: ["host.docker.internal:17085"]
+        labels: { service: payment }
+      - targets: ["host.docker.internal:17086"]
+        labels: { service: delivery }
+      - targets: ["host.docker.internal:17087"]
+        labels: { service: review }
+      - targets: ["host.docker.internal:17088"]
+        labels: { service: reporting }
+      - targets: ["host.docker.internal:17089"]
+        labels: { service: notification }
