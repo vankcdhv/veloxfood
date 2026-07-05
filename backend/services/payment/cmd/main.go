@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"project/pkg/app"
+	"project/pkg/audit"
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/middleware"
 	paymentv1 "project/proto/payment/v1"
@@ -44,7 +45,7 @@ func main() {
 		refundUC := usecase.NewRefundUsecase(deps.DB, walletRepo, ledgerRepo, paymentRepo, outboxRepo)
 		topupUC := usecase.NewTopupUsecase(deps.DB, paymentRepo, momoClient, ipnURL, redirectURL)
 		ipnUC := usecase.NewIPNUsecase(deps.DB, walletRepo, ledgerRepo, paymentRepo, outboxRepo, momoClient)
-		payoutUC := usecase.NewPayoutUsecase(deps.DB, walletRepo, ledgerRepo, payoutRepo, outboxRepo)
+		payoutUC := usecase.NewPayoutUsecase(deps.DB, walletRepo, ledgerRepo, payoutRepo, outboxRepo, audit.NewGormLogger(deps.DB))
 
 		// ── HTTP router ───────────────────────────────────────────────────────
 		cfg := handlerhttp.RouterConfig{

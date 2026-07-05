@@ -23,6 +23,7 @@ import (
 	authjwt "project/pkg/auth/jwt"
 	authmw "project/pkg/auth/middleware"
 	authstore "project/pkg/auth/store"
+	"project/pkg/audit"
 	"project/pkg/config"
 	pkgmiddleware "project/pkg/middleware"
 	"project/pkg/outbox"
@@ -100,7 +101,7 @@ func setupEnv(t *testing.T) *testEnv {
 	refundUC := usecase.NewRefundUsecase(db, walletRepo, ledgerRepo, paymentRepo, outboxRepo)
 	topupUC := usecase.NewTopupUsecase(db, paymentRepo, momoClient, cfg.MoMo.IpnURL, cfg.MoMo.RedirectURL)
 	ipnUC := usecase.NewIPNUsecase(db, walletRepo, ledgerRepo, paymentRepo, outboxRepo, momoClient)
-	payoutUC := usecase.NewPayoutUsecase(db, walletRepo, ledgerRepo, payoutRepo, outboxRepo)
+	payoutUC := usecase.NewPayoutUsecase(db, walletRepo, ledgerRepo, payoutRepo, outboxRepo, audit.NoopLogger{})
 	_ = refundUC // used in individual test functions directly
 
 	// HTTP engine with pass-through auth (user ID injected via middleware)
@@ -632,7 +633,7 @@ func TestPayout_ExecuteAtomic_IdempotentSkipSettled(t *testing.T) {
 	ledgerRepo := persistence.NewLedgerGormRepository(env.db)
 	payoutRepo := persistence.NewPayoutGormRepository(env.db)
 	outboxRepo := persistence.NewOutboxGormRepository(env.db)
-	payoutUC := usecase.NewPayoutUsecase(env.db, walletRepo, ledgerRepo, payoutRepo, outboxRepo)
+	payoutUC := usecase.NewPayoutUsecase(env.db, walletRepo, ledgerRepo, payoutRepo, outboxRepo, audit.NoopLogger{})
 
 	storeID := "77777777-7777-7777-7777-777777777777"
 	adminID := "88888888-8888-8888-8888-888888888888"

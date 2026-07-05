@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"project/pkg/audit"
 	"project/services/promotion/internal/entity"
 	"project/services/promotion/internal/infrastructure/grpcclient"
 	"project/services/promotion/internal/repository"
@@ -101,20 +102,28 @@ type promotionUsecase struct {
 	promoRepo   repository.PromotionRepository
 	usageRepo   repository.PromotionUsageRepository
 	storeClient grpcclient.StoreClient
+	auditLogger audit.Logger
 }
 
-// NewPromotionUsecase constructs PromotionUsecase.
+// NewPromotionUsecase constructs PromotionUsecase. auditLogger is variadic so
+// existing call sites keep compiling; absent means no-op audit.
 func NewPromotionUsecase(
 	db *gorm.DB,
 	promoRepo repository.PromotionRepository,
 	usageRepo repository.PromotionUsageRepository,
 	storeClient grpcclient.StoreClient,
+	auditLogger ...audit.Logger,
 ) PromotionUsecase {
+	al := audit.Logger(audit.NoopLogger{})
+	if len(auditLogger) > 0 && auditLogger[0] != nil {
+		al = auditLogger[0]
+	}
 	return &promotionUsecase{
 		db:          db,
 		promoRepo:   promoRepo,
 		usageRepo:   usageRepo,
 		storeClient: storeClient,
+		auditLogger: al,
 	}
 }
 
@@ -153,6 +162,13 @@ func (uc *promotionUsecase) CreatePromotion(ctx context.Context, req CreatePromo
 	}
 
 	slog.InfoContext(ctx, "promotion created", "id", p.ID, "store_id", p.StoreID, "code", p.Code)
+	_ = uc.auditLogger.Record(ctx, audit.Entry{
+		ActorUserID: audit.ActorFromContext(ctx),
+		Action:      "promotion.created",
+		TargetType:  "promotion",
+		TargetID:    &p.ID,
+		Payload:     map[string]string{"store_id": p.StoreID, "code": p.Code},
+	})
 	return p, nil
 }
 
@@ -205,6 +221,13 @@ func (uc *promotionUsecase) UpdatePromotion(ctx context.Context, id string, stor
 	if err := uc.promoRepo.Update(ctx, p); err != nil {
 		return nil, err
 	}
+	_ = uc.auditLogger.Record(ctx, audit.Entry{
+		ActorUserID: audit.ActorFromContext(ctx),
+		Action:      "promotion.updated",
+		TargetType:  "promotion",
+		TargetID:    &p.ID,
+		Payload:     map[string]string{"store_id": p.StoreID, "code": p.Code},
+	})
 	return p, nil
 }
 
@@ -219,7 +242,17 @@ func (uc *promotionUsecase) DeletePromotion(ctx context.Context, id string, stor
 	if p.StoreID != storeID {
 		return ErrPromotionNotFound
 	}
-	return uc.promoRepo.Delete(ctx, id)
+	if err := uc.promoRepo.Delete(ctx, id); err != nil {
+		return err
+	}
+	_ = uc.auditLogger.Record(ctx, audit.Entry{
+		ActorUserID: audit.ActorFromContext(ctx),
+		Action:      "promotion.deleted",
+		TargetType:  "promotion",
+		TargetID:    &id,
+		Payload:     map[string]string{"store_id": storeID, "code": p.Code},
+	})
+	return nil
 }
 
 // ValidatePromotion is a dry-run preview — no reservation is created.

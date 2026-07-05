@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"project/pkg/app"
+	"project/pkg/audit"
 	"project/pkg/middleware"
 	"project/pkg/storage"
 	deliveryevent "project/services/delivery/internal/handler/event"
@@ -41,7 +42,7 @@ func main() {
 
 		// ── Usecases ──────────────────────────────────────────────────────────
 		deliveryUC := usecase.NewDeliveryUsecase(deps.DB, deliveryRepo, batchRepo, outboxRepo, locationClient)
-		incidentUC := usecase.NewIncidentUsecase(deps.DB, deliveryRepo, incidentRepo, outboxRepo, userClient)
+		incidentUC := usecase.NewIncidentUsecase(deps.DB, deliveryRepo, incidentRepo, outboxRepo, userClient, audit.NewGormLogger(deps.DB))
 
 		// ── HTTP router ───────────────────────────────────────────────────────
 		cfg := handlerhttp.RouterConfig{}

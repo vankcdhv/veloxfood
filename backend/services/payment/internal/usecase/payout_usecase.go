@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	"project/pkg/audit"
+	authmw "project/pkg/auth/middleware"
 	"project/pkg/outbox"
 	"project/services/payment/internal/entity"
 	"project/services/payment/internal/repository"
@@ -13,6 +15,15 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+// actorPtr extracts the authenticated user id from ctx for audit entries;
+// nil when the action is not tied to an authenticated request.
+func actorPtr(ctx context.Context) *string {
+	if id := authmw.UserIDFromContext(ctx); id != "" {
+		return &id
+	}
+	return nil
+}
 
 // CreatePayoutRequest carries input for creating a payout batch.
 type CreatePayoutRequest struct {
@@ -56,6 +67,7 @@ type payoutUsecase struct {
 	ledgerRepo  repository.LedgerRepository
 	payoutRepo  repository.PayoutRepository
 	outboxRepo  repository.OutboxRepository
+	auditLogger audit.Logger
 }
 
 func NewPayoutUsecase(
@@ -64,13 +76,15 @@ func NewPayoutUsecase(
 	ledgerRepo repository.LedgerRepository,
 	payoutRepo repository.PayoutRepository,
 	outboxRepo repository.OutboxRepository,
+	auditLogger audit.Logger,
 ) PayoutUsecase {
 	return &payoutUsecase{
-		db:         db,
-		walletRepo: walletRepo,
-		ledgerRepo: ledgerRepo,
-		payoutRepo: payoutRepo,
-		outboxRepo: outboxRepo,
+		db:          db,
+		walletRepo:  walletRepo,
+		ledgerRepo:  ledgerRepo,
+		payoutRepo:  payoutRepo,
+		outboxRepo:  outboxRepo,
+		auditLogger: auditLogger,
 	}
 }
 
@@ -134,6 +148,13 @@ func (uc *payoutUsecase) CreateBatch(ctx context.Context, req CreatePayoutReques
 	if err := uc.payoutRepo.Create(ctx, batch); err != nil {
 		return nil, err
 	}
+	_ = uc.auditLogger.Record(ctx, audit.Entry{
+		ActorUserID: actorPtr(ctx),
+		Action:      "payout.batch_created",
+		TargetType:  "payout_batch",
+		TargetID:    &batch.ID,
+		Payload:     map[string]any{"store_id": req.StoreID, "total": total, "orders": len(orderIDs)},
+	})
 	return batch, nil
 }
 
@@ -192,6 +213,13 @@ func (uc *payoutUsecase) ExecuteBatch(ctx context.Context, batchID, adminUserID 
 			"store_id":     batch.StoreID,
 			"total_amount": batch.TotalAmount,
 			"settled_by":   adminUserID,
+		})
+		_ = uc.auditLogger.RecordTx(ctx, tx, audit.Entry{
+			ActorUserID: &adminUserID,
+			Action:      "payout.batch_executed",
+			TargetType:  "payout_batch",
+			TargetID:    &batchID,
+			Payload:     map[string]any{"store_id": batch.StoreID, "total_amount": batch.TotalAmount},
 		})
 		slog.InfoContext(ctx, "payout: batch settled", "batch_id", batchID, "store_id", batch.StoreID)
 		return uc.outboxRepo.Append(ctx, tx, &entity.OutboxEvent{

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"project/pkg/apperror"
+	"project/pkg/audit"
 	"project/pkg/outbox"
 	"project/services/store/internal/entity"
 	"project/services/store/internal/repository"
@@ -82,17 +83,26 @@ type hoursUsecase struct {
 	db           *gorm.DB
 	shippingRepo repository.ShippingRepository
 	outboxRepo   repository.OutboxRepository
+	auditLogger  audit.Logger
 }
 
+// NewHoursUsecase constructs HoursUsecase. auditLogger is variadic so the
+// many existing call sites (tests) keep compiling; absent means no-op audit.
 func NewHoursUsecase(
 	db *gorm.DB,
 	shippingRepo repository.ShippingRepository,
 	outboxRepo repository.OutboxRepository,
+	auditLogger ...audit.Logger,
 ) HoursUsecase {
+	al := audit.Logger(audit.NoopLogger{})
+	if len(auditLogger) > 0 && auditLogger[0] != nil {
+		al = auditLogger[0]
+	}
 	return &hoursUsecase{
 		db:           db,
 		shippingRepo: shippingRepo,
 		outboxRepo:   outboxRepo,
+		auditLogger:  al,
 	}
 }
 
@@ -301,6 +311,13 @@ func (uc *hoursUsecase) ApproveHoursChange(ctx context.Context, reqID, adminID s
 		if err := uc.outboxRepo.Append(ctx, tx, evt); err != nil {
 			return fmt.Errorf("append outbox event: %w", err)
 		}
+		_ = uc.auditLogger.RecordTx(ctx, tx, audit.Entry{
+			ActorUserID: &adminID,
+			Action:      "store.hours_change_approved",
+			TargetType:  "hours_change_request",
+			TargetID:    &reqID,
+			Payload:     map[string]string{"store_id": req.StoreID},
+		})
 		return nil
 	})
 	if txErr != nil {
@@ -322,7 +339,17 @@ func (uc *hoursUsecase) RejectHoursChange(ctx context.Context, reqID, adminID st
 	if req.Status != "pending" {
 		return ErrInvalidChangeStatus
 	}
-	return uc.shippingRepo.UpdateChangeRequestStatus(ctx, reqID, "rejected", adminID)
+	if err := uc.shippingRepo.UpdateChangeRequestStatus(ctx, reqID, "rejected", adminID); err != nil {
+		return err
+	}
+	_ = uc.auditLogger.Record(ctx, audit.Entry{
+		ActorUserID: &adminID,
+		Action:      "store.hours_change_rejected",
+		TargetType:  "hours_change_request",
+		TargetID:    &reqID,
+		Payload:     map[string]string{"store_id": req.StoreID},
+	})
+	return nil
 }
 
 func (uc *hoursUsecase) ListChangeRequests(ctx context.Context, storeID, status string) ([]*entity.OperatingHoursChangeRequest, error) {

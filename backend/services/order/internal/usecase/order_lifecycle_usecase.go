@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"project/pkg/audit"
 	"project/pkg/outbox"
 	"project/services/order/internal/entity"
 	"project/services/order/internal/infrastructure/grpcclient"
@@ -49,6 +50,7 @@ type orderLifecycleUsecase struct {
 	storeClient   *grpcclient.StoreClient
 	promoClient   *grpcclient.PromotionClient
 	paymentClient *grpcclient.PaymentClient
+	auditLogger   audit.Logger
 }
 
 // NewOrderLifecycleUsecase constructs the lifecycle orchestrator.
@@ -60,6 +62,7 @@ func NewOrderLifecycleUsecase(
 	storeClient *grpcclient.StoreClient,
 	promoClient *grpcclient.PromotionClient,
 	paymentClient *grpcclient.PaymentClient,
+	auditLogger audit.Logger,
 ) OrderLifecycleUsecase {
 	return &orderLifecycleUsecase{
 		db:            db,
@@ -69,6 +72,7 @@ func NewOrderLifecycleUsecase(
 		storeClient:   storeClient,
 		promoClient:   promoClient,
 		paymentClient: paymentClient,
+		auditLogger:   auditLogger,
 	}
 }
 
@@ -112,6 +116,13 @@ func (uc *orderLifecycleUsecase) AdvanceStatus(ctx context.Context, orderID, sto
 		if err := uc.orderRepo.UpdateStatus(ctx, tx, orderID, to, strPtr(changedBy), nil); err != nil {
 			return err
 		}
+		_ = uc.auditLogger.RecordTx(ctx, tx, audit.Entry{
+			ActorUserID: strPtr(changedBy),
+			Action:      "order.status_advanced",
+			TargetType:  "order",
+			TargetID:    &orderID,
+			Payload:     map[string]any{"from": order.Status, "to": to, "store_id": storeID},
+		})
 
 		evt := statusEvent(order, to, traceID)
 		if evt != nil {
@@ -152,6 +163,12 @@ func (uc *orderLifecycleUsecase) CancelByCustomer(ctx context.Context, orderID, 
 		// wallet, then publishes payment.refunded — which flips this order's
 		// payment_status. Writing REFUNDED synchronously would claim a refund
 		// that may never have happened.
+		_ = uc.auditLogger.RecordTx(ctx, tx, audit.Entry{
+			ActorUserID: strPtr(customerID),
+			Action:      "order.cancelled_by_customer",
+			TargetType:  "order",
+			TargetID:    &orderID,
+		})
 
 		evt := cancelledEvent(order, "customer", traceID)
 		return uc.outboxRepo.Append(ctx, tx, evt)
@@ -181,6 +198,12 @@ func (uc *orderLifecycleUsecase) RejectByStore(ctx context.Context, orderID, sto
 		}
 		// payment_status flips to REFUNDED via the payment.refunded event once
 		// the refund is actually credited (see customer-cancel note above).
+		_ = uc.auditLogger.RecordTx(ctx, tx, audit.Entry{
+			Action:     "order.rejected_by_store",
+			TargetType: "order",
+			TargetID:   &orderID,
+			Payload:    map[string]any{"store_id": storeID},
+		})
 
 		evt := cancelledEvent(order, "store", traceID)
 		return uc.outboxRepo.Append(ctx, tx, evt)

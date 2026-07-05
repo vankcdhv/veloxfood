@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"project/pkg/app"
+	"project/pkg/audit"
 	"project/pkg/middleware"
 	promotionv1 "project/proto/promotion/v1"
 	grpchandler "project/services/promotion/internal/handler/grpc"
@@ -31,7 +32,7 @@ func main() {
 		storeClient := buildStoreClient(deps)
 
 		// ── Usecases ──────────────────────────────────────────────────────────
-		promoUC := usecase.NewPromotionUsecase(deps.DB, promoRepo, usageRepo, storeClient)
+		promoUC := usecase.NewPromotionUsecase(deps.DB, promoRepo, usageRepo, storeClient, audit.NewGormLogger(deps.DB))
 
 		// ── HTTP router ───────────────────────────────────────────────────────
 		cfg := handlerhttp.RouterConfig{

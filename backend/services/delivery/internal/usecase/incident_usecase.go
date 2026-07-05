@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"project/pkg/audit"
 	"project/pkg/outbox"
 	"project/services/delivery/internal/entity"
 	"project/services/delivery/internal/infrastructure/grpcclient"
@@ -49,23 +50,31 @@ type incidentUsecase struct {
 	incidentRepo repository.IncidentRepository
 	outboxRepo   repository.OutboxRepository
 	userClient   *grpcclient.UserClient
+	auditLogger  audit.Logger
 }
 
 // NewIncidentUsecase constructs the incident usecase. userClient may be nil —
 // the admin view then shows an empty shipper name rather than failing.
+// auditLogger is variadic so existing call sites keep compiling.
 func NewIncidentUsecase(
 	db *gorm.DB,
 	deliveryRepo repository.DeliveryRepository,
 	incidentRepo repository.IncidentRepository,
 	outboxRepo repository.OutboxRepository,
 	userClient *grpcclient.UserClient,
+	auditLogger ...audit.Logger,
 ) IncidentUsecase {
+	al := audit.Logger(audit.NoopLogger{})
+	if len(auditLogger) > 0 && auditLogger[0] != nil {
+		al = auditLogger[0]
+	}
 	return &incidentUsecase{
 		db:           db,
 		deliveryRepo: deliveryRepo,
 		incidentRepo: incidentRepo,
 		outboxRepo:   outboxRepo,
 		userClient:   userClient,
+		auditLogger:  al,
 	}
 }
 
@@ -159,5 +168,14 @@ func (uc *incidentUsecase) ListAllIncidents(ctx context.Context, limit, offset i
 
 // ResolveIncident marks an incident RESOLVED (admin "đã xử lý" action).
 func (uc *incidentUsecase) ResolveIncident(ctx context.Context, id string) error {
-	return uc.incidentRepo.UpdateStatus(ctx, id, entity.IncidentResolved)
+	if err := uc.incidentRepo.UpdateStatus(ctx, id, entity.IncidentResolved); err != nil {
+		return err
+	}
+	_ = uc.auditLogger.Record(ctx, audit.Entry{
+		ActorUserID: audit.ActorFromContext(ctx),
+		Action:      "delivery.incident_resolved",
+		TargetType:  "delivery_incident",
+		TargetID:    &id,
+	})
+	return nil
 }

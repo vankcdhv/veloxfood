@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"project/pkg/app"
+	"project/pkg/audit"
 	"project/pkg/middleware"
 	"project/pkg/storage"
 	storev1 "project/proto/store/v1"
@@ -42,7 +43,7 @@ func main() {
 		storeUC := usecase.NewStoreUsecase(deps.DB, storeRepo, outboxRepo, userDir)
 		catalogUC := usecase.NewCatalogUsecase(catalogRepo)
 		shipFeeUC := usecase.NewShipFeeUsecase(shippingRepo, roomResolver)
-		hoursUC := usecase.NewHoursUsecase(deps.DB, shippingRepo, outboxRepo)
+		hoursUC := usecase.NewHoursUsecase(deps.DB, shippingRepo, outboxRepo, audit.NewGormLogger(deps.DB))
 		favoriteUC := usecase.NewFavoriteUsecase(persistence.NewFavoriteGormRepository(deps.DB))
 
 		// ── MinIO uploader ────────────────────────────────────────────────────

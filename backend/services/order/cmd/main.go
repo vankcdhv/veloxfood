@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"project/pkg/app"
+	"project/pkg/audit"
 	"project/pkg/middleware"
 	orderv1 "project/proto/order/v1"
 	orderevent "project/services/order/internal/handler/event"
@@ -41,7 +42,7 @@ func main() {
 		cartUC := usecase.NewCartUsecase(cartRepo)
 		compRepo := persistence.NewCompensationGormRepository(deps.DB)
 		placeOrderUC := usecase.NewPlaceOrderUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, compRepo, storeClient, promoClient, paymentClient)
-		lifecycleUC := usecase.NewOrderLifecycleUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, storeClient, promoClient, paymentClient)
+		lifecycleUC := usecase.NewOrderLifecycleUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, storeClient, promoClient, paymentClient, audit.NewGormLogger(deps.DB))
 
 		// ── HTTP router ───────────────────────────────────────────────────────
 		cfg := handlerhttp.RouterConfig{}
@@ -86,6 +87,7 @@ func main() {
 		lifecycleUC := usecase.NewOrderLifecycleUsecase(
 			deps.DB, orderRepo, cartRepo, outboxRepo,
 			storeClient, promoClient, paymentClient,
+			audit.NewGormLogger(deps.DB),
 		)
 		orderv1.RegisterOrderServiceServer(s, grpchandler.NewOrderServiceServer(lifecycleUC))
 	})

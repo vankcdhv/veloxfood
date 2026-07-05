@@ -22,6 +22,7 @@ import (
 	authstore "project/pkg/auth/store"
 	"project/pkg/config"
 	pkgmiddleware "project/pkg/middleware"
+	"project/pkg/audit"
 	"project/pkg/outbox"
 	"project/pkg/testutil"
 	orderevent "project/services/order/internal/handler/event"
@@ -355,7 +356,7 @@ func setupEnv(t *testing.T) *testEnv {
 		promo:      &stubPromotion{},
 		payment:    &stubPayment{},
 	}
-	lifecycleUC := usecase.NewOrderLifecycleUsecase(db, orderRepo, cartRepo, outboxRepo, nil, nil, nil)
+	lifecycleUC := usecase.NewOrderLifecycleUsecase(db, orderRepo, cartRepo, outboxRepo, nil, nil, nil, audit.NoopLogger{})
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()

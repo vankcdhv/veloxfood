@@ -6,6 +6,8 @@ package audit
 import (
 	"context"
 
+	authmw "project/pkg/auth/middleware"
+
 	"gorm.io/gorm"
 )
 
@@ -67,4 +69,13 @@ func UserAgentFromContext(ctx context.Context) string {
 		return m.UserAgent
 	}
 	return ""
+}
+
+// ActorFromContext returns the authenticated user id from ctx as an audit
+// actor pointer, or nil when the request is unauthenticated.
+func ActorFromContext(ctx context.Context) *string {
+	if id := authmw.UserIDFromContext(ctx); id != "" {
+		return &id
+	}
+	return nil
 }
