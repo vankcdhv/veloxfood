@@ -1,0 +1,4 @@
+
+# Distributed tracing (Jaeger via monitoring profile). Empty = disabled.
+otel:
+  endpoint: jaeger:4317

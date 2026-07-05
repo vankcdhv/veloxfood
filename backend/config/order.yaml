@@ -66,3 +66,7 @@ promotion_service:
   grpc_addr: localhost:17055
 payment_service:
   grpc_addr: localhost:17056
+
+# Distributed tracing (Jaeger via monitoring profile). Empty = disabled.
+otel:
+  endpoint: localhost:17094

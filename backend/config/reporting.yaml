@@ -46,3 +46,7 @@ user_service:
 
 store_service:
   grpc_addr: localhost:17053
+
+# Distributed tracing (Jaeger via monitoring profile). Empty = disabled.
+otel:
+  endpoint: localhost:17094

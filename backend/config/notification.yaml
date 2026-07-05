@@ -52,3 +52,7 @@ smtp:
   password: ""
   from: ""
   tls_enabled: false
+
+# Distributed tracing (Jaeger via monitoring profile). Empty = disabled.
+otel:
+  endpoint: localhost:17094

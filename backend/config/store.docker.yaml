@@ -55,3 +55,7 @@ user_service:
   grpc_addr: user-service:50051
 location_service:
   grpc_addr: location-service:50052
+
+# Distributed tracing (Jaeger via monitoring profile). Empty = disabled.
+otel:
+  endpoint: jaeger:4317

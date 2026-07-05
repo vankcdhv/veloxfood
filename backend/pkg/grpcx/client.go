@@ -10,6 +10,7 @@ import (
 
 	"project/pkg/trace"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -74,6 +75,9 @@ func Dial(addr string) (*grpc.ClientConn, error) {
 	return grpc.NewClient(
 		addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		// OTel client span wraps the whole chain: breaker trips and retries
+		// land inside the client span's duration in the trace waterfall.
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithChainUnaryInterceptor(
 			trace.UnaryClientInterceptor(),
 			BreakerUnaryInterceptor(addr),

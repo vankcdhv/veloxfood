@@ -55,3 +55,7 @@ store_service:
 
 promotion:
   reserve_ttl: 15m
+
+# Distributed tracing (Jaeger via monitoring profile). Empty = disabled.
+otel:
+  endpoint: localhost:17094

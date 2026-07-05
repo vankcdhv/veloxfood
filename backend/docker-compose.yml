@@ -376,6 +376,15 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    profiles: ["monitoring"]
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "17093:16686" # UI
+      - "17094:4317"  # OTLP gRPC ingest (services on the host export here)
+
   grafana:
     image: grafana/grafana:11.1.0
     profiles: ["monitoring"]

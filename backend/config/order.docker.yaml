@@ -60,3 +60,7 @@ promotion_service:
   grpc_addr: promotion-service:50055
 payment_service:
   grpc_addr: payment-service:50056
+
+# Distributed tracing (Jaeger via monitoring profile). Empty = disabled.
+otel:
+  endpoint: jaeger:4317

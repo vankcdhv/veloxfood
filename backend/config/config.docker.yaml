@@ -54,3 +54,7 @@ smtp:
   password: ""
   from: noreply@smartcanteen.local
   tls_enabled: true
+
+# Distributed tracing (Jaeger via monitoring profile). Empty = disabled.
+otel:
+  endpoint: jaeger:4317

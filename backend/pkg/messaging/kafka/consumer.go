@@ -9,6 +9,10 @@ import (
 	"project/pkg/trace"
 
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 type MessageHandler func(ctx context.Context, msg kafka.Message) error
@@ -87,7 +91,21 @@ func (c *Consumer) Listen(ctx context.Context, handler MessageHandler) error {
 		}
 		msgCtx := trace.WithTraceID(ctx, id)
 
+		// One consumer span per message; the legacy trace-id rides along as an
+		// attribute so logs and Jaeger cross-reference. No-op when tracing is
+		// disabled (default TracerProvider).
+		msgCtx, span := otel.Tracer("kafka-consumer").Start(msgCtx, "consume "+msg.Topic,
+			oteltrace.WithSpanKind(oteltrace.SpanKindConsumer),
+			oteltrace.WithAttributes(
+				attribute.String("messaging.system", "kafka"),
+				attribute.String("messaging.destination.name", msg.Topic),
+				attribute.String("app.trace_id", id),
+			),
+		)
+
 		if err := c.process(msgCtx, msg, handler); err != nil {
+			span.SetStatus(codes.Error, err.Error())
+			span.End()
 			// Could not handle nor park the message. Committing here would
 			// lose it, so back off and re-deliver (blocks this partition —
 			// ordering is preserved on purpose).
@@ -100,6 +118,8 @@ func (c *Consumer) Listen(ctx context.Context, handler MessageHandler) error {
 			}
 			continue
 		}
+
+		span.End()
 
 		if err := c.reader.CommitMessages(ctx, msg); err != nil {
 			if ctx.Err() != nil {

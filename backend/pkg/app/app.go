@@ -19,8 +19,14 @@ import (
 	"project/pkg/logger"
 	"project/pkg/metrics"
 	"project/pkg/middleware"
+	otelinit "project/pkg/otel"
+	"project/pkg/trace"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
 )
@@ -108,6 +114,18 @@ func (a *App) Run() {
 		a.redisCache = rc
 	}
 
+	// Distributed tracing (optional): spans export to the OTLP collector from
+	// the monitoring profile; empty endpoint = disabled.
+	if shutdown, err := otelinit.Init(context.Background(), a.name, cfg.OTel.Endpoint); err != nil {
+		slog.Warn("otel init failed — tracing disabled", "error", err)
+	} else {
+		a.onShutdown = append(a.onShutdown, func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = shutdown(ctx)
+		})
+	}
+
 	a.deps = Dependencies{Config: cfg, DB: db, Cache: c}
 
 	if a.grpcRegistrar != nil {
@@ -124,7 +142,12 @@ func (a *App) Run() {
 func (a *App) startHTTP(port int) {
 	router := gin.New()
 	router.Use(middleware.PanicRecovery())
+	// otelgin opens the server span; RequestLogging then installs the legacy
+	// x-trace-id; the bridge stamps that id onto the span so a log line can be
+	// cross-referenced with its Jaeger trace.
+	router.Use(otelgin.Middleware(a.name))
 	router.Use(middleware.RequestLogging())
+	router.Use(spanTraceIDBridge())
 	router.Use(metrics.HTTPMiddleware(a.name))
 	router.GET("/metrics", metrics.Handler())
 	// /health is liveness only: the process is up. Orchestrators must use
@@ -185,8 +208,21 @@ func (a *App) readyz(c *gin.Context) {
 	c.JSON(status, gin.H{"service": a.name, "ready": ready, "checks": checks})
 }
 
+// spanTraceIDBridge attaches the legacy x-trace-id to the active server span.
+func spanTraceIDBridge() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if id := trace.FromContext(c.Request.Context()); id != "" {
+			if span := oteltrace.SpanFromContext(c.Request.Context()); span.SpanContext().IsValid() {
+				span.SetAttributes(attribute.String("app.trace_id", id))
+			}
+		}
+		c.Next()
+	}
+}
+
 func (a *App) startGRPC(port int) {
 	a.grpcServer = grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.UnaryInterceptor(middleware.UnaryLogging()),
 	)
 	a.grpcRegistrar(a.grpcServer, a.deps)

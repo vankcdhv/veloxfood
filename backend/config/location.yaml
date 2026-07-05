@@ -43,3 +43,7 @@ jwt:
 # user-service gRPC endpoint for cross-service permission checks.
 user_service:
   grpc_addr: localhost:17051
+
+# Distributed tracing (Jaeger via monitoring profile). Empty = disabled.
+otel:
+  endpoint: localhost:17094

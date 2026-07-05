@@ -15,6 +15,7 @@ type Config struct {
 	RabbitMQ    RabbitMQConfig    `mapstructure:"rabbitmq"`
 	DTM         DTMConfig         `mapstructure:"dtm"`
 	Saga        SagaConfig        `mapstructure:"saga"`
+	OTel        OTelConfig        `mapstructure:"otel"`
 	JWT         JWTConfig         `mapstructure:"jwt"`
 	OTP         OTPConfig         `mapstructure:"otp"`
 	Promotion   PromotionConfig   `mapstructure:"promotion"`
@@ -152,6 +153,12 @@ type SagaConfig struct {
 type SagaBranchAddrConfig struct {
 	Promotion string `mapstructure:"promotion"`
 	Payment   string `mapstructure:"payment"`
+}
+
+// OTelConfig points the service at an OTLP/gRPC trace collector (Jaeger in
+// the monitoring profile). Empty endpoint disables tracing.
+type OTelConfig struct {
+	Endpoint string `mapstructure:"endpoint"`
 }
 
 // JWTConfig holds RSA key material and token TTLs.

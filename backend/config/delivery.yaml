@@ -58,3 +58,7 @@ minio:
   secret_key: "minioadmin"
   bucket: "veloxfood"
   use_ssl: false
+
+# Distributed tracing (Jaeger via monitoring profile). Empty = disabled.
+otel:
+  endpoint: localhost:17094
