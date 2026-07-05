@@ -24,8 +24,15 @@ type Event struct {
 	Payload       any    // marshaled to JSON; must be serializable
 }
 
+// EnvelopeVersion is the current envelope schema version. Bump it on any
+// breaking change to the envelope or payload contract so consumers can branch
+// on version instead of guessing from field shape. Events written before
+// versioning decode with an empty Version — treat that as "1".
+const EnvelopeVersion = "1"
+
 // Envelope is the JSON object published to Kafka consumers.
 type Envelope struct {
+	Version    string          `json:"version"`
 	EventID    string          `json:"event_id"`
 	EventType  string          `json:"event_type"`
 	OccurredAt time.Time       `json:"occurred_at"`
@@ -47,6 +54,7 @@ type OutboxRow struct {
 // NewEnvelope wraps a raw payload into the standard Kafka envelope.
 func NewEnvelope(row *OutboxRow) ([]byte, error) {
 	env := Envelope{
+		Version:    EnvelopeVersion,
 		EventID:    row.ID,
 		EventType:  row.EventType,
 		OccurredAt: time.Now().UTC(),

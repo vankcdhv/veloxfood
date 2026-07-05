@@ -100,6 +100,8 @@ type AppConfig struct {
 	Port         int    `mapstructure:"port"`
 	GRPCPort     int    `mapstructure:"grpc_port"`
 	BaseURL      string `mapstructure:"base_url"`
+	// WebURL is the customer-facing frontend origin (OAuth redirect target).
+	WebURL       string `mapstructure:"web_url"`
 	CookieSecure bool   `mapstructure:"cookie_secure"`
 	CookieDomain string `mapstructure:"cookie_domain"`
 }

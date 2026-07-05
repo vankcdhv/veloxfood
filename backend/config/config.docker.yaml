@@ -3,6 +3,7 @@ app:
   port: 8080
   grpc_port: 50051
   base_url: http://localhost:8080
+  web_url: http://localhost:3000
   # Local docker stack still serves over plain HTTP — keep secure=false.
   # Set cookie_secure=true (and cookie_domain) behind real HTTPS in production.
   cookie_secure: false

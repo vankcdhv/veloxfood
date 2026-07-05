@@ -47,7 +47,12 @@ func buildOAuthHandler(deps app.Dependencies, rbacUC usecase.RBACUsecase) (*v1.A
 
 	oauthUC := usecase.NewOAuthUsecase(deps.DB, userRepo, identityRepo, roleRepo, rbacUC, jwtSvc, authStore, auditLogger)
 
-	webURL := "http://localhost:3000"
+	// OAuth redirect target = the frontend origin, config-driven so a K8s or
+	// hosted deployment only changes app.web_url.
+	webURL := cfg.App.WebURL
+	if webURL == "" {
+		webURL = "http://localhost:3000"
+	}
 
 	slog.Info("oauth handler wired")
 	return v1.NewAuthOAuthHandler(client, oauthUC, v1.CookieConfig{

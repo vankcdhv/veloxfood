@@ -123,7 +123,7 @@ func (a *App) Run() {
 
 func (a *App) startHTTP(port int) {
 	router := gin.New()
-	router.Use(gin.Recovery())
+	router.Use(middleware.PanicRecovery())
 	router.Use(middleware.RequestLogging())
 	router.Use(metrics.HTTPMiddleware(a.name))
 	router.GET("/metrics", metrics.Handler())

@@ -3,6 +3,7 @@ app:
   port: 17080
   grpc_port: 17051
   base_url: http://localhost:17080
+  web_url: http://localhost:3000
   # Auth cookies: secure=false over plain HTTP in dev; empty domain = host-only.
   cookie_secure: false
   cookie_domain: ""
