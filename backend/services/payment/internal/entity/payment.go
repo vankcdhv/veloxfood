@@ -43,6 +43,9 @@ type Payment struct {
 	Status         PaymentStatus   `gorm:"type:varchar(20);not null;default:'PENDING'"`
 	MomoTransID    *string         `gorm:"type:varchar(100);column:momo_trans_id"`
 	IdempotencyKey *string         `gorm:"type:varchar(200);uniqueIndex;column:idempotency_key"`
+	// PayURL is the MoMo checkout link, persisted so callers that never see
+	// the capture response (DTM saga branches) can read it back afterwards.
+	PayURL string `gorm:"type:text;not null;default:'';column:pay_url"`
 	CreatedAt      time.Time       `gorm:"type:timestamptz;not null;default:now()"`
 	UpdatedAt      time.Time       `gorm:"type:timestamptz;not null;default:now()"`
 }

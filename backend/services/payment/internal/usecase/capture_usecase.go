@@ -76,9 +76,16 @@ func (uc *captureUsecase) Capture(ctx context.Context, req CaptureRequest) (*Cap
 		return nil, err
 	}
 	if existing != nil {
+		// A MoMo intent row without a pay_url means the gateway call never
+		// completed — finish it so retried captures (e.g. a DTM branch being
+		// re-driven) still end up with a usable checkout link.
+		if existing.Method == entity.MethodMoMo && existing.Status == entity.PaymentPending && existing.PayURL == "" {
+			return uc.finishMoMoIntent(ctx, existing.ID, req)
+		}
 		return &CaptureResult{
 			PaymentID: existing.ID,
 			Status:    existing.Status,
+			PayURL:    existing.PayURL,
 		}, nil
 	}
 
@@ -160,9 +167,7 @@ func (uc *captureUsecase) captureWallet(ctx context.Context, req CaptureRequest)
 // captureMoMo creates a MoMo payment intent (PENDING) and returns the pay_url.
 // The capture completes asynchronously via the MoMo IPN callback.
 func (uc *captureUsecase) captureMoMo(ctx context.Context, req CaptureRequest) (*CaptureResult, error) {
-	requestID := uuid.NewString()
 	var paymentID string
-	var payURL string
 
 	// Persist PENDING payment first so IPN can find it by idempotency_key.
 	txErr := uc.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -187,7 +192,14 @@ func (uc *captureUsecase) captureMoMo(ctx context.Context, req CaptureRequest) (
 		return nil, txErr
 	}
 
-	// Call MoMo outside the transaction — network failure should not roll back the DB row.
+	return uc.finishMoMoIntent(ctx, paymentID, req)
+}
+
+// finishMoMoIntent calls the MoMo gateway for an already-persisted PENDING row
+// and stores the returned pay_url. Runs outside any transaction — a network
+// failure must not roll back the intent row (a retry completes it instead).
+func (uc *captureUsecase) finishMoMoIntent(ctx context.Context, paymentID string, req CaptureRequest) (*CaptureResult, error) {
+	requestID := uuid.NewString()
 	result, err := uc.momoClient.CreatePayment(ctx, req.OrderID, "VeloxFood order", req.Amount, uc.redirectURL, uc.ipnURL, requestID)
 	if err != nil {
 		slog.ErrorContext(ctx, "capture(momo): create-payment failed", "order_id", req.OrderID, "err", err)
@@ -197,10 +209,13 @@ func (uc *captureUsecase) captureMoMo(ctx context.Context, req CaptureRequest) (
 		})
 		return &CaptureResult{PaymentID: paymentID, Status: entity.PaymentFailed, Error: err.Error()}, nil
 	}
-	payURL = result.PayURL
+
+	if err := uc.paymentRepo.UpdatePayURL(ctx, paymentID, result.PayURL); err != nil {
+		slog.ErrorContext(ctx, "capture(momo): persist pay_url failed", "payment_id", paymentID, "err", err)
+	}
 
 	slog.InfoContext(ctx, "capture(momo): pending, pay_url generated", "order_id", req.OrderID, "payment_id", paymentID)
-	return &CaptureResult{PaymentID: paymentID, Status: entity.PaymentPending, PayURL: payURL}, nil
+	return &CaptureResult{PaymentID: paymentID, Status: entity.PaymentPending, PayURL: result.PayURL}, nil
 }
 
 // captureCOD records a COD payment (saga typically doesn't call Capture for COD,

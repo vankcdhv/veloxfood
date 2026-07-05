@@ -93,5 +93,6 @@ func (s *PaymentServiceServer) GetPaymentStatus(ctx context.Context, req *paymen
 		Status: st,
 		Method: string(p.Method),
 		Amount: p.Amount,
+		PayUrl: p.PayURL,
 	}, nil
 }

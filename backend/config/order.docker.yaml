@@ -31,6 +31,14 @@ rabbitmq:
 dtm:
   addr: dtm:36790
 
+# In docker every participant is a compose service — DTM reaches branches
+# directly on the compose network.
+saga:
+  engine: dtm
+  branch_addr:
+    promotion: promotion-service:50055
+    payment: payment-service:50056
+
 jwt:
   private_key_path: ""
   public_key_path: secrets/jwt_public.pem

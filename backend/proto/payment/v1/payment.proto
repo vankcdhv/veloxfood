@@ -43,6 +43,7 @@ message GetPaymentStatusResponse {
   string status = 1; // UNPAID | PAID | REFUNDED
   string method = 2; // COD | MOMO | WALLET
   int64  amount = 3; // VND
+  string pay_url = 4; // MoMo checkout URL persisted at capture time (empty otherwise)
 }
 
 service PaymentService {

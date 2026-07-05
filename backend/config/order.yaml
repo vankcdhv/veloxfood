@@ -31,6 +31,15 @@ rabbitmq:
 dtm:
   addr: localhost:17790
 
+# Saga engine for place-order/cancel: dtm (coordinator) or inline (fallback).
+# branch_addr is where the DTM CONTAINER reaches each participant's gRPC —
+# services run on the host in dev, hence host.docker.internal.
+saga:
+  engine: dtm
+  branch_addr:
+    promotion: host.docker.internal:17055
+    payment: host.docker.internal:17056
+
 # Order only VERIFIES tokens — public key suffices (no private key, no issuing).
 jwt:
   private_key_path: ""

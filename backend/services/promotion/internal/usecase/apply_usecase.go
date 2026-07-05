@@ -43,6 +43,10 @@ type ApplyUsecase interface {
 	// Idempotent: re-sending the same order_id returns the existing breakdown.
 	ApplyPromotion(ctx context.Context, req ApplyRequest) (*ApplyResult, error)
 
+	// QuotePromotion computes the exact breakdown ApplyPromotion would grant,
+	// without reserving quota. Order quotes the price before opening a saga.
+	QuotePromotion(ctx context.Context, req ApplyRequest) (*ApplyResult, error)
+
 	// ConfirmUsage transitions RESERVED usages for an order to CONFIRMED.
 	ConfirmUsage(ctx context.Context, orderID string) error
 
@@ -169,6 +173,48 @@ func (uc *applyUsecase) ApplyPromotion(ctx context.Context, req ApplyRequest) (*
 		return failResult("internal error"), nil
 	}
 	return result, nil
+}
+
+// QuotePromotion is the dry-run twin of ApplyPromotion: same validation, same
+// per-type cap, same discount math — but no usage rows, no used_count bump.
+// Sharing validatePromotion/computeDiscount keeps quote == apply by
+// construction; a mismatch at apply time means state changed in between
+// (e.g. the voucher ran out) and the saga branch must abort.
+func (uc *applyUsecase) QuotePromotion(ctx context.Context, req ApplyRequest) (*ApplyResult, error) {
+	now := time.Now()
+	var applied []AppliedCode
+	var itemDiscount, shipDiscount int64
+	grantedTypes := map[string]bool{}
+
+	for _, code := range req.Codes {
+		p, err := uc.promoRepo.GetByStoreAndCodeForUpdate(ctx, uc.db.WithContext(ctx), req.StoreID, code)
+		if err != nil {
+			return failResult("promotion not found: " + code), nil
+		}
+		if reason := validatePromotion(p, req.StoreID, req.Subtotal, now); reason != "" {
+			return failResult(reason), nil
+		}
+		if grantedTypes[p.Type] {
+			return failResult("cannot apply two " + p.Type + " promotions to one order"), nil
+		}
+		grantedTypes[p.Type] = true
+
+		amount := computeDiscount(p, req.Subtotal)
+		applied = append(applied, AppliedCode{Code: code, Type: p.Type, Amount: amount})
+		switch p.Type {
+		case "ORDER_DISCOUNT":
+			itemDiscount += amount
+		case "SHIP_DISCOUNT":
+			shipDiscount += amount
+		}
+	}
+
+	return &ApplyResult{
+		Success:      true,
+		ItemDiscount: itemDiscount,
+		ShipDiscount: shipDiscount,
+		Applied:      applied,
+	}, nil
 }
 
 // ConfirmUsage transitions RESERVED → CONFIRMED. Idempotent.

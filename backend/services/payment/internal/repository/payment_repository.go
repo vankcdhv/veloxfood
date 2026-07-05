@@ -21,4 +21,8 @@ type PaymentRepository interface {
 
 	// UpdateStatus changes the payment status (and optional momo_trans_id) within tx.
 	UpdateStatus(ctx context.Context, tx *gorm.DB, paymentID string, status entity.PaymentStatus, momoTransID *string) error
+
+	// UpdatePayURL stores the MoMo checkout link so callers that never saw the
+	// capture response (DTM saga branches) can read it back afterwards.
+	UpdatePayURL(ctx context.Context, paymentID, payURL string) error
 }

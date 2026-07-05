@@ -14,6 +14,7 @@ type Config struct {
 	Kafka       KafkaConfig       `mapstructure:"kafka"`
 	RabbitMQ    RabbitMQConfig    `mapstructure:"rabbitmq"`
 	DTM         DTMConfig         `mapstructure:"dtm"`
+	Saga        SagaConfig        `mapstructure:"saga"`
 	JWT         JWTConfig         `mapstructure:"jwt"`
 	OTP         OTPConfig         `mapstructure:"otp"`
 	Promotion   PromotionConfig   `mapstructure:"promotion"`
@@ -133,6 +134,22 @@ type RabbitMQConfig struct {
 
 type DTMConfig struct {
 	Addr string `mapstructure:"addr"`
+}
+
+// SagaConfig selects the saga engine for the order flows and tells the DTM
+// server where to reach each participant's gRPC branch endpoints. Branch
+// addresses are from the DTM server's point of view (a container), so on a
+// laptop they use host.docker.internal while services run on the host.
+type SagaConfig struct {
+	// Engine is "dtm" (default) or "inline" (hand-rolled orchestration kept
+	// as fallback and for failure-injection comparison).
+	Engine     string               `mapstructure:"engine"`
+	BranchAddr SagaBranchAddrConfig `mapstructure:"branch_addr"`
+}
+
+type SagaBranchAddrConfig struct {
+	Promotion string `mapstructure:"promotion"`
+	Payment   string `mapstructure:"payment"`
 }
 
 // JWTConfig holds RSA key material and token TTLs.

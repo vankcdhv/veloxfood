@@ -31,6 +31,25 @@ message ApplyPromotionResponse {
   string error_reason  = 5; // non-empty when success=false
 }
 
+// QuotePromotionRequest asks for a dry-run discount computation. No reservation
+// is created — the order service quotes the price before opening a saga, then the
+// ApplyPromotion branch re-checks that the reserved discount matches the quote.
+message QuotePromotionRequest {
+  string store_id    = 1;
+  string customer_id = 2;
+  repeated string codes = 3;
+  int64  subtotal    = 4; // VND
+  int32  item_count  = 5;
+}
+
+message QuotePromotionResponse {
+  bool   success       = 1;
+  int64  item_discount = 2;
+  int64  ship_discount = 3;
+  repeated AppliedCode applied = 4;
+  string error_reason  = 5;
+}
+
 // ConfirmUsageRequest finalises RESERVED usages for an order (RESERVED→CONFIRMED).
 message ConfirmUsageRequest {
   string order_id = 1;
@@ -53,6 +72,9 @@ service PromotionService {
   // ApplyPromotion reserves one or more promotion codes for an order (idempotent
   // by order_id — re-sending returns the existing discount breakdown).
   rpc ApplyPromotion(ApplyPromotionRequest) returns (ApplyPromotionResponse);
+
+  // QuotePromotion computes the discount for a code set without reserving quota.
+  rpc QuotePromotion(QuotePromotionRequest) returns (QuotePromotionResponse);
 
   // ConfirmUsage transitions RESERVED usages to CONFIRMED once the order is placed.
   rpc ConfirmUsage(ConfirmUsageRequest) returns (ConfirmUsageResponse);

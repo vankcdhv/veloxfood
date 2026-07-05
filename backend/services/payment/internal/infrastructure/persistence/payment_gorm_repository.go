@@ -22,6 +22,13 @@ func (r *paymentGormRepository) Create(ctx context.Context, tx *gorm.DB, p *enti
 	return tx.WithContext(ctx).Create(p).Error
 }
 
+func (r *paymentGormRepository) UpdatePayURL(ctx context.Context, paymentID, payURL string) error {
+	return r.db.WithContext(ctx).
+		Model(&entity.Payment{}).
+		Where("id = ?", paymentID).
+		Update("pay_url", payURL).Error
+}
+
 func (r *paymentGormRepository) GetByOrderID(ctx context.Context, orderID string) (*entity.Payment, error) {
 	var p entity.Payment
 	err := r.db.WithContext(ctx).
