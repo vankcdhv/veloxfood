@@ -131,12 +131,17 @@ func (r *promotionUsageGormRepository) ConfirmByOrderID(ctx context.Context, tx 
 		Updates(map[string]any{"status": "CONFIRMED"}).Error
 }
 
-// VoidByOrderID transitions RESERVED rows for an order to VOIDED and returns
-// the affected rows so the caller can decrement used_count on each promotion.
+// VoidByOrderID transitions an order's RESERVED **and CONFIRMED** usages to
+// VOIDED and returns the affected rows so the caller can decrement used_count.
+// CONFIRMED must be releasable too: cancelling or rejecting a placed order
+// (voucher already confirmed) has to return the quota — otherwise every
+// cancelled order leaks one usage forever. Only order-scoped callers reach
+// this (cancel saga/consumer, placement compensation); the TTL janitor sweeps
+// by expired RESERVED rows and never touches live orders' CONFIRMED usages.
 func (r *promotionUsageGormRepository) VoidByOrderID(ctx context.Context, tx *gorm.DB, orderID string) ([]*entity.PromotionUsage, error) {
 	var rows []*entity.PromotionUsage
 	if err := tx.WithContext(ctx).
-		Where("order_id = ? AND status = ?", orderID, "RESERVED").
+		Where("order_id = ? AND status IN ?", orderID, []string{"RESERVED", "CONFIRMED"}).
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}

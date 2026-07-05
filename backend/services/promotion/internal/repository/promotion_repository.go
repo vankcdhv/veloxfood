@@ -51,9 +51,10 @@ type PromotionUsageRepository interface {
 	// within tx. Idempotent — already-CONFIRMED rows are untouched.
 	ConfirmByOrderID(ctx context.Context, tx *gorm.DB, orderID string) error
 
-	// VoidByOrderID transitions all RESERVED usages for an order to VOIDED.
+	// VoidByOrderID transitions an order's RESERVED and CONFIRMED usages to
+	// VOIDED (cancelling a placed order must return confirmed quota too).
 	// Returns the voided rows so the caller can decrement used_count.
-	// Idempotent — rows already VOIDED or CONFIRMED are untouched.
+	// Idempotent — rows already VOIDED are untouched.
 	VoidByOrderID(ctx context.Context, tx *gorm.DB, orderID string) ([]*entity.PromotionUsage, error)
 
 	// ExpiredReservedOrderIDs returns distinct order ids that still hold

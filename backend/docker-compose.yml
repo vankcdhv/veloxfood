@@ -89,6 +89,9 @@ services:
       retries: 5
 
   dtm:
+    # Saga coordinator for place-order/cancel. Its transaction log lives in a
+    # dedicated dtm_db — schema in docker/dtm/dtmsvr_storage_postgres.sql
+    # (apply once; the init script provisions the database on fresh volumes).
     image: yedf/dtm:latest
     environment:
       STORE_DRIVER: postgres
@@ -96,7 +99,7 @@ services:
       STORE_PORT: 5432
       STORE_USER: dev_user
       STORE_PASSWORD: dev_password
-      STORE_DB: user_db
+      STORE_DB: dtm_db
     ports:
       - "17789:36789"
       - "17790:36790"

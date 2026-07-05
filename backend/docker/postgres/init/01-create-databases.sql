@@ -12,3 +12,6 @@ CREATE DATABASE promotion_db;
 CREATE DATABASE review_db;
 CREATE DATABASE notification_db;
 CREATE DATABASE reporting_db;
+
+-- DTM saga-coordinator transaction log (schema: docker/dtm/dtmsvr_storage_postgres.sql).
+CREATE DATABASE dtm_db;
