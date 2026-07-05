@@ -14,7 +14,9 @@ import (
 )
 
 // PaymentEventHandler consumes payment.events for the order service.
-// Handles: payment.captured → mark order PAID; payment.failed → log.
+// Handles: payment.captured → mark order PAID; payment.refunded → mark order
+// REFUNDED (payment service is the source of truth — the order no longer sets
+// this synchronously at cancel time); payment.failed → log.
 type PaymentEventHandler struct {
 	db                 *gorm.DB
 	orderRepo          repository.OrderRepository
@@ -41,6 +43,8 @@ func (h *PaymentEventHandler) HandleKafkaMessage(ctx context.Context, msg kafka.
 	switch env.EventType {
 	case "payment.captured":
 		return h.handlePaymentCaptured(ctx, env)
+	case "payment.refunded":
+		return h.handlePaymentRefunded(ctx, env)
 	case "payment.failed":
 		return h.handlePaymentFailed(ctx, env)
 	default:
@@ -72,6 +76,30 @@ func (h *PaymentEventHandler) handlePaymentCaptured(ctx context.Context, env out
 			return nil
 		}
 		return h.orderRepo.UpdatePaymentStatus(ctx, tx, data.OrderID, entity.PaymentPaid)
+	})
+}
+
+// handlePaymentRefunded flips the order's payment_status once the refund has
+// actually been credited by the payment service.
+func (h *PaymentEventHandler) handlePaymentRefunded(ctx context.Context, env outbox.Envelope) error {
+	var data paymentCapturedData // same shape: {order_id}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		slog.ErrorContext(ctx, "order: payment.refunded: unmarshal failed", "err", err)
+		return nil
+	}
+	if data.OrderID == "" {
+		return nil
+	}
+
+	return h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		inserted, err := h.processedEventRepo.MarkProcessed(ctx, tx, env.EventID)
+		if err != nil {
+			return err
+		}
+		if !inserted {
+			return nil
+		}
+		return h.orderRepo.UpdatePaymentStatus(ctx, tx, data.OrderID, entity.PaymentRefunded)
 	})
 }
 

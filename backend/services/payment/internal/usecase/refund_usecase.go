@@ -92,10 +92,22 @@ func (uc *refundUsecase) Refund(ctx context.Context, orderID string, amount int6
 			"customer_id": existing.CustomerID,
 			"amount":      amount,
 		})
-		return uc.outboxRepo.Append(ctx, tx, &entity.OutboxEvent{
+		// wallet.refunded feeds the customer-facing wallet notification;
+		// payment.refunded is the source of truth the order service consumes
+		// to flip its payment_status (no dual-write at cancel time).
+		if err := uc.outboxRepo.Append(ctx, tx, &entity.OutboxEvent{
 			AggregateType: "wallet",
 			AggregateID:   existing.CustomerID,
 			EventType:     "wallet.refunded",
+			Payload:       payload,
+			TraceID:       strPtr(traceID),
+		}); err != nil {
+			return err
+		}
+		return uc.outboxRepo.Append(ctx, tx, &entity.OutboxEvent{
+			AggregateType: "payment",
+			AggregateID:   existing.ID,
+			EventType:     "payment.refunded",
 			Payload:       payload,
 			TraceID:       strPtr(traceID),
 		})

@@ -147,13 +147,11 @@ func (uc *orderLifecycleUsecase) CancelByCustomer(ctx context.Context, orderID, 
 		if err := uc.orderRepo.UpdateStatus(ctx, tx, orderID, entity.StatusCancelled, strPtr(customerID), strPtr("cancelled by customer")); err != nil {
 			return err
 		}
-		// Online-paid orders are refunded to the wallet (handled async by payment);
-		// reflect that on the order so the customer doesn't still see "đã thanh toán".
-		if isPaidOnline(order) {
-			if err := uc.orderRepo.UpdatePaymentStatus(ctx, tx, orderID, entity.PaymentRefunded); err != nil {
-				return err
-			}
-		}
+		// payment_status stays PAID here on purpose: the payment service is the
+		// source of truth for refunds. It consumes order.cancelled, credits the
+		// wallet, then publishes payment.refunded — which flips this order's
+		// payment_status. Writing REFUNDED synchronously would claim a refund
+		// that may never have happened.
 
 		evt := cancelledEvent(order, "customer", traceID)
 		return uc.outboxRepo.Append(ctx, tx, evt)
@@ -181,11 +179,8 @@ func (uc *orderLifecycleUsecase) RejectByStore(ctx context.Context, orderID, sto
 		if err := uc.orderRepo.UpdateStatus(ctx, tx, orderID, entity.StatusRejected, strPtr(storeID), strPtr("rejected by store")); err != nil {
 			return err
 		}
-		if isPaidOnline(order) {
-			if err := uc.orderRepo.UpdatePaymentStatus(ctx, tx, orderID, entity.PaymentRefunded); err != nil {
-				return err
-			}
-		}
+		// payment_status flips to REFUNDED via the payment.refunded event once
+		// the refund is actually credited (see customer-cancel note above).
 
 		evt := cancelledEvent(order, "store", traceID)
 		return uc.outboxRepo.Append(ctx, tx, evt)

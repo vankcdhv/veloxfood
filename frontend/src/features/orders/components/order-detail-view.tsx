@@ -300,9 +300,18 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
           {displayOrder.PaymentStatus && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Trạng thái TT</span>
-              <Badge variant={paymentStatusVariant(displayOrder.PaymentStatus)} className="text-xs">
-                {paymentStatusLabel(displayOrder.PaymentStatus)}
-              </Badge>
+              {/* A cancelled order that was paid online stays PAID until the
+                  payment service confirms the refund (payment.refunded event) —
+                  show the in-between state instead of a confusing "đã thanh toán". */}
+              {isClosed && displayOrder.PaymentStatus === 'PAID' ? (
+                <Badge variant="warning" className="text-xs">
+                  Đang hoàn tiền…
+                </Badge>
+              ) : (
+                <Badge variant={paymentStatusVariant(displayOrder.PaymentStatus)} className="text-xs">
+                  {paymentStatusLabel(displayOrder.PaymentStatus)}
+                </Badge>
+              )}
             </div>
           )}
         </CardContent>
