@@ -41,7 +41,21 @@ func main() {
 		// ── Usecases ──────────────────────────────────────────────────────────
 		cartUC := usecase.NewCartUsecase(cartRepo)
 		compRepo := persistence.NewCompensationGormRepository(deps.DB)
-		placeOrderUC := usecase.NewPlaceOrderUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, compRepo, storeClient, promoClient, paymentClient)
+		// Convert failed-dial nil pointers into true nil interfaces so the
+		// usecase's nil guards work (a typed-nil in an interface is non-nil).
+		var storeGW usecase.StoreGateway
+		if storeClient != nil {
+			storeGW = storeClient
+		}
+		var promoGW usecase.PromotionGateway
+		if promoClient != nil {
+			promoGW = promoClient
+		}
+		var paymentGW usecase.PaymentGateway
+		if paymentClient != nil {
+			paymentGW = paymentClient
+		}
+		placeOrderUC := usecase.NewPlaceOrderUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, compRepo, storeGW, promoGW, paymentGW)
 		lifecycleUC := usecase.NewOrderLifecycleUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, storeClient, promoClient, paymentClient, audit.NewGormLogger(deps.DB))
 
 		// ── HTTP router ───────────────────────────────────────────────────────

@@ -50,27 +50,46 @@ type PlaceOrderUsecase interface {
 	PlaceOrder(ctx context.Context, req PlaceOrderRequest) (*PlaceOrderResult, error)
 }
 
+// Saga-participant gateways. The concrete grpcclient types satisfy these;
+// tests inject stubs to exercise the compensation branches.
+type StoreGateway interface {
+	GetStoreForOrder(ctx context.Context, storeID, roomID, locationLevel string) (*grpcclient.StoreForOrderResult, error)
+}
+
+type PromotionGateway interface {
+	ApplyPromotion(ctx context.Context, orderID, storeID, customerID string, codes []string, subtotal int64, itemCount int32) (*grpcclient.PromotionApplyResult, error)
+	ConfirmUsage(ctx context.Context, orderID string) error
+	ReleaseUsage(ctx context.Context, orderID string) error
+}
+
+type PaymentGateway interface {
+	Capture(ctx context.Context, orderID, customerID string, amount int64, method string) (*grpcclient.PaymentCaptureResult, error)
+	Refund(ctx context.Context, orderID string, amount int64) error
+}
+
 type placeOrderUsecase struct {
 	db            *gorm.DB
 	orderRepo     repository.OrderRepository
 	cartRepo      repository.CartRepository
 	outboxRepo    repository.OutboxRepository
 	compRepo      repository.CompensationRepository
-	storeClient   *grpcclient.StoreClient
-	promoClient   *grpcclient.PromotionClient
-	paymentClient *grpcclient.PaymentClient
+	storeClient   StoreGateway
+	promoClient   PromotionGateway
+	paymentClient PaymentGateway
 }
 
-// NewPlaceOrderUsecase constructs the saga orchestrator.
+// NewPlaceOrderUsecase constructs the saga orchestrator. Gateway params are
+// interfaces — pass a true nil interface (not a typed-nil pointer) when a
+// downstream client failed to dial.
 func NewPlaceOrderUsecase(
 	db *gorm.DB,
 	orderRepo repository.OrderRepository,
 	cartRepo repository.CartRepository,
 	outboxRepo repository.OutboxRepository,
 	compRepo repository.CompensationRepository,
-	storeClient *grpcclient.StoreClient,
-	promoClient *grpcclient.PromotionClient,
-	paymentClient *grpcclient.PaymentClient,
+	storeClient StoreGateway,
+	promoClient PromotionGateway,
+	paymentClient PaymentGateway,
 ) PlaceOrderUsecase {
 	return &placeOrderUsecase{
 		db:            db,
