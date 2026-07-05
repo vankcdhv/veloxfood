@@ -32,6 +32,10 @@ func (p *recordingPromo) ApplyPromotion(_ context.Context, _, _, _ string, _ []s
 	return &grpcclient.PromotionApplyResult{Success: true, ItemDiscount: 5000}, nil
 }
 
+func (p *recordingPromo) QuotePromotion(_ context.Context, _, _ string, _ []string, _ int64, _ int32) (*grpcclient.PromotionApplyResult, error) {
+	return &grpcclient.PromotionApplyResult{Success: true, ItemDiscount: 5000}, nil
+}
+
 func (p *recordingPromo) ConfirmUsage(_ context.Context, _ string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -72,6 +76,10 @@ func (p *recordingPayment) Refund(_ context.Context, _ string, _ int64) error {
 	return p.refundErr
 }
 
+func (p *recordingPayment) GetPaymentStatus(_ context.Context, _ string) (*grpcclient.PaymentStatusResult, error) {
+	return &grpcclient.PaymentStatusResult{Status: "PAID"}, nil
+}
+
 func placeReq() usecase.PlaceOrderRequest {
 	return usecase.PlaceOrderRequest{
 		CustomerID:    testCustomerID,
@@ -89,7 +97,10 @@ func newRealPlaceOrderUC(t *testing.T, env *testEnv, promo *recordingPromo, pay 
 	cartRepo := persistence.NewCartGormRepository(env.db)
 	outboxRepo := persistence.NewOutboxGormRepository(env.db)
 	compRepo := persistence.NewCompensationGormRepository(env.db)
-	return usecase.NewPlaceOrderUsecase(env.db, orderRepo, cartRepo, outboxRepo, compRepo, &stubStore{}, promo, pay)
+	// Engine "inline" — these tests exercise the hand-rolled saga; the DTM
+	// path needs a live coordinator and is covered by the E2E smoke.
+	return usecase.NewPlaceOrderUsecase(env.db, orderRepo, cartRepo, outboxRepo, compRepo, &stubStore{}, promo, pay,
+		usecase.SagaSettings{Engine: "inline"})
 }
 
 func TestPlaceOrderSaga_CaptureFails_ReleasesPromotion(t *testing.T) {

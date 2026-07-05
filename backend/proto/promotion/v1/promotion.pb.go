@@ -24,15 +24,20 @@ const (
 // ApplyPromotionRequest is sent by the order service to reserve promotions before
 // an order is confirmed. Each code maps to one promotion row.
 type ApplyPromotionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
-	StoreId       string                 `protobuf:"bytes,2,opt,name=store_id,json=storeId,proto3" json:"store_id,omitempty"`
-	CustomerId    string                 `protobuf:"bytes,3,opt,name=customer_id,json=customerId,proto3" json:"customer_id,omitempty"`
-	Codes         []string               `protobuf:"bytes,4,rep,name=codes,proto3" json:"codes,omitempty"`
-	Subtotal      int64                  `protobuf:"varint,5,opt,name=subtotal,proto3" json:"subtotal,omitempty"` // VND
-	ItemCount     int32                  `protobuf:"varint,6,opt,name=item_count,json=itemCount,proto3" json:"item_count,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	OrderId    string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	StoreId    string                 `protobuf:"bytes,2,opt,name=store_id,json=storeId,proto3" json:"store_id,omitempty"`
+	CustomerId string                 `protobuf:"bytes,3,opt,name=customer_id,json=customerId,proto3" json:"customer_id,omitempty"`
+	Codes      []string               `protobuf:"bytes,4,rep,name=codes,proto3" json:"codes,omitempty"`
+	Subtotal   int64                  `protobuf:"varint,5,opt,name=subtotal,proto3" json:"subtotal,omitempty"` // VND
+	ItemCount  int32                  `protobuf:"varint,6,opt,name=item_count,json=itemCount,proto3" json:"item_count,omitempty"`
+	// When check_expected is set (DTM saga), the reservation must grant exactly
+	// expected_discount (the pre-saga quote) — any drift (e.g. the voucher ran
+	// out in between) aborts the branch so the saga rolls back.
+	ExpectedDiscount int64 `protobuf:"varint,7,opt,name=expected_discount,json=expectedDiscount,proto3" json:"expected_discount,omitempty"`
+	CheckExpected    bool  `protobuf:"varint,8,opt,name=check_expected,json=checkExpected,proto3" json:"check_expected,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ApplyPromotionRequest) Reset() {
@@ -105,6 +110,20 @@ func (x *ApplyPromotionRequest) GetItemCount() int32 {
 		return x.ItemCount
 	}
 	return 0
+}
+
+func (x *ApplyPromotionRequest) GetExpectedDiscount() int64 {
+	if x != nil {
+		return x.ExpectedDiscount
+	}
+	return 0
+}
+
+func (x *ApplyPromotionRequest) GetCheckExpected() bool {
+	if x != nil {
+		return x.CheckExpected
+	}
+	return false
 }
 
 // AppliedCode carries the discount breakdown for a single promotion code.
@@ -582,7 +601,7 @@ var File_proto_promotion_v1_promotion_proto protoreflect.FileDescriptor
 
 const file_proto_promotion_v1_promotion_proto_rawDesc = "" +
 	"\n" +
-	"\"proto/promotion/v1/promotion.proto\x12\fpromotion.v1\"\xbf\x01\n" +
+	"\"proto/promotion/v1/promotion.proto\x12\fpromotion.v1\"\x93\x02\n" +
 	"\x15ApplyPromotionRequest\x12\x19\n" +
 	"\border_id\x18\x01 \x01(\tR\aorderId\x12\x19\n" +
 	"\bstore_id\x18\x02 \x01(\tR\astoreId\x12\x1f\n" +
@@ -591,7 +610,9 @@ const file_proto_promotion_v1_promotion_proto_rawDesc = "" +
 	"\x05codes\x18\x04 \x03(\tR\x05codes\x12\x1a\n" +
 	"\bsubtotal\x18\x05 \x01(\x03R\bsubtotal\x12\x1d\n" +
 	"\n" +
-	"item_count\x18\x06 \x01(\x05R\titemCount\"M\n" +
+	"item_count\x18\x06 \x01(\x05R\titemCount\x12+\n" +
+	"\x11expected_discount\x18\a \x01(\x03R\x10expectedDiscount\x12%\n" +
+	"\x0echeck_expected\x18\b \x01(\bR\rcheckExpected\"M\n" +
 	"\vAppliedCode\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x16\n" +

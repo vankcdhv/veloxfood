@@ -13,6 +13,11 @@ message ApplyPromotionRequest {
   repeated string codes = 4;
   int64  subtotal    = 5; // VND
   int32  item_count  = 6;
+  // When check_expected is set (DTM saga), the reservation must grant exactly
+  // expected_discount (the pre-saga quote) — any drift (e.g. the voucher ran
+  // out in between) aborts the branch so the saga rolls back.
+  int64  expected_discount = 7;
+  bool   check_expected    = 8;
 }
 
 // AppliedCode carries the discount breakdown for a single promotion code.

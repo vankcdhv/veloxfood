@@ -5,12 +5,20 @@ import (
 	"database/sql"
 
 	"github.com/dtm-labs/client/dtmgrpc"
+	"github.com/dtm-labs/client/dtmgrpc/dtmgimp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
+
+// IsDTMBranch reports whether the incoming gRPC call was made by the DTM
+// server as a saga branch. Branch calls signal business failure through gRPC
+// status codes (Aborted = roll back); direct calls keep body-level results.
+func IsDTMBranch(ctx context.Context) bool {
+	return dtmgimp.TransBaseFromGrpc(ctx).Gid != ""
+}
 
 // RunWithBarrier executes fn inside a database transaction, guarded by the
 // DTM sub-transaction barrier when ctx carries DTM branch metadata (i.e. the

@@ -52,6 +52,27 @@ func (c *PromotionClient) ApplyPromotion(ctx context.Context, orderID, storeID, 
 	}, nil
 }
 
+// QuotePromotion computes the discount without reserving quota — the DTM
+// place-order path prices the order before opening the saga.
+func (c *PromotionClient) QuotePromotion(ctx context.Context, storeID, customerID string, codes []string, subtotal int64, itemCount int32) (*PromotionApplyResult, error) {
+	resp, err := c.client.QuotePromotion(ctx, &promotionv1.QuotePromotionRequest{
+		StoreId:    storeID,
+		CustomerId: customerID,
+		Codes:      codes,
+		Subtotal:   subtotal,
+		ItemCount:  itemCount,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("promotion.QuotePromotion: %w", err)
+	}
+	return &PromotionApplyResult{
+		Success:      resp.GetSuccess(),
+		ItemDiscount: resp.GetItemDiscount(),
+		ShipDiscount: resp.GetShipDiscount(),
+		ErrorReason:  resp.GetErrorReason(),
+	}, nil
+}
+
 // ConfirmUsage transitions RESERVED → CONFIRMED after order is persisted.
 func (c *PromotionClient) ConfirmUsage(ctx context.Context, orderID string) error {
 	resp, err := c.client.ConfirmUsage(ctx, &promotionv1.ConfirmUsageRequest{OrderId: orderID})

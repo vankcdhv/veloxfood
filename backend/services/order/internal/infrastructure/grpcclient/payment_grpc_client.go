@@ -52,6 +52,30 @@ func (c *PaymentClient) Capture(ctx context.Context, orderID, customerID string,
 	}, nil
 }
 
+// PaymentStatusResult is the outcome of GetPaymentStatus.
+type PaymentStatusResult struct {
+	Status string // UNPAID | PAID | REFUNDED
+	Method string
+	Amount int64
+	PayURL string // MoMo checkout link persisted at capture time
+}
+
+// GetPaymentStatus reads the payment state for an order — the DTM place-order
+// path uses it to fetch the MoMo pay_url after the saga completes (branch
+// responses are not forwarded to the saga opener).
+func (c *PaymentClient) GetPaymentStatus(ctx context.Context, orderID string) (*PaymentStatusResult, error) {
+	resp, err := c.client.GetPaymentStatus(ctx, &paymentv1.GetPaymentStatusRequest{OrderId: orderID})
+	if err != nil {
+		return nil, fmt.Errorf("payment.GetPaymentStatus: %w", err)
+	}
+	return &PaymentStatusResult{
+		Status: resp.GetStatus(),
+		Method: resp.GetMethod(),
+		Amount: resp.GetAmount(),
+		PayURL: resp.GetPayUrl(),
+	}, nil
+}
+
 // Refund credits 100% of the captured amount back to the customer wallet.
 // Idempotent by order_id.
 func (c *PaymentClient) Refund(ctx context.Context, orderID string, amount int64) error {

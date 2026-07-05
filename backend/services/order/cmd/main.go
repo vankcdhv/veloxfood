@@ -55,7 +55,13 @@ func main() {
 		if paymentClient != nil {
 			paymentGW = paymentClient
 		}
-		placeOrderUC := usecase.NewPlaceOrderUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, compRepo, storeGW, promoGW, paymentGW)
+		sagaCfg := usecase.SagaSettings{
+			Engine:          deps.Config.Saga.Engine,
+			DTMAddr:         deps.Config.DTM.Addr,
+			PromotionBranch: deps.Config.Saga.BranchAddr.Promotion,
+			PaymentBranch:   deps.Config.Saga.BranchAddr.Payment,
+		}
+		placeOrderUC := usecase.NewPlaceOrderUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, compRepo, storeGW, promoGW, paymentGW, sagaCfg)
 		lifecycleUC := usecase.NewOrderLifecycleUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, storeClient, promoClient, paymentClient, audit.NewGormLogger(deps.DB))
 
 		// ── HTTP router ───────────────────────────────────────────────────────

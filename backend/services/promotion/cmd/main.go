@@ -6,6 +6,7 @@ import (
 	"project/pkg/app"
 	"project/pkg/audit"
 	"project/pkg/middleware"
+	"project/pkg/saga"
 	promotionv1 "project/proto/promotion/v1"
 	grpchandler "project/services/promotion/internal/handler/grpc"
 	handlerhttp "project/services/promotion/internal/handler/http"
@@ -20,6 +21,9 @@ import (
 
 func main() {
 	a := app.New("promotion-service").WithConfigPath("config/promotion.yaml")
+
+	// Promotion is a DTM saga participant — point the barrier at Postgres.
+	saga.Setup()
 
 	a.RegisterHTTP(func(r *gin.Engine, deps app.Dependencies) {
 		r.Use(middleware.RequestMetadata())
@@ -66,7 +70,7 @@ func main() {
 		usageRepo := persistence.NewPromotionUsageGormRepository(deps.DB)
 		applyUC := usecase.NewApplyUsecase(deps.DB, promoRepo, usageRepo)
 
-		promotionv1.RegisterPromotionServiceServer(s, grpchandler.NewPromotionServiceServer(applyUC))
+		promotionv1.RegisterPromotionServiceServer(s, grpchandler.NewPromotionServiceServer(deps.DB, applyUC))
 	})
 
 	a.Run()

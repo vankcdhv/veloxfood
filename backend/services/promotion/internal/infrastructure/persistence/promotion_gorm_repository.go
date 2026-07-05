@@ -124,8 +124,8 @@ func (r *promotionUsageGormRepository) ListByOrderID(ctx context.Context, orderI
 	return rows, err
 }
 
-func (r *promotionUsageGormRepository) ConfirmByOrderID(ctx context.Context, orderID string) error {
-	return r.db.WithContext(ctx).
+func (r *promotionUsageGormRepository) ConfirmByOrderID(ctx context.Context, tx *gorm.DB, orderID string) error {
+	return tx.WithContext(ctx).
 		Model(&entity.PromotionUsage{}).
 		Where("order_id = ? AND status = ?", orderID, "RESERVED").
 		Updates(map[string]any{"status": "CONFIRMED"}).Error

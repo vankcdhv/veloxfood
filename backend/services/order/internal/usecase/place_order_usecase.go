@@ -3,10 +3,12 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"time"
 
 	"project/pkg/outbox"
+	"project/pkg/saga"
 	"project/services/order/internal/entity"
 	"project/services/order/internal/infrastructure/grpcclient"
 	"project/services/order/internal/repository"
@@ -58,6 +60,7 @@ type StoreGateway interface {
 
 type PromotionGateway interface {
 	ApplyPromotion(ctx context.Context, orderID, storeID, customerID string, codes []string, subtotal int64, itemCount int32) (*grpcclient.PromotionApplyResult, error)
+	QuotePromotion(ctx context.Context, storeID, customerID string, codes []string, subtotal int64, itemCount int32) (*grpcclient.PromotionApplyResult, error)
 	ConfirmUsage(ctx context.Context, orderID string) error
 	ReleaseUsage(ctx context.Context, orderID string) error
 }
@@ -65,6 +68,18 @@ type PromotionGateway interface {
 type PaymentGateway interface {
 	Capture(ctx context.Context, orderID, customerID string, amount int64, method string) (*grpcclient.PaymentCaptureResult, error)
 	Refund(ctx context.Context, orderID string, amount int64) error
+	GetPaymentStatus(ctx context.Context, orderID string) (*grpcclient.PaymentStatusResult, error)
+}
+
+// SagaSettings selects the saga engine and addresses the DTM coordinator.
+// Branch addresses are the participants' gRPC endpoints as reachable FROM the
+// DTM server (a container): host.docker.internal:PORT in dev, compose service
+// names in docker. Empty settings disable the DTM path entirely.
+type SagaSettings struct {
+	Engine          string // "dtm" (default) | "inline"
+	DTMAddr         string // DTM server gRPC address
+	PromotionBranch string
+	PaymentBranch   string
 }
 
 type placeOrderUsecase struct {
@@ -76,6 +91,7 @@ type placeOrderUsecase struct {
 	storeClient   StoreGateway
 	promoClient   PromotionGateway
 	paymentClient PaymentGateway
+	sagaCfg       SagaSettings
 }
 
 // NewPlaceOrderUsecase constructs the saga orchestrator. Gateway params are
@@ -90,6 +106,7 @@ func NewPlaceOrderUsecase(
 	storeClient StoreGateway,
 	promoClient PromotionGateway,
 	paymentClient PaymentGateway,
+	sagaCfg SagaSettings,
 ) PlaceOrderUsecase {
 	return &placeOrderUsecase{
 		db:            db,
@@ -100,21 +117,63 @@ func NewPlaceOrderUsecase(
 		storeClient:   storeClient,
 		promoClient:   promoClient,
 		paymentClient: paymentClient,
+		sagaCfg:       sagaCfg,
 	}
 }
 
-// PlaceOrder executes the synchronous saga:
+// orderDraft carries the validated, priced inputs shared by both saga engines.
+type orderDraft struct {
+	priceMap    map[string]grpcclient.StoreOrderItem
+	orderItems  []*entity.OrderItem
+	itemsTotal  int64
+	shipFee     int64
+	desiredTime *time.Time
+	totalQty    int32
+}
+
+// errDTMUnavailable marks a DTM path that never got off the ground (server
+// unreachable before anything was submitted) — safe to fall back to inline.
+var errDTMUnavailable = errors.New("dtm coordinator unavailable")
+
+// PlaceOrder validates and prices the request, then runs the placement saga on
+// the configured engine:
+//   - dtm:    the DTM server coordinates the branches (automatic retry,
+//     reverse compensation, sub-transaction barrier); the order row
+//     persists locally after the saga succeeds.
+//   - inline: hand-rolled in-process orchestration, kept as fallback and for
+//     failure-injection comparison.
+//
+// If DTM is selected but unreachable before anything was submitted, placement
+// falls back to inline — an order must never fail only because the
+// coordinator is down.
+func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderRequest) (*PlaceOrderResult, error) {
+	draft, err := uc.prepareDraft(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if uc.dtmEnabled() {
+		res, dtmErr := uc.placeViaDTM(ctx, req, draft)
+		if !errors.Is(dtmErr, errDTMUnavailable) {
+			return res, dtmErr
+		}
+		slog.ErrorContext(ctx, "place order: DTM unreachable — falling back to inline saga", "err", dtmErr)
+	}
+	return uc.placeInline(ctx, req, draft)
+}
+
+// dtmEnabled reports whether the DTM engine is selected AND fully addressed.
+func (uc *placeOrderUsecase) dtmEnabled() bool {
+	return saga.ResolveEngine(uc.sagaCfg.Engine) == saga.EngineDTM &&
+		uc.sagaCfg.DTMAddr != "" &&
+		uc.sagaCfg.PromotionBranch != "" &&
+		uc.sagaCfg.PaymentBranch != ""
+}
+
+// prepareDraft runs the read-only part of placement:
 //  1. Validate store (open-now gate, desired_time window)
 //  2. Resolve prices + ship_fee
-//  3. Apply promotions (gRPC)
-//  4. Capture payment (gRPC, WALLET/MOMO only)
-//  5. Persist order + items + history + outbox in one DB tx
-//
-// Compensation on any failure (in reverse order):
-// Payment.Refund → Promotion.ReleaseUsage
-func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderRequest) (*PlaceOrderResult, error) {
-	traceID := outbox.TraceIDFromCtx(ctx)
-
+func (uc *placeOrderUsecase) prepareDraft(ctx context.Context, req PlaceOrderRequest) (*orderDraft, error) {
 	// ── Step 1: Validate store ────────────────────────────────────────────────
 	if uc.storeClient == nil {
 		return nil, ErrStoreNotFound
@@ -205,18 +264,37 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		shipFee = storeInfo.UnitShipFee
 	}
 
+	var totalQty int32
+	for _, ri := range req.Items {
+		totalQty += int32(ri.Qty)
+	}
+
+	return &orderDraft{
+		priceMap:    priceMap,
+		orderItems:  orderItems,
+		itemsTotal:  itemsTotal,
+		shipFee:     shipFee,
+		desiredTime: desiredTimePtr,
+		totalQty:    totalQty,
+	}, nil
+}
+
+// placeInline executes the hand-rolled synchronous saga:
+//  3. Apply promotions (gRPC)
+//  4. Capture payment (gRPC, WALLET/MOMO only)
+//  5. Persist order + items + history + outbox in one DB tx
+//
+// Compensation on any failure (in reverse order):
+// Payment.Refund → Promotion.ReleaseUsage
+func (uc *placeOrderUsecase) placeInline(ctx context.Context, req PlaceOrderRequest, d *orderDraft) (*PlaceOrderResult, error) {
 	// ── Step 3: Apply promotions ──────────────────────────────────────────────
 	orderID := outbox.NewEventID() // pre-generate so saga steps share it
 	var discount int64
 
 	if len(req.VoucherCodes) > 0 && uc.promoClient != nil {
-		var totalItems int32
-		for _, ri := range req.Items {
-			totalItems += int32(ri.Qty)
-		}
 		promoResult, promoErr := uc.promoClient.ApplyPromotion(
 			ctx, orderID, req.StoreID, req.CustomerID,
-			req.VoucherCodes, itemsTotal, totalItems,
+			req.VoucherCodes, d.itemsTotal, d.totalQty,
 		)
 		if promoErr != nil {
 			slog.WarnContext(ctx, "place order: promotion apply failed", "err", promoErr)
@@ -228,7 +306,7 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		discount = promoResult.ItemDiscount + promoResult.ShipDiscount
 	}
 
-	grandTotal := itemsTotal + shipFee - discount
+	grandTotal := d.itemsTotal + d.shipFee - discount
 	if grandTotal < 0 {
 		grandTotal = 0
 	}
@@ -260,6 +338,24 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 			return nil, ErrPromotionInvalid
 		}
 	}
+
+	return uc.persistPlacedOrder(ctx, req, d, orderID, discount, grandTotal, paymentStatus, payURL)
+}
+
+// persistPlacedOrder assigns the order code and writes order + items + status
+// history + the frozen order.placed event in one transaction. Both saga
+// engines share it; a persistence failure schedules full compensation.
+func (uc *placeOrderUsecase) persistPlacedOrder(
+	ctx context.Context, req PlaceOrderRequest, d *orderDraft,
+	orderID string, discount, grandTotal int64,
+	paymentStatus entity.PaymentStatus, payURL string,
+) (*PlaceOrderResult, error) {
+	traceID := outbox.TraceIDFromCtx(ctx)
+	desiredTimePtr := d.desiredTime
+	priceMap := d.priceMap
+	itemsTotal := d.itemsTotal
+	shipFee := d.shipFee
+	orderItems := d.orderItems
 
 	codeDay := time.Now().UTC()
 	codeSeq, seqErr := uc.orderRepo.NextDailyCodeSeq(ctx, codeDay)

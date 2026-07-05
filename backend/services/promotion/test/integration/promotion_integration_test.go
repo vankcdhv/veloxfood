@@ -116,7 +116,7 @@ func setupDB(t *testing.T) (*testEnv, *gorm.DB) {
 	usageRepo := persistence.NewPromotionUsageGormRepository(db)
 	promoUC := usecase.NewPromotionUsecase(db, promoRepo, usageRepo, storeClient)
 	applyUC := usecase.NewApplyUsecase(db, promoRepo, usageRepo)
-	grpcSrv := grpchandler.NewPromotionServiceServer(applyUC)
+	grpcSrv := grpchandler.NewPromotionServiceServer(db, applyUC)
 
 	env := &testEnv{
 		db:       db,

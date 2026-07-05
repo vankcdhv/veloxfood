@@ -163,10 +163,15 @@ func (x *CaptureResponse) GetError() string {
 
 // RefundRequest triggers a 100% refund to the customer wallet.
 // Idempotent by order_id.
+//
+// Field numbers are wire-compatible with CaptureRequest: the DTM saga sends
+// one payload to both a branch's action and its compensation, so when Refund
+// compensates Capture it receives CaptureRequest bytes. order_id(1) and
+// amount(3) line up; CaptureRequest's other fields decode as unknowns.
 type RefundRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
-	Amount        int64                  `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"` // VND (must match original captured amount)
+	Amount        int64                  `protobuf:"varint,3,opt,name=amount,proto3" json:"amount,omitempty"` // VND (must match original captured amount)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -397,10 +402,10 @@ const file_proto_payment_v1_payment_proto_rawDesc = "" +
 	"payment_id\x18\x01 \x01(\tR\tpaymentId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12\x17\n" +
 	"\apay_url\x18\x03 \x01(\tR\x06payUrl\x12\x14\n" +
-	"\x05error\x18\x04 \x01(\tR\x05error\"B\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"H\n" +
 	"\rRefundRequest\x12\x19\n" +
 	"\border_id\x18\x01 \x01(\tR\aorderId\x12\x16\n" +
-	"\x06amount\x18\x02 \x01(\x03R\x06amount\"G\n" +
+	"\x06amount\x18\x03 \x01(\x03R\x06amountJ\x04\b\x02\x10\x03\"G\n" +
 	"\x0eRefundResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1b\n" +
 	"\trefund_id\x18\x02 \x01(\tR\brefundId\"4\n" +

@@ -35,6 +35,12 @@ type ApplyRequest struct {
 	Codes      []string
 	Subtotal   int64
 	ItemCount  int32
+	// CheckExpected enforces that the reservation grants exactly
+	// ExpectedDiscount (the caller's pre-saga quote). Any drift — e.g. the
+	// voucher ran out between quote and apply — fails the request so a DTM
+	// saga rolls back instead of charging a price the customer never saw.
+	ExpectedDiscount int64
+	CheckExpected    bool
 }
 
 // ApplyUsecase handles the saga-participant gRPC operations.
@@ -47,8 +53,17 @@ type ApplyUsecase interface {
 	// without reserving quota. Order quotes the price before opening a saga.
 	QuotePromotion(ctx context.Context, req ApplyRequest) (*ApplyResult, error)
 
+	// ApplyPromotionInTx is ApplyPromotion inside a caller-owned transaction —
+	// DTM branch handlers run it under the sub-transaction barrier. A business
+	// rejection returns Success=false with a nil error; the caller must then
+	// abort its transaction to undo partial reservations.
+	ApplyPromotionInTx(ctx context.Context, tx *gorm.DB, req ApplyRequest) (*ApplyResult, error)
+
 	// ConfirmUsage transitions RESERVED usages for an order to CONFIRMED.
 	ConfirmUsage(ctx context.Context, orderID string) error
+
+	// ConfirmUsageInTx is ConfirmUsage inside a caller-owned transaction.
+	ConfirmUsageInTx(ctx context.Context, tx *gorm.DB, orderID string) error
 
 	// ReleaseUsage voids RESERVED usages for an order and decrements used_count.
 	ReleaseUsage(ctx context.Context, orderID string) error
@@ -87,80 +102,16 @@ func NewApplyUsecase(
 // FOR UPDATE locks on each promotion row prevent concurrent over-redemption when
 // two requests race on the same voucher with usage_limit=1.
 func (uc *applyUsecase) ApplyPromotion(ctx context.Context, req ApplyRequest) (*ApplyResult, error) {
-	// Idempotency check: if RESERVED usages already exist for this order, return
-	// the existing breakdown without touching the DB further.
-	existing, err := uc.usageRepo.ListByOrderID(ctx, req.OrderID)
-	if err != nil {
-		return failResult("internal error"), nil
-	}
-	if len(existing) > 0 {
-		return buildResultFromExisting(existing), nil
-	}
-
 	var result *ApplyResult
 	txErr := uc.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		now := time.Now()
-		var appliedCodes []AppliedCode
-		var itemDiscount, shipDiscount int64
-
-		// Track types already granted in this request to enforce ≤1 per type.
-		grantedTypes := map[string]bool{}
-
-		for _, code := range req.Codes {
-			p, err := uc.promoRepo.GetByStoreAndCodeForUpdate(ctx, tx, req.StoreID, code)
-			if err != nil {
-				result = failResult("promotion not found: " + code)
-				return errRollback
-			}
-
-			if reason := validatePromotion(p, req.StoreID, req.Subtotal, now); reason != "" {
-				result = failResult(reason)
-				return errRollback
-			}
-
-			// Enforce at most one ORDER_DISCOUNT and one SHIP_DISCOUNT per order.
-			if grantedTypes[p.Type] {
-				result = failResult("cannot apply two " + p.Type + " promotions to one order")
-				return errRollback
-			}
-			grantedTypes[p.Type] = true
-
-			amount := computeDiscount(p, req.Subtotal)
-
-			// Insert usage row (UNIQUE(order_id, promotion_id) prevents double-insert).
-			usage := &entity.PromotionUsage{
-				PromotionID:   p.ID,
-				OrderID:       req.OrderID,
-				CustomerID:    req.CustomerID,
-				Code:          code,
-				Type:          p.Type,
-				AppliedAmount: amount,
-				Status:        "RESERVED",
-			}
-			if err := uc.usageRepo.Create(ctx, tx, usage); err != nil {
-				result = failResult("failed to reserve promotion")
-				return errRollback
-			}
-
-			if err := uc.promoRepo.IncrementUsedCount(ctx, tx, p.ID); err != nil {
-				result = failResult("failed to reserve promotion")
-				return errRollback
-			}
-
-			appliedCodes = append(appliedCodes, AppliedCode{Code: code, Type: p.Type, Amount: amount})
-			switch p.Type {
-			case "ORDER_DISCOUNT":
-				itemDiscount += amount
-			case "SHIP_DISCOUNT":
-				shipDiscount += amount
-			}
+		r, err := uc.ApplyPromotionInTx(ctx, tx, req)
+		if err != nil {
+			return err
 		}
-
-		result = &ApplyResult{
-			Success:      true,
-			ItemDiscount: itemDiscount,
-			ShipDiscount: shipDiscount,
-			Applied:      appliedCodes,
+		result = r
+		if !r.Success {
+			// Roll back partial reservations; the reason travels in `result`.
+			return errRollback
 		}
 		return nil
 	})
@@ -173,6 +124,93 @@ func (uc *applyUsecase) ApplyPromotion(ctx context.Context, req ApplyRequest) (*
 		return failResult("internal error"), nil
 	}
 	return result, nil
+}
+
+// ApplyPromotionInTx reserves the requested codes inside a caller-owned
+// transaction. Business rejections come back as Success=false (nil error) —
+// the caller decides how to abort so partial usage inserts roll back with it.
+func (uc *applyUsecase) ApplyPromotionInTx(ctx context.Context, tx *gorm.DB, req ApplyRequest) (*ApplyResult, error) {
+	// Idempotency: if usages already exist for this order, return the existing
+	// breakdown (still subject to the expected-discount check below).
+	existing, err := uc.usageRepo.ListByOrderID(ctx, req.OrderID)
+	if err != nil {
+		return nil, err
+	}
+	if len(existing) > 0 {
+		return checkExpectedDiscount(buildResultFromExisting(existing), req), nil
+	}
+
+	now := time.Now()
+	var appliedCodes []AppliedCode
+	var itemDiscount, shipDiscount int64
+
+	// Track types already granted in this request to enforce ≤1 per type.
+	grantedTypes := map[string]bool{}
+
+	for _, code := range req.Codes {
+		p, err := uc.promoRepo.GetByStoreAndCodeForUpdate(ctx, tx, req.StoreID, code)
+		if err != nil {
+			return failResult("promotion not found: " + code), nil
+		}
+
+		if reason := validatePromotion(p, req.StoreID, req.Subtotal, now); reason != "" {
+			return failResult(reason), nil
+		}
+
+		// Enforce at most one ORDER_DISCOUNT and one SHIP_DISCOUNT per order.
+		if grantedTypes[p.Type] {
+			return failResult("cannot apply two " + p.Type + " promotions to one order"), nil
+		}
+		grantedTypes[p.Type] = true
+
+		amount := computeDiscount(p, req.Subtotal)
+
+		// Insert usage row (UNIQUE(order_id, promotion_id) prevents double-insert).
+		usage := &entity.PromotionUsage{
+			PromotionID:   p.ID,
+			OrderID:       req.OrderID,
+			CustomerID:    req.CustomerID,
+			Code:          code,
+			Type:          p.Type,
+			AppliedAmount: amount,
+			Status:        "RESERVED",
+		}
+		if err := uc.usageRepo.Create(ctx, tx, usage); err != nil {
+			return failResult("failed to reserve promotion"), nil
+		}
+
+		if err := uc.promoRepo.IncrementUsedCount(ctx, tx, p.ID); err != nil {
+			return failResult("failed to reserve promotion"), nil
+		}
+
+		appliedCodes = append(appliedCodes, AppliedCode{Code: code, Type: p.Type, Amount: amount})
+		switch p.Type {
+		case "ORDER_DISCOUNT":
+			itemDiscount += amount
+		case "SHIP_DISCOUNT":
+			shipDiscount += amount
+		}
+	}
+
+	return checkExpectedDiscount(&ApplyResult{
+		Success:      true,
+		ItemDiscount: itemDiscount,
+		ShipDiscount: shipDiscount,
+		Applied:      appliedCodes,
+	}, req), nil
+}
+
+// checkExpectedDiscount fails a successful reservation whose total discount
+// drifted from the caller's quote (voucher state changed between quote and
+// apply). No-op unless the request opted in.
+func checkExpectedDiscount(r *ApplyResult, req ApplyRequest) *ApplyResult {
+	if !req.CheckExpected || !r.Success {
+		return r
+	}
+	if r.ItemDiscount+r.ShipDiscount != req.ExpectedDiscount {
+		return failResult("discount changed since quote — please retry the order")
+	}
+	return r
 }
 
 // QuotePromotion is the dry-run twin of ApplyPromotion: same validation, same
@@ -219,12 +257,21 @@ func (uc *applyUsecase) QuotePromotion(ctx context.Context, req ApplyRequest) (*
 
 // ConfirmUsage transitions RESERVED → CONFIRMED. Idempotent.
 func (uc *applyUsecase) ConfirmUsage(ctx context.Context, orderID string) error {
-	if err := uc.usageRepo.ConfirmByOrderID(ctx, orderID); err != nil {
+	err := uc.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return uc.ConfirmUsageInTx(ctx, tx, orderID)
+	})
+	if err != nil {
 		slog.ErrorContext(ctx, "promotion: ConfirmUsage failed", "order_id", orderID, "err", err)
 		return err
 	}
 	slog.InfoContext(ctx, "promotion: usages confirmed", "order_id", orderID)
 	return nil
+}
+
+// ConfirmUsageInTx performs the RESERVED→CONFIRMED transition inside a
+// caller-owned transaction (DTM branch handlers run it under the barrier).
+func (uc *applyUsecase) ConfirmUsageInTx(ctx context.Context, tx *gorm.DB, orderID string) error {
+	return uc.usageRepo.ConfirmByOrderID(ctx, tx, orderID)
 }
 
 // ReleaseUsage voids RESERVED usages and decrements used_count for each voided

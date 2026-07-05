@@ -24,9 +24,15 @@ message CaptureResponse {
 
 // RefundRequest triggers a 100% refund to the customer wallet.
 // Idempotent by order_id.
+//
+// Field numbers are wire-compatible with CaptureRequest: the DTM saga sends
+// one payload to both a branch's action and its compensation, so when Refund
+// compensates Capture it receives CaptureRequest bytes. order_id(1) and
+// amount(3) line up; CaptureRequest's other fields decode as unknowns.
 message RefundRequest {
   string order_id = 1;
-  int64  amount   = 2; // VND (must match original captured amount)
+  reserved 2; // string in CaptureRequest (customer_id) — never reuse for a varint
+  int64  amount   = 3; // VND (must match original captured amount)
 }
 
 message RefundResponse {

@@ -47,9 +47,9 @@ type PromotionUsageRepository interface {
 	// ListByOrderID returns all usage rows for a given order.
 	ListByOrderID(ctx context.Context, orderID string) ([]*entity.PromotionUsage, error)
 
-	// ConfirmByOrderID transitions all RESERVED usages for an order to CONFIRMED.
-	// Idempotent — already-CONFIRMED rows are untouched.
-	ConfirmByOrderID(ctx context.Context, orderID string) error
+	// ConfirmByOrderID transitions all RESERVED usages for an order to CONFIRMED
+	// within tx. Idempotent — already-CONFIRMED rows are untouched.
+	ConfirmByOrderID(ctx context.Context, tx *gorm.DB, orderID string) error
 
 	// VoidByOrderID transitions all RESERVED usages for an order to VOIDED.
 	// Returns the voided rows so the caller can decrement used_count.

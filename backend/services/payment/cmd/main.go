@@ -7,6 +7,7 @@ import (
 	"project/pkg/audit"
 	authmw "project/pkg/auth/middleware"
 	"project/pkg/middleware"
+	"project/pkg/saga"
 	paymentv1 "project/proto/payment/v1"
 	grpchandler "project/services/payment/internal/handler/grpc"
 	payevent "project/services/payment/internal/handler/event"
@@ -23,6 +24,9 @@ import (
 
 func main() {
 	a := app.New("payment-service").WithConfigPath("config/payment.yaml")
+
+	// Payment is a DTM saga participant — point the barrier at Postgres.
+	saga.Setup()
 
 	a.RegisterHTTP(func(r *gin.Engine, deps app.Dependencies) {
 		r.Use(middleware.RequestMetadata())
@@ -101,7 +105,7 @@ func main() {
 		)
 		refundUC := usecase.NewRefundUsecase(deps.DB, walletRepo, ledgerRepo, paymentRepo, outboxRepo)
 
-		paymentv1.RegisterPaymentServiceServer(s, grpchandler.NewPaymentServiceServer(captureUC, refundUC, paymentRepo))
+		paymentv1.RegisterPaymentServiceServer(s, grpchandler.NewPaymentServiceServer(deps.DB, captureUC, refundUC, paymentRepo))
 	})
 
 	a.Run()
