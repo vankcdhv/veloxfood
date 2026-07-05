@@ -27,6 +27,7 @@ import (
 	orderevent "project/services/order/internal/handler/event"
 	handlerhttp "project/services/order/internal/handler/http"
 	v1 "project/services/order/internal/handler/http/v1"
+	"project/services/order/internal/entity"
 	"project/services/order/internal/infrastructure/grpcclient"
 	"project/services/order/internal/infrastructure/persistence"
 	"project/services/order/internal/repository"
@@ -63,7 +64,7 @@ const (
 var allTables = []string{
 	"order_status_history", "order_items", "orders",
 	"cart_items", "carts",
-	"outbox_events", "processed_events",
+	"outbox_events", "processed_events", "pending_compensations",
 }
 
 // ── store stub facade ─────────────────────────────────────────────────────────
@@ -821,4 +822,47 @@ func mustPlaceOrderWithDesiredTime(t *testing.T, env *testEnv, desiredTime strin
 		t.Fatalf("mustPlaceOrder: parse: %v", err)
 	}
 	return resp.Data.OrderID
+}
+
+// TestPendingCompensationLifecycle: a persisted rollback intent moves through
+// open → failed(attempts++) → done, and drops out of ListOpen at each terminal
+// state — the contract the compensation worker relies on.
+func TestPendingCompensationLifecycle(t *testing.T) {
+	env := setupEnv(t)
+	repo := persistence.NewCompensationGormRepository(env.db)
+	ctx := context.Background()
+
+	row := &entity.PendingCompensation{
+		OrderID: "3141cd6b-0000-0000-0000-000000000001",
+		Action:  entity.CompensationRefund,
+		Amount:  60000,
+	}
+	if err := repo.Create(ctx, row); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	open, err := repo.ListOpen(ctx, 20, 10)
+	if err != nil || len(open) != 1 {
+		t.Fatalf("ListOpen after create: err=%v len=%d, want 1", err, len(open))
+	}
+
+	if err := repo.MarkFailed(ctx, open[0].ID, "payment unavailable"); err != nil {
+		t.Fatalf("MarkFailed: %v", err)
+	}
+	open, _ = repo.ListOpen(ctx, 20, 10)
+	if len(open) != 1 || open[0].Attempts != 1 || open[0].LastError == nil {
+		t.Fatalf("after MarkFailed: len=%d attempts=%d lastError=%v", len(open), open[0].Attempts, open[0].LastError)
+	}
+
+	// Attempt cap: rows at/over maxAttempts stop being listed.
+	if rows, _ := repo.ListOpen(ctx, 1, 10); len(rows) != 0 {
+		t.Errorf("ListOpen with maxAttempts=1: want 0 rows, got %d", len(rows))
+	}
+
+	if err := repo.MarkDone(ctx, open[0].ID); err != nil {
+		t.Fatalf("MarkDone: %v", err)
+	}
+	if rows, _ := repo.ListOpen(ctx, 20, 10); len(rows) != 0 {
+		t.Errorf("ListOpen after done: want 0 rows, got %d", len(rows))
+	}
 }

@@ -55,6 +55,7 @@ type placeOrderUsecase struct {
 	orderRepo     repository.OrderRepository
 	cartRepo      repository.CartRepository
 	outboxRepo    repository.OutboxRepository
+	compRepo      repository.CompensationRepository
 	storeClient   *grpcclient.StoreClient
 	promoClient   *grpcclient.PromotionClient
 	paymentClient *grpcclient.PaymentClient
@@ -66,6 +67,7 @@ func NewPlaceOrderUsecase(
 	orderRepo repository.OrderRepository,
 	cartRepo repository.CartRepository,
 	outboxRepo repository.OutboxRepository,
+	compRepo repository.CompensationRepository,
 	storeClient *grpcclient.StoreClient,
 	promoClient *grpcclient.PromotionClient,
 	paymentClient *grpcclient.PaymentClient,
@@ -75,6 +77,7 @@ func NewPlaceOrderUsecase(
 		orderRepo:     orderRepo,
 		cartRepo:      cartRepo,
 		outboxRepo:    outboxRepo,
+		compRepo:      compRepo,
 		storeClient:   storeClient,
 		promoClient:   promoClient,
 		paymentClient: paymentClient,
@@ -221,9 +224,7 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 	if req.PaymentMethod != entity.MethodCOD && uc.paymentClient != nil {
 		capResult, capErr := uc.paymentClient.Capture(ctx, orderID, req.CustomerID, grandTotal, string(req.PaymentMethod))
 		if capErr != nil || capResult.Status == "FAILED" {
-			if len(req.VoucherCodes) > 0 && uc.promoClient != nil {
-				_ = uc.promoClient.ReleaseUsage(ctx, orderID)
-			}
+			uc.compensate(ctx, orderID, grandTotal, false, len(req.VoucherCodes) > 0)
 			return nil, apperrorPayment(capErr)
 		}
 		payURL = capResult.PayURL
@@ -236,10 +237,7 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 	if len(req.VoucherCodes) > 0 && uc.promoClient != nil {
 		if confErr := uc.promoClient.ConfirmUsage(ctx, orderID); confErr != nil {
 			slog.WarnContext(ctx, "place order: confirm usage failed — compensating", "err", confErr)
-			if req.PaymentMethod != entity.MethodCOD && uc.paymentClient != nil {
-				_ = uc.paymentClient.Refund(ctx, orderID, grandTotal)
-			}
-			_ = uc.promoClient.ReleaseUsage(ctx, orderID)
+			uc.compensate(ctx, orderID, grandTotal, req.PaymentMethod != entity.MethodCOD, true)
 			return nil, ErrPromotionInvalid
 		}
 	}
@@ -247,12 +245,7 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 	codeDay := time.Now().UTC()
 	codeSeq, seqErr := uc.orderRepo.NextDailyCodeSeq(ctx, codeDay)
 	if seqErr != nil {
-		if req.PaymentMethod != entity.MethodCOD && uc.paymentClient != nil {
-			_ = uc.paymentClient.Refund(ctx, orderID, grandTotal)
-		}
-		if len(req.VoucherCodes) > 0 && uc.promoClient != nil {
-			_ = uc.promoClient.ReleaseUsage(ctx, orderID)
-		}
+		uc.compensate(ctx, orderID, grandTotal, req.PaymentMethod != entity.MethodCOD, len(req.VoucherCodes) > 0)
 		return nil, seqErr
 	}
 	code := buildOrderCode(codeDay, codeSeq)
@@ -358,12 +351,7 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		return uc.outboxRepo.Append(ctx, tx, outboxEvt)
 	})
 	if txErr != nil {
-		if req.PaymentMethod != entity.MethodCOD && uc.paymentClient != nil {
-			_ = uc.paymentClient.Refund(ctx, orderID, grandTotal)
-		}
-		if len(req.VoucherCodes) > 0 && uc.promoClient != nil {
-			_ = uc.promoClient.ReleaseUsage(ctx, orderID)
-		}
+		uc.compensate(ctx, orderID, grandTotal, req.PaymentMethod != entity.MethodCOD, len(req.VoucherCodes) > 0)
 		slog.ErrorContext(ctx, "place order: db tx failed", "order_id", orderID, "err", txErr)
 		return nil, txErr
 	}
@@ -414,4 +402,45 @@ func apperrorPayment(err error) error {
 		return err
 	}
 	return ErrPaymentFailed
+}
+
+// compensate rolls back saga side effects after a failed step. Each call is
+// attempted immediately; a failed attempt is persisted to
+// pending_compensations so the background worker re-drives it until the
+// (idempotent, order-id-keyed) call succeeds — a customer can never stay
+// charged just because a downstream was unreachable during rollback.
+func (uc *placeOrderUsecase) compensate(ctx context.Context, orderID string, amount int64, refund, release bool) {
+	if refund && uc.paymentClient != nil {
+		if err := uc.paymentClient.Refund(ctx, orderID, amount); err != nil {
+			uc.recordCompensation(ctx, orderID, entity.CompensationRefund, amount, err)
+		}
+	}
+	if release && uc.promoClient != nil {
+		if err := uc.promoClient.ReleaseUsage(ctx, orderID); err != nil {
+			uc.recordCompensation(ctx, orderID, entity.CompensationReleaseUsage, 0, err)
+		}
+	}
+}
+
+// recordCompensation persists a failed rollback intent for the retry worker.
+func (uc *placeOrderUsecase) recordCompensation(ctx context.Context, orderID string, action entity.CompensationAction, amount int64, cause error) {
+	slog.ErrorContext(ctx, "place order: compensation call failed — persisting for retry",
+		"order_id", orderID, "action", action, "err", cause)
+	if uc.compRepo == nil {
+		slog.ErrorContext(ctx, "place order: compensation repo missing — MANUAL INTERVENTION REQUIRED",
+			"order_id", orderID, "action", action)
+		return
+	}
+	msg := cause.Error()
+	if err := uc.compRepo.Create(ctx, &entity.PendingCompensation{
+		OrderID:   orderID,
+		Action:    action,
+		Amount:    amount,
+		LastError: &msg,
+	}); err != nil {
+		// Last resort: both the call and the durable record failed. The trace
+		// carries order_id + action for manual replay.
+		slog.ErrorContext(ctx, "place order: persisting compensation failed — MANUAL INTERVENTION REQUIRED",
+			"order_id", orderID, "action", action, "err", err)
+	}
 }

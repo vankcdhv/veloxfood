@@ -39,7 +39,8 @@ func main() {
 
 		// ── Usecases ──────────────────────────────────────────────────────────
 		cartUC := usecase.NewCartUsecase(cartRepo)
-		placeOrderUC := usecase.NewPlaceOrderUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, storeClient, promoClient, paymentClient)
+		compRepo := persistence.NewCompensationGormRepository(deps.DB)
+		placeOrderUC := usecase.NewPlaceOrderUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, compRepo, storeClient, promoClient, paymentClient)
 		lifecycleUC := usecase.NewOrderLifecycleUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, storeClient, promoClient, paymentClient)
 
 		// ── HTTP router ───────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ func main() {
 
 		// ── Background workers ────────────────────────────────────────────────
 		startOutboxDispatcher(a, deps)
+		startCompensationWorker(a, compRepo, paymentClient, promoClient)
 	})
 
 	a.RegisterGRPC(func(s *grpc.Server, deps app.Dependencies) {
