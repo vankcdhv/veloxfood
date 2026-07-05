@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"errors"
+	"time"
 
 	"project/services/promotion/internal/entity"
 	"project/services/promotion/internal/repository"
@@ -153,4 +154,19 @@ func (r *promotionUsageGormRepository) VoidByOrderID(ctx context.Context, tx *go
 		return nil, err
 	}
 	return rows, nil
+}
+
+// ExpiredReservedOrderIDs returns distinct order ids holding RESERVED usages
+// created before the cutoff. These are orphaned reservations — the placing
+// saga neither confirmed nor released them (e.g. crash mid-compensation) —
+// and the janitor releases them so used_count stops over-counting.
+func (r *promotionUsageGormRepository) ExpiredReservedOrderIDs(ctx context.Context, before time.Time, limit int) ([]string, error) {
+	ids := []string{}
+	err := r.db.WithContext(ctx).
+		Model(&entity.PromotionUsage{}).
+		Distinct("order_id").
+		Where("status = ? AND created_at < ?", "RESERVED", before).
+		Limit(limit).
+		Pluck("order_id", &ids).Error
+	return ids, err
 }

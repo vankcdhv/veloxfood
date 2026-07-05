@@ -48,6 +48,16 @@ type ApplyUsecase interface {
 
 	// ReleaseUsage voids RESERVED usages for an order and decrements used_count.
 	ReleaseUsage(ctx context.Context, orderID string) error
+
+	// ReleaseUsageInTx is ReleaseUsage running inside a caller-owned
+	// transaction — used by event handlers that must commit the release
+	// atomically with their processed_events dedupe row.
+	ReleaseUsageInTx(ctx context.Context, tx *gorm.DB, orderID string) error
+
+	// ReleaseExpired voids all RESERVED usages older than ttl (orphaned
+	// reservations whose saga never confirmed nor released) and returns how
+	// many orders were cleaned.
+	ReleaseExpired(ctx context.Context, ttl time.Duration) (int, error)
 }
 
 type applyUsecase struct {
@@ -175,16 +185,7 @@ func (uc *applyUsecase) ConfirmUsage(ctx context.Context, orderID string) error 
 // row. Idempotent — no-op when no RESERVED rows exist or they are already VOIDED.
 func (uc *applyUsecase) ReleaseUsage(ctx context.Context, orderID string) error {
 	txErr := uc.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		voided, err := uc.usageRepo.VoidByOrderID(ctx, tx, orderID)
-		if err != nil {
-			return err
-		}
-		for _, u := range voided {
-			if err := uc.promoRepo.DecrementUsedCount(ctx, tx, u.PromotionID); err != nil {
-				return err
-			}
-		}
-		return nil
+		return uc.ReleaseUsageInTx(ctx, tx, orderID)
 	})
 	if txErr != nil {
 		slog.ErrorContext(ctx, "promotion: ReleaseUsage failed", "order_id", orderID, "err", txErr)
@@ -192,6 +193,42 @@ func (uc *applyUsecase) ReleaseUsage(ctx context.Context, orderID string) error 
 	}
 	slog.InfoContext(ctx, "promotion: usages released", "order_id", orderID)
 	return nil
+}
+
+// ReleaseUsageInTx performs the void + used_count decrement inside a
+// caller-owned transaction.
+func (uc *applyUsecase) ReleaseUsageInTx(ctx context.Context, tx *gorm.DB, orderID string) error {
+	voided, err := uc.usageRepo.VoidByOrderID(ctx, tx, orderID)
+	if err != nil {
+		return err
+	}
+	for _, u := range voided {
+		if err := uc.promoRepo.DecrementUsedCount(ctx, tx, u.PromotionID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ReleaseExpired sweeps orphaned RESERVED reservations past their ttl and
+// releases each via the same idempotent ReleaseUsage path (VOID + decrement
+// used_count). Bounded batch per sweep; leftovers are picked up next tick.
+func (uc *applyUsecase) ReleaseExpired(ctx context.Context, ttl time.Duration) (int, error) {
+	const batchSize = 100
+	orderIDs, err := uc.usageRepo.ExpiredReservedOrderIDs(ctx, time.Now().Add(-ttl), batchSize)
+	if err != nil {
+		return 0, err
+	}
+	released := 0
+	for _, orderID := range orderIDs {
+		if err := uc.ReleaseUsage(ctx, orderID); err != nil {
+			// Keep sweeping the rest; this order retries on the next tick.
+			slog.ErrorContext(ctx, "promotion: expired-reservation release failed", "order_id", orderID, "err", err)
+			continue
+		}
+		released++
+	}
+	return released, nil
 }
 
 // errRollback is a sentinel that signals an intentional rollback. The caller

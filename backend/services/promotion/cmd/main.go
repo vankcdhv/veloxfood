@@ -53,6 +53,9 @@ func main() {
 		// ordering requirements on RegisterGRPC.
 		applyUCForConsumer := usecase.NewApplyUsecase(deps.DB, promoRepo, usageRepo)
 		startOrderEventConsumer(a, deps, applyUCForConsumer)
+
+		// ── Background workers ────────────────────────────────────────────────
+		startReservationJanitor(a, applyUCForConsumer, deps.Config.Promotion.ReserveTTL)
 	})
 
 	a.RegisterGRPC(func(s *grpc.Server, deps app.Dependencies) {

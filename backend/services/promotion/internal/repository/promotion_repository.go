@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"project/services/promotion/internal/entity"
 
@@ -54,4 +55,9 @@ type PromotionUsageRepository interface {
 	// Returns the voided rows so the caller can decrement used_count.
 	// Idempotent — rows already VOIDED or CONFIRMED are untouched.
 	VoidByOrderID(ctx context.Context, tx *gorm.DB, orderID string) ([]*entity.PromotionUsage, error)
+
+	// ExpiredReservedOrderIDs returns distinct order ids that still hold
+	// RESERVED usages created before the cutoff — reservations whose saga
+	// never confirmed nor released them (crash mid-compensation).
+	ExpiredReservedOrderIDs(ctx context.Context, before time.Time, limit int) ([]string, error)
 }

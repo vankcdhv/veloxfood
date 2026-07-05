@@ -52,3 +52,6 @@ user_service:
   grpc_addr: localhost:17051
 store_service:
   grpc_addr: localhost:17053
+
+promotion:
+  reserve_ttl: 15m

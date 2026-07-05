@@ -178,9 +178,11 @@ func (uc *ipnUsecase) HandleIPN(ctx context.Context, req IPNRequest) error {
 				amount:          payment.Amount,
 				traceID:         traceID,
 			}); err != nil {
-				// SYSTEM→SYSTEM is a no-op in terms of balance but we still record entries.
-				// If it errors for some reason, log and continue with status update.
-				slog.WarnContext(ctx, "ipn: order ledger entry failed (non-fatal)", "err", err)
+				// The entries are balance-neutral (SYSTEM→SYSTEM) but they are the
+				// reconciliation record for this capture. Failing to write them must
+				// fail the whole transaction — status stays PENDING and MoMo retries
+				// the IPN, rather than marking CAPTURED with a hole in the ledger.
+				return fmt.Errorf("ipn: order ledger entry: %w", err)
 			}
 
 			if err := uc.paymentRepo.UpdateStatus(ctx, tx, payment.ID, entity.PaymentCaptured, &transID); err != nil {

@@ -764,3 +764,60 @@ func TestOneOrderPlusOneShipAllowed(t *testing.T) {
 		t.Errorf("expected ShipDiscount=10000, got %d", resp.ShipDiscount)
 	}
 }
+
+// TestReleaseExpired_VoidsOrphanedReservations: a RESERVED usage older than the
+// TTL (saga crashed without confirm/release) is voided by the janitor sweep and
+// the promotion's used_count is decremented; fresh reservations are untouched.
+func TestReleaseExpired_VoidsOrphanedReservations(t *testing.T) {
+	env, _ := setupDB(t)
+	seedPromotion(t, env, "EXPIRE1", "ORDER_DISCOUNT", nil)
+
+	staleOrder := "dddddddd-0002-0002-0002-000000000001"
+	freshOrder := "dddddddd-0002-0002-0002-000000000002"
+	customerID := "eeeeeeee-0002-0002-0002-000000000001"
+
+	for _, orderID := range []string{staleOrder, freshOrder} {
+		resp, err := env.grpcSrv.ApplyPromotion(context.Background(), &promotionv1.ApplyPromotionRequest{
+			OrderId:    orderID,
+			StoreId:    env.storeID,
+			CustomerId: customerID,
+			Codes:      []string{"EXPIRE1"},
+			Subtotal:   100000,
+		})
+		if err != nil || !resp.Success {
+			t.Fatalf("ApplyPromotion(%s): err=%v resp=%+v", orderID, err, resp)
+		}
+	}
+
+	// Age the first reservation past the TTL.
+	env.db.Exec("UPDATE promotion_usages SET created_at = now() - interval '30 minutes' WHERE order_id = ?", staleOrder)
+
+	promoRepo := persistence.NewPromotionGormRepository(env.db)
+	usageRepo := persistence.NewPromotionUsageGormRepository(env.db)
+	applyUC := usecase.NewApplyUsecase(env.db, promoRepo, usageRepo)
+
+	released, err := applyUC.ReleaseExpired(context.Background(), 15*time.Minute)
+	if err != nil {
+		t.Fatalf("ReleaseExpired: %v", err)
+	}
+	if released != 1 {
+		t.Errorf("released: want 1, got %d", released)
+	}
+
+	var status string
+	env.db.Raw("SELECT status FROM promotion_usages WHERE order_id = ?", staleOrder).Scan(&status)
+	if status != "VOIDED" {
+		t.Errorf("stale usage: want VOIDED, got %s", status)
+	}
+	env.db.Raw("SELECT status FROM promotion_usages WHERE order_id = ?", freshOrder).Scan(&status)
+	if status != "RESERVED" {
+		t.Errorf("fresh usage: want RESERVED untouched, got %s", status)
+	}
+
+	// used_count: 2 reservations − 1 void = 1.
+	var usedCount int
+	env.db.Raw("SELECT used_count FROM promotions WHERE code = ?", "EXPIRE1").Scan(&usedCount)
+	if usedCount != 1 {
+		t.Errorf("used_count: want 1, got %d", usedCount)
+	}
+}

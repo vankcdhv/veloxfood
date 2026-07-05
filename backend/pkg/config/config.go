@@ -16,6 +16,7 @@ type Config struct {
 	DTM         DTMConfig         `mapstructure:"dtm"`
 	JWT         JWTConfig         `mapstructure:"jwt"`
 	OTP         OTPConfig         `mapstructure:"otp"`
+	Promotion   PromotionConfig   `mapstructure:"promotion"`
 	SMTP        SMTPConfig        `mapstructure:"smtp"`
 	Outbox      OutboxConfig      `mapstructure:"outbox"`
 	GoogleOAuth GoogleOAuthConfig `mapstructure:"google_oauth"`
@@ -143,6 +144,14 @@ type JWTConfig struct {
 	PublicKeyPEM   string        `mapstructure:"public_key_pem"`  // base64-encoded PEM, prod fallback
 	AccessTTL      time.Duration `mapstructure:"access_ttl"`
 	RefreshTTL     time.Duration `mapstructure:"refresh_ttl"`
+}
+
+// PromotionConfig tunes the promotion service.
+type PromotionConfig struct {
+	// ReserveTTL is how long a RESERVED voucher usage may live before the
+	// janitor voids it as orphaned (saga crashed without confirm/release).
+	// Must exceed the longest legitimate place-order duration. Default 15m.
+	ReserveTTL time.Duration `mapstructure:"reserve_ttl"`
 }
 
 // OTPConfig controls OTP generation and verification.

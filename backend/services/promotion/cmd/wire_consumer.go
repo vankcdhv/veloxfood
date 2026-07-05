@@ -7,6 +7,7 @@ import (
 	"project/pkg/app"
 	"project/pkg/messaging/kafka"
 	promoevent "project/services/promotion/internal/handler/event"
+	"project/services/promotion/internal/infrastructure/persistence"
 	"project/services/promotion/internal/usecase"
 )
 
@@ -20,7 +21,8 @@ func startOrderEventConsumer(a *app.App, deps app.Dependencies, applyUC usecase.
 		return
 	}
 
-	handler := promoevent.NewOrderEventHandler(applyUC)
+	processedRepo := persistence.NewProcessedEventGormRepository(deps.DB)
+	handler := promoevent.NewOrderEventHandler(deps.DB, applyUC, processedRepo)
 	consumer := kafka.NewConsumer(brokers, "promotion-service", "order.events")
 
 	ctx, cancel := context.WithCancel(context.Background())
