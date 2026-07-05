@@ -356,7 +356,7 @@ func setupEnv(t *testing.T) *testEnv {
 		promo:      &stubPromotion{},
 		payment:    &stubPayment{},
 	}
-	lifecycleUC := usecase.NewOrderLifecycleUsecase(db, orderRepo, cartRepo, outboxRepo, nil, nil, nil, audit.NoopLogger{})
+	lifecycleUC := usecase.NewOrderLifecycleUsecase(db, orderRepo, cartRepo, outboxRepo, nil, nil, nil, audit.NoopLogger{}, usecase.SagaSettings{Engine: "inline"})
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()

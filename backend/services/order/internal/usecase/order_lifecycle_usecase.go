@@ -51,6 +51,7 @@ type orderLifecycleUsecase struct {
 	promoClient   *grpcclient.PromotionClient
 	paymentClient *grpcclient.PaymentClient
 	auditLogger   audit.Logger
+	sagaCfg       SagaSettings
 }
 
 // NewOrderLifecycleUsecase constructs the lifecycle orchestrator.
@@ -63,6 +64,7 @@ func NewOrderLifecycleUsecase(
 	promoClient *grpcclient.PromotionClient,
 	paymentClient *grpcclient.PaymentClient,
 	auditLogger audit.Logger,
+	sagaCfg SagaSettings,
 ) OrderLifecycleUsecase {
 	return &orderLifecycleUsecase{
 		db:            db,
@@ -73,6 +75,7 @@ func NewOrderLifecycleUsecase(
 		promoClient:   promoClient,
 		paymentClient: paymentClient,
 		auditLogger:   auditLogger,
+		sagaCfg:       sagaCfg,
 	}
 }
 
@@ -136,7 +139,8 @@ func (uc *orderLifecycleUsecase) AdvanceStatus(ctx context.Context, orderID, sto
 // Publishes order.cancelled (frozen), which triggers Payment refund + Store quota restore via consumers.
 func (uc *orderLifecycleUsecase) CancelByCustomer(ctx context.Context, orderID, customerID string) error {
 	traceID := outbox.TraceIDFromCtx(ctx)
-	return uc.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var cancelled *entity.Order
+	txErr := uc.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		order, err := uc.orderRepo.GetByIDForUpdate(ctx, tx, orderID)
 		if err != nil {
 			if errors.Is(err, repository.ErrNotFound) {
@@ -159,10 +163,10 @@ func (uc *orderLifecycleUsecase) CancelByCustomer(ctx context.Context, orderID, 
 			return err
 		}
 		// payment_status stays PAID here on purpose: the payment service is the
-		// source of truth for refunds. It consumes order.cancelled, credits the
-		// wallet, then publishes payment.refunded — which flips this order's
-		// payment_status. Writing REFUNDED synchronously would claim a refund
-		// that may never have happened.
+		// source of truth for refunds. It credits the wallet (via the DTM cancel
+		// saga or the order.cancelled consumer), then publishes payment.refunded
+		// — which flips this order's payment_status. Writing REFUNDED
+		// synchronously would claim a refund that may never have happened.
 		_ = uc.auditLogger.RecordTx(ctx, tx, audit.Entry{
 			ActorUserID: strPtr(customerID),
 			Action:      "order.cancelled_by_customer",
@@ -170,15 +174,22 @@ func (uc *orderLifecycleUsecase) CancelByCustomer(ctx context.Context, orderID, 
 			TargetID:    &orderID,
 		})
 
+		cancelled = order
 		evt := cancelledEvent(order, "customer", traceID)
 		return uc.outboxRepo.Append(ctx, tx, evt)
 	})
+	if txErr != nil {
+		return txErr
+	}
+	uc.driveCancelSaga(ctx, cancelled)
+	return nil
 }
 
 // RejectByStore rejects a PENDING order before confirmation.
 func (uc *orderLifecycleUsecase) RejectByStore(ctx context.Context, orderID, storeID string) error {
 	traceID := outbox.TraceIDFromCtx(ctx)
-	return uc.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var rejected *entity.Order
+	txErr := uc.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		order, err := uc.orderRepo.GetByIDForUpdate(ctx, tx, orderID)
 		if err != nil {
 			if errors.Is(err, repository.ErrNotFound) {
@@ -205,9 +216,15 @@ func (uc *orderLifecycleUsecase) RejectByStore(ctx context.Context, orderID, sto
 			Payload:    map[string]any{"store_id": storeID},
 		})
 
+		rejected = order
 		evt := cancelledEvent(order, "store", traceID)
 		return uc.outboxRepo.Append(ctx, tx, evt)
 	})
+	if txErr != nil {
+		return txErr
+	}
+	uc.driveCancelSaga(ctx, rejected)
+	return nil
 }
 
 // VerifyPickupPIN checks PIN and completes the order.

@@ -82,6 +82,12 @@ type SagaSettings struct {
 	PaymentBranch   string
 }
 
+// DTMEnabled reports whether the DTM engine is selected AND fully addressed.
+func (s SagaSettings) DTMEnabled() bool {
+	return saga.ResolveEngine(s.Engine) == saga.EngineDTM &&
+		s.DTMAddr != "" && s.PromotionBranch != "" && s.PaymentBranch != ""
+}
+
 type placeOrderUsecase struct {
 	db            *gorm.DB
 	orderRepo     repository.OrderRepository
@@ -152,7 +158,7 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		return nil, err
 	}
 
-	if uc.dtmEnabled() {
+	if uc.sagaCfg.DTMEnabled() {
 		res, dtmErr := uc.placeViaDTM(ctx, req, draft)
 		if !errors.Is(dtmErr, errDTMUnavailable) {
 			return res, dtmErr
@@ -160,14 +166,6 @@ func (uc *placeOrderUsecase) PlaceOrder(ctx context.Context, req PlaceOrderReque
 		slog.ErrorContext(ctx, "place order: DTM unreachable — falling back to inline saga", "err", dtmErr)
 	}
 	return uc.placeInline(ctx, req, draft)
-}
-
-// dtmEnabled reports whether the DTM engine is selected AND fully addressed.
-func (uc *placeOrderUsecase) dtmEnabled() bool {
-	return saga.ResolveEngine(uc.sagaCfg.Engine) == saga.EngineDTM &&
-		uc.sagaCfg.DTMAddr != "" &&
-		uc.sagaCfg.PromotionBranch != "" &&
-		uc.sagaCfg.PaymentBranch != ""
 }
 
 // prepareDraft runs the read-only part of placement:

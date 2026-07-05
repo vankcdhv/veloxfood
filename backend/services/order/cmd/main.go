@@ -62,7 +62,7 @@ func main() {
 			PaymentBranch:   deps.Config.Saga.BranchAddr.Payment,
 		}
 		placeOrderUC := usecase.NewPlaceOrderUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, compRepo, storeGW, promoGW, paymentGW, sagaCfg)
-		lifecycleUC := usecase.NewOrderLifecycleUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, storeClient, promoClient, paymentClient, audit.NewGormLogger(deps.DB))
+		lifecycleUC := usecase.NewOrderLifecycleUsecase(deps.DB, orderRepo, cartRepo, outboxRepo, storeClient, promoClient, paymentClient, audit.NewGormLogger(deps.DB), sagaCfg)
 
 		// ── HTTP router ───────────────────────────────────────────────────────
 		cfg := handlerhttp.RouterConfig{}
@@ -108,6 +108,12 @@ func main() {
 			deps.DB, orderRepo, cartRepo, outboxRepo,
 			storeClient, promoClient, paymentClient,
 			audit.NewGormLogger(deps.DB),
+			usecase.SagaSettings{
+				Engine:          deps.Config.Saga.Engine,
+				DTMAddr:         deps.Config.DTM.Addr,
+				PromotionBranch: deps.Config.Saga.BranchAddr.Promotion,
+				PaymentBranch:   deps.Config.Saga.BranchAddr.Payment,
+			},
 		)
 		orderv1.RegisterOrderServiceServer(s, grpchandler.NewOrderServiceServer(lifecycleUC))
 	})
