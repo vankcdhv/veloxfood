@@ -28,7 +28,7 @@ kafka:
 # Notification only VERIFIES tokens — public key suffices.
 jwt:
   private_key_path: ""
-  public_key_path: secrets/jwt_public.pem
+  public_key_path: /secrets/jwt_public.pem
   private_key_pem: ""
   public_key_pem: ""
   access_ttl: 15m

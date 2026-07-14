@@ -9,6 +9,8 @@ services:
       - "17433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Holds 01-create-databases.sql and 02-dtm-schema.sql (the DTM coordinator's
+      # own tables — without them every place-order saga fails on Submit).
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U dev_user -d user_db"]
@@ -90,7 +92,7 @@ services:
 
   dtm:
     # Saga coordinator for place-order/cancel. Its transaction log lives in a
-    # dedicated dtm_db — schema in docker/dtm/dtmsvr_storage_postgres.sql
+    # dedicated dtm_db — schema in docker/postgres/init/02-dtm-schema.sql
     # (apply once; the init script provisions the database on fresh volumes).
     image: yedf/dtm:latest
     environment:
@@ -115,6 +117,7 @@ services:
         SERVICE_NAME: user
     volumes:
       - ./config/config.docker.yaml:/config/config.yaml:ro
+      - ./secrets:/secrets:ro
     ports:
       - "17080:8080"
       - "17051:50051"
@@ -140,6 +143,7 @@ services:
         SERVICE_NAME: location
     volumes:
       - ./config/location.docker.yaml:/config/location.yaml:ro
+      - ./secrets:/secrets:ro
     ports:
       - "17081:8081"
       - "17052:50052"
@@ -165,6 +169,7 @@ services:
         SERVICE_NAME: store
     volumes:
       - ./config/store.docker.yaml:/config/store.yaml:ro
+      - ./secrets:/secrets:ro
     ports:
       - "17082:8082"
       - "17053:50053"
@@ -184,6 +189,41 @@ services:
         fluentd-max-retries: "30"
         tag: "service.store"
 
+  order-service:
+    # Saga orchestrator: the only service that opens a DTM transaction, hence
+    # the extra depends_on. config/order.docker.yaml addresses DTM and the saga
+    # branches by compose DNS, so order must run in the same mode as its
+    # participants — either every service in Docker, or every service via
+    # `go run`. Mixing the two breaks DTM's callbacks into the branches.
+    build:
+      context: .
+      dockerfile: docker/services/Dockerfile
+      args:
+        SERVICE_NAME: order
+    volumes:
+      - ./config/order.docker.yaml:/config/order.yaml:ro
+      - ./secrets:/secrets:ro
+    ports:
+      - "17083:8083"
+      - "17054:50054"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      dtm:
+        condition: service_started
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "localhost:24224"
+        fluentd-async: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+        tag: "service.order"
+
   promotion-service:
     build:
       context: .
@@ -192,6 +232,7 @@ services:
         SERVICE_NAME: promotion
     volumes:
       - ./config/promotion.docker.yaml:/config/promotion.yaml:ro
+      - ./secrets:/secrets:ro
     ports:
       - "17084:8084"
       - "17055:50055"
@@ -219,6 +260,7 @@ services:
         SERVICE_NAME: payment
     volumes:
       - ./config/payment.docker.yaml:/config/payment.yaml:ro
+      - ./secrets:/secrets:ro
     ports:
       - "17085:8085"
       - "17056:50056"
@@ -246,6 +288,7 @@ services:
         SERVICE_NAME: delivery
     volumes:
       - ./config/delivery.docker.yaml:/config/delivery.yaml:ro
+      - ./secrets:/secrets:ro
     ports:
       - "17086:8086"
     depends_on:
@@ -272,6 +315,7 @@ services:
         SERVICE_NAME: review
     volumes:
       - ./config/review.docker.yaml:/config/review.yaml:ro
+      - ./secrets:/secrets:ro
       - ./docs/secrets:/docs/secrets:ro
     ports:
       - "17087:8087"
@@ -300,6 +344,7 @@ services:
         SERVICE_NAME: reporting
     volumes:
       - ./config/reporting.docker.yaml:/config/reporting.yaml:ro
+      - ./secrets:/secrets:ro
     ports:
       - "17088:8088"
     depends_on:
@@ -326,6 +371,7 @@ services:
         SERVICE_NAME: notification
     volumes:
       - ./config/notification.docker.yaml:/config/notification.yaml:ro
+      - ./secrets:/secrets:ro
       - ./docs/secrets:/docs/secrets:ro
     ports:
       - "17089:8089"
@@ -375,7 +421,8 @@ services:
     volumes:
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
-      - "17091:9090"
+      # 17091 is taken by the MinIO console — monitoring lives on 17095/17096.
+      - "17095:9090"
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -397,9 +444,11 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
     volumes:
       - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
-      - "17092:3000"
+      # 17092 is the Kafka external listener — monitoring lives on 17095/17096.
+      - "17096:3000"
     depends_on:
       - prometheus
 

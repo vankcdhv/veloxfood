@@ -6,9 +6,6 @@ var (
 	// ErrInsufficientBalance is returned when a wallet debit would go below zero.
 	ErrInsufficientBalance = errors.New("insufficient wallet balance")
 
-	// ErrPaymentNotFound is returned when no payment exists for the given reference.
-	ErrPaymentNotFound = errors.New("payment not found")
-
 	// ErrAlreadyRefunded is returned when a refund is attempted on an already-refunded payment.
 	ErrAlreadyRefunded = errors.New("payment already refunded")
 

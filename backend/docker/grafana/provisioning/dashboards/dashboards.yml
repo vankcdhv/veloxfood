@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: veloxfood
+    type: file
+    # Dashboards are read-only from the repo; edits in the UI are not persisted
+    # back, so the JSON files stay the source of truth.
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

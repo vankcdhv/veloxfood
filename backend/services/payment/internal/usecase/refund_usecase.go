@@ -20,13 +20,13 @@ type RefundResult struct {
 
 // RefundUsecase handles 100% order refunds back to the customer wallet.
 type RefundUsecase interface {
-	// Refund credits amount back to customer wallet. Idempotent by order_id.
+	// Refund credits amount back to the customer wallet in its own transaction.
+	// Idempotent by order_id; a missing payment row is a null compensation and
+	// succeeds as a no-op.
 	Refund(ctx context.Context, orderID string, amount int64) (*RefundResult, error)
 
-	// RefundInTx runs the refund inside a caller-owned transaction (DTM branch
-	// handlers run it under the sub-transaction barrier). A missing payment row
-	// is a null compensation — the capture never happened — and succeeds as a
-	// no-op instead of erroring.
+	// RefundInTx runs the same refund inside a caller-owned transaction (DTM branch
+	// handlers run it under the sub-transaction barrier).
 	RefundInTx(ctx context.Context, tx *gorm.DB, orderID string, amount int64) (*RefundResult, error)
 }
 
@@ -54,30 +54,29 @@ func NewRefundUsecase(
 	}
 }
 
+// Refund opens its own transaction and defers to RefundInTx, so both entry points
+// share one refund semantics. Every caller of this path is a compensation that
+// cannot know whether the capture ran: the order-service compensation worker and
+// the inline-saga rollback both fire on an unknown outcome, and the
+// order.cancelled consumer also fires for COD orders that never captured. A
+// missing payment row is therefore a null compensation, not an anomaly —
+// returning an error here made the compensation worker retry a refund that could
+// never succeed until it burned its attempt budget.
 func (uc *refundUsecase) Refund(ctx context.Context, orderID string, amount int64) (*RefundResult, error) {
-	existing, err := uc.paymentRepo.GetByOrderID(ctx, orderID)
-	if err != nil {
-		return nil, err
-	}
-	if existing == nil {
-		// Direct callers refund only after a known capture — a missing row is
-		// an anomaly worth surfacing (the compensation worker retries it).
-		return nil, ErrPaymentNotFound
-	}
-	if r := refundShortCircuit(ctx, existing, orderID); r != nil {
-		return r, nil
-	}
-
+	var result *RefundResult
 	txErr := uc.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return uc.refundLocked(ctx, tx, existing, orderID, amount)
+		r, err := uc.RefundInTx(ctx, tx, orderID, amount)
+		if err != nil {
+			return err
+		}
+		result = r
+		return nil
 	})
 	if txErr != nil {
 		slog.ErrorContext(ctx, "refund: tx failed", "order_id", orderID, "err", txErr)
 		return nil, txErr
 	}
-
-	slog.InfoContext(ctx, "refund: credited customer wallet", "order_id", orderID, "amount", amount)
-	return &RefundResult{Success: true, RefundID: existing.ID}, nil
+	return result, nil
 }
 
 // RefundInTx is the DTM-branch variant: it joins the caller's transaction and

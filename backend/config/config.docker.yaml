@@ -35,8 +35,8 @@ dtm:
   addr: dtm:36790
 
 jwt:
-  private_key_path: ""
-  public_key_path: ""
+  private_key_path: /secrets/jwt_private.pem
+  public_key_path: /secrets/jwt_public.pem
   # Override via APP_JWT_PRIVATE_KEY_PEM / APP_JWT_PUBLIC_KEY_PEM env vars in prod
   private_key_pem: ""
   public_key_pem: ""

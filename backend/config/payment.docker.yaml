@@ -33,7 +33,7 @@ dtm:
 
 jwt:
   private_key_path: ""
-  public_key_path: secrets/jwt_public.pem
+  public_key_path: /secrets/jwt_public.pem
   private_key_pem: ""
   public_key_pem: ""
   access_ttl: 15m
@@ -49,8 +49,15 @@ momo:
   partner_code: MOMO
   access_key: F8BBA842ECF85
   secret_key: K951B6PE1waDMi640xX08PD3vg6EkVlz
-  redirect_url: http://localhost:8085/api/v1/payments/momo/return
-  ipn_url: http://localhost:8085/api/v1/payments/momo/ipn
+  # Unlike every other address in this file, these two are consumed OUTSIDE the
+  # compose network — the customer's browser follows redirect_url, and MoMo's
+  # servers call ipn_url. They must therefore use the published gateway address,
+  # never the in-container port (8085), which is unreachable from the host and
+  # answers "connection refused". Override both when the stack is not on
+  # localhost (public tunnel, LAN or Tailscale address); MoMo cannot reach a
+  # localhost ipn_url at all, so a real IPN needs a publicly routable host.
+  redirect_url: http://localhost:17000/api/v1/payments/momo/return
+  ipn_url: http://localhost:17000/api/v1/payments/momo/ipn
   env: demo
 
 user_service:

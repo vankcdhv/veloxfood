@@ -1,0 +1,140 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e209]:
+    - banner [ref=f2e210]:
+      - generic [ref=f2e211]:
+        - link "VeloxFood Food Ordering" [ref=f2e212] [cursor=pointer]:
+          - /url: /shop
+          - generic [ref=f2e219]:
+            - generic [ref=f2e220]: VeloxFood
+            - generic [ref=f2e221]: Food Ordering
+        - navigation [ref=f2e222]:
+          - link "Trang chủ" [ref=f2e223] [cursor=pointer]:
+            - /url: /shop
+          - link "Cửa hàng" [ref=f2e224] [cursor=pointer]:
+            - /url: /stores
+          - link "Tìm món" [ref=f2e225] [cursor=pointer]:
+            - /url: /search
+          - link "Giỏ hàng" [ref=f2e226] [cursor=pointer]:
+            - /url: /cart
+        - generic [ref=f2e227]:
+          - link "Giỏ hàng" [ref=f2e228] [cursor=pointer]:
+            - /url: /cart
+            - generic [ref=f2e229]: "1"
+          - button "Thông báo" [ref=f2e230] [cursor=pointer]:
+            - generic [ref=f2e231]: "2"
+          - button "Tài khoản" [ref=f2e232]:
+            - generic [ref=f2e233]: NK
+          - button "Chuyển chế độ sáng/tối" [ref=f2e235] [cursor=pointer]
+    - main [ref=f2e237]:
+      - generic [ref=f2e238]:
+        - heading "Thanh toán" [level=1] [ref=f2e239]
+        - generic [ref=f2e240]:
+          - generic [ref=f2e241]:
+            - heading "Món đã chọn" [level=3] [ref=f2e243]
+            - generic [ref=f2e245]:
+              - generic [ref=f2e246]:
+                - text: Bánh mì chả cá
+                - generic [ref=f2e247]: ×1
+              - generic [ref=f2e248]: 35.000đ
+          - generic [ref=f2e249]:
+            - heading "Hình thức nhận hàng" [level=3] [ref=f2e251]
+            - generic [ref=f2e252]:
+              - button "Giao tận nơi" [ref=f2e254]
+              - generic [ref=f2e255]:
+                - generic [ref=f2e256]: Địa điểm giao hàng
+                - group [ref=f2e260]:
+                  - generic "Chọn địa điểm giao hàng" [ref=f2e261] [cursor=pointer]
+                  - option "— Chọn —" [selected]
+                  - option "Toà A"
+                  - option "— Chọn —" [selected]
+                  - option "— Chọn —" [selected]
+          - generic [ref=f2e262]:
+            - heading "Giờ nhận hàng" [level=3] [ref=f2e264]
+            - generic [ref=f2e269]:
+              - combobox [ref=f2e270]:
+                - option "Sớm nhất có thể (15:45)" [selected]
+                - option "15:45"
+                - option "16:00"
+                - option "16:15"
+                - option "16:30"
+                - option "16:45"
+                - option "17:00"
+                - option "17:15"
+                - option "17:30"
+                - option "17:45"
+                - option "18:00"
+                - option "18:15"
+                - option "18:30"
+                - option "18:45"
+                - option "19:00"
+                - option "19:15"
+                - option "19:30"
+                - option "19:45"
+                - option "20:00"
+                - option "20:15"
+                - option "20:30"
+                - option "20:45"
+                - option "21:00"
+                - option "21:15"
+                - option "21:30"
+                - option "21:45"
+                - option "22:00"
+              - paragraph [ref=f2e271]: "Giờ hoạt động hôm nay: 07:00–22:00"
+          - generic [ref=f2e272]:
+            - heading "Mã giảm giá" [level=3] [ref=f2e274]
+            - generic [ref=f2e279]:
+              - textbox "Nhập mã voucher" [ref=f2e280]
+              - button "Áp dụng" [disabled]
+          - generic [ref=f2e281]:
+            - heading "Phương thức thanh toán" [level=3] [ref=f2e283]
+            - generic [ref=f2e284]:
+              - button "Tiền mặt khi nhận" [ref=f2e285]
+              - button "Ví VeloxFood (381.000đ)" [ref=f2e288]
+              - button "MoMo" [ref=f2e292]
+          - generic [ref=f2e296]:
+            - generic [ref=f2e297]:
+              - generic [ref=f2e298]: Tạm tính
+              - generic [ref=f2e299]: 35.000đ
+            - generic [ref=f2e300]:
+              - generic [ref=f2e301]: Phí giao hàng
+              - generic [ref=f2e302]: Chọn địa điểm để tính
+            - generic [ref=f2e303]:
+              - generic [ref=f2e304]: Tổng cộng
+              - generic [ref=f2e305]: 35.000đ
+            - paragraph [ref=f2e306]: "* Tổng cuối cùng được xác nhận khi đặt hàng."
+          - button "Đặt hàng" [disabled]
+    - contentinfo [ref=f2e307]:
+      - generic [ref=f2e308]:
+        - generic [ref=f2e309]:
+          - generic [ref=f2e310]:
+            - link "VeloxFood Food Ordering" [ref=f2e311] [cursor=pointer]:
+              - /url: /shop
+              - generic [ref=f2e318]:
+                - generic [ref=f2e319]: VeloxFood
+                - generic [ref=f2e320]: Food Ordering
+            - paragraph [ref=f2e321]: Món ngon mỗi ngày, giao tận tay bạn.
+          - generic [ref=f2e322]:
+            - heading "Khám phá" [level=3] [ref=f2e323]
+            - list [ref=f2e324]:
+              - listitem [ref=f2e325]:
+                - link "Cửa hàng" [ref=f2e326] [cursor=pointer]:
+                  - /url: /stores
+              - listitem [ref=f2e327]:
+                - link "Giỏ hàng" [ref=f2e328] [cursor=pointer]:
+                  - /url: /cart
+          - generic [ref=f2e329]:
+            - heading "Hỗ trợ" [level=3] [ref=f2e330]
+            - list [ref=f2e331]:
+              - listitem [ref=f2e332]:
+                - link "Trung tâm trợ giúp" [ref=f2e333] [cursor=pointer]:
+                  - /url: /help
+              - listitem [ref=f2e334]:
+                - link "Liên hệ" [ref=f2e335] [cursor=pointer]:
+                  - /url: /contact
+        - generic [ref=f2e336]:
+          - paragraph [ref=f2e337]: © 2026 VeloxFood
+          - paragraph [ref=f2e338]: Đặt món ngon — nhanh, dễ, đúng vị.
+  - region "Notifications alt+T"
+  - button "Open Tanstack query devtools" [ref=f2e109] [cursor=pointer]
+  - button "Open Next.js Dev Tools" [ref=f2e163] [cursor=pointer]
+  - alert [ref=f2e167]: Thanh toán · VeloxFood · VeloxFood

@@ -12,7 +12,13 @@ const GATEWAY_URL = process.env.GATEWAY_URL ?? 'http://localhost:17000';
 const MINIO_HOST = process.env.MINIO_PUBLIC_HOST ?? 'localhost';
 const MINIO_PORT = process.env.MINIO_PUBLIC_PORT ?? '17090';
 
+// Hosts allowed to reach dev-only resources (/_next/webpack-hmr and friends).
+// Next blocks these cross-origin by default, so hitting `next dev` over a LAN or
+// Tailscale address loads the app fine but leaves hot-reload dead. Dev-only.
+const DEV_ORIGINS = process.env.DEV_ORIGINS?.split(',').filter(Boolean) ?? [];
+
 const nextConfig: NextConfig = {
+  allowedDevOrigins: DEV_ORIGINS,
   images: {
     remotePatterns: [
       { protocol: 'http', hostname: MINIO_HOST, port: MINIO_PORT, pathname: '/veloxfood/**' },

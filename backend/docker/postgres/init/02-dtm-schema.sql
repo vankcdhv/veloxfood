@@ -1,5 +1,11 @@
 -- DTM server transaction storage (from dtm-labs/dtm sqls/dtmsvr.storage.postgres.sql,
 -- minus the destructive DROPs). Applied to the dedicated dtm_db.
+--
+-- Mounted into docker-entrypoint-initdb.d as 02-dtm-schema.sql, which psql runs
+-- against POSTGRES_DB — hence the explicit \c. Without these tables the DTM
+-- server answers every Submit with `relation "trans_global" does not exist`, and
+-- every place-order saga fails.
+\c dtm_db
 CREATE SEQUENCE if not EXISTS trans_global_seq;
 CREATE TABLE if not EXISTS trans_global (
   id bigint NOT NULL DEFAULT NEXTVAL ('trans_global_seq'),

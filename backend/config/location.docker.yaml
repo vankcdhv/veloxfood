@@ -33,7 +33,7 @@ dtm:
 
 jwt:
   private_key_path: ""
-  public_key_path: ""
+  public_key_path: /secrets/jwt_public.pem
   public_key_pem: ""
   private_key_pem: ""
   access_ttl: 15m

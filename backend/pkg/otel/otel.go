@@ -39,9 +39,13 @@ func Init(ctx context.Context, serviceName, endpoint string) (func(context.Conte
 		return nil, fmt.Errorf("otel: create otlp exporter: %w", err)
 	}
 
+	// NewSchemaless, not NewWithAttributes(semconv.SchemaURL, …): Merge rejects two
+	// resources carrying different schema URLs, and the SDK's Default() advertises a
+	// newer schema than the semconv package pinned above. A schemaless resource
+	// merges cleanly with any of them.
 	res, err := sdkresource.Merge(
 		sdkresource.Default(),
-		sdkresource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceName(serviceName)),
+		sdkresource.NewSchemaless(semconv.ServiceName(serviceName)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("otel: build resource: %w", err)
