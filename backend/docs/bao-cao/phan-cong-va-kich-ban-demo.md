@@ -87,7 +87,9 @@ Câu giải thích khi thầy hỏi ai làm gì:
 
 ## Nam — Bên nhận & biên client *(phần ba)*
 
-**Khái niệm sở hữu:** **idempotent receiver → hiệu ứng exactly-once** · **versioning sự kiện** · CQRS read model · event-driven choreography · điều phối đồng thời phía client · kiểm thử.
+**Khái niệm sở hữu:** **luồng nghiệp vụ dùng MQ (fan-out phía consumer)** · **idempotent receiver → hiệu ứng exactly-once** · **versioning sự kiện** · CQRS read model · event-driven choreography · điều phối đồng thời phía client · kiểm thử.
+
+**Ranh giới với Đức:** Đức sở hữu **8 service có đường ghi**. Hai service **chỉ tiêu thụ event** — `reporting` và `notification` — thuộc Nam, vì bản chất chúng là **bên nhận**: không có API ghi nghiệp vụ, toàn bộ trạng thái dựng từ sự kiện.
 
 | Chủ đề | File |
 |---|---|
@@ -103,6 +105,8 @@ Câu giải thích khi thầy hỏi ai làm gì:
 **Mục báo cáo:** §7 (phần nhận), §12, phần CQRS của §4/§8, phần frontend của §5.
 
 **Phải nói được:**
+- **Luồng nghiệp vụ dùng MQ** (yêu cầu bắt buộc #3): khi tài xế bấm *"Đã giao"*, sự kiện `order.delivered` khiến **Payment** ghi sổ COD, **Order** tự chuyển COMPLETED, **Review** mở khoá đánh giá, **Notification** báo khách — **bốn service phản ứng độc lập, không service nào gọi service nào**. Đây là giá trị cốt lõi của hàng đợi: decoupling + chịu lỗi từng phần.
+- **Notification consume 7/9 topic** (thiếu `user.events` và `store.events`) — nói đúng con số, đừng nói "tất cả".
 - **At-least-once + idempotent receiver = hiệu ứng exactly-once.** Kafka **không** cho exactly-once xuyên biên service — nó giao **ít nhất một lần**. Ta đạt hiệu ứng đúng-một-lần bằng bảng `processed_events` (PK = `event_id`) ghi **cùng transaction** với business write. Chứng minh bằng **Demo 3**.
 - **Versioning sự kiện**: envelope mang trường `version`; envelope cũ (chưa có version) vẫn decode được ⇒ tiến hoá schema sự kiện mà **không phá vỡ consumer cũ**.
 - **CQRS**: reporting là read model thuần, chấp nhận **nhất quán cuối** (thường < vài giây) để không làm chậm đường ghi.
@@ -122,13 +126,15 @@ Câu giải thích khi thầy hỏi ai làm gì:
 |---|---|---|---|
 | 1 | ≥ 3 microservice | **10** service | Đức |
 | 2 | RESTful API đúng chuẩn | **180 endpoint** qua Kong | Đức |
-| 3 | ≥ 1 luồng nghiệp vụ dùng MQ | 9 topic, 21 consumer group | **Văn** |
+| 3 | ≥ 1 luồng nghiệp vụ dùng MQ | Luồng `order.delivered` → **Payment, Order, Review, Notification cùng phản ứng độc lập** (9 topic, 21 consumer group) | **Nam** |
 | 4 | DB riêng mỗi service | **10 DB**, auto-migrate | Đức |
 | 5 | Xử lý lỗi (retry/log) | outbox retry · consumer retry + DLQ · gRPC timeout · circuit breaker · idempotent | **Văn** |
 | 6 | Kiểm thử luồng liên service | **21 package, 264 test PASS, 0 FAIL** | Nam |
 | 7 | Service chạy độc lập + phối hợp | Docker + saga + sự kiện | **Văn** |
 
-**Văn 3 · Đức 3 · Nam 1**
+**Văn 2 · Đức 3 · Nam 2**
+
+> Dòng 3 là **fan-out phía consumer** — một sự kiện, bốn service phản ứng mà **không ai gọi ai**. Nam sở hữu bên nhận (`notification`, `reporting`) nên trình bày luồng này. Văn vẫn giữ toàn bộ **cơ chế** phía phát (outbox → Kafka → DLQ).
 
 ### Yêu cầu NÂNG CAO — cộng điểm (Bảng 8 — 14 dòng)
 
@@ -182,25 +188,21 @@ Trước đây các cơ chế mạnh nhất **nằm rải trong thân báo cáo*
 
 | | Bảng 7 | Bảng 8 | Vượt khung | **Tổng** |
 |---|---|---|---|---|
-| **Văn** | 3 | 8 | 6 | **17** |
+| **Văn** | 2 | 8 | 6 | **16** |
 | **Đức** | 3 | 6 | 2 | **11** |
-| **Nam** | 1 | **0** | 4 | **5** |
+| **Nam** | 2 | 0 | 4 | **6** |
 
-Thứ tự đúng ý: **Văn > Đức > Nam**. Nhưng xem phần rủi ro ngay dưới.
+Thứ tự đúng ý: **Văn > Đức > Nam**.
 
-### ⚠️ Rủi ro còn lại: Nam trống hoàn toàn ở Bảng 8
+### Lưu ý: Nam không có dòng nào ở Bảng 8
 
-Nam giữ **4 mục Vượt khung** (đều mạnh: exactly-once, versioning, CQRS, single-flight) + **Demo 3** + toàn bộ frontend + bộ test. Nhưng ở **Bảng 8 — bảng barem mà thầy nhiều khả năng đi từng dòng để hỏi — Nam không có dòng nào.**
+Đây là hệ quả của việc dồn toàn bộ tầng quan sát (tracing, logging, dashboard) về Văn. Nam bù lại bằng **2 dòng Bảng 7** (luồng MQ + kiểm thử), **4 mục Vượt khung** (exactly-once, versioning, CQRS, single-flight), **2 demo** (Demo 3, Demo 6), toàn bộ frontend và bộ test 264 case.
 
-Ba cách xử lý, chọn một:
+**Cách khắc phục trong lúc bảo vệ:** khi Văn trình bày **dòng 8 Bảng 8 (Retry policy)** và nói xong phần *"hết retry thì message vào DLQ"*, **Nam tiếp lời ngay**:
 
-| Cách | Làm gì | Kết quả |
-|---|---|---|
-| **A. Chấp nhận** | Giữ nguyên. Nam chỉ nói khi tới bảng Vượt khung và Demo 3 | Văn 17 · Đức 11 · Nam 5. Rủi ro: nếu thầy chỉ đi theo Bảng 8, Nam không mở miệng lần nào |
-| **B. Chuyển Bảng 7 #3 (luồng MQ) sang Nam** *(khuyến nghị)* | Luồng `order.delivered` → Payment/Order/Review/Notification **cùng phản ứng** chính là **fan-out phía consumer** — đúng tầng Nam | Văn 16 · Đức 11 · Nam 6. Nam có mặt ở bảng bắt buộc, thứ tự vẫn giữ |
-| **C. Chuyển "Docker" hoặc "Graceful shutdown" từ Đức sang Nam** | Không tự nhiên — hai mục này thuộc vận hành, không liên quan gì tới tầng Nam | Văn 17 · Đức 10 · Nam 6. Dễ bị hỏi vặn "sao người làm frontend lại nói Docker?" |
+> *"Và khi Kafka giao lại message — vì nó chỉ đảm bảo at-least-once — thì `processed_events` chặn trùng, nên hiệu ứng nghiệp vụ vẫn đúng một lần. Em có demo tua offset về 0 để chứng minh."*
 
-**Khuyến nghị B**: nó không lấy gì của Văn ở phần *cơ chế* (Văn vẫn giữ toàn bộ outbox/Kafka/DLQ/saga), chỉ chuyển **một luồng nghiệp vụ minh hoạ** sang cho người sở hữu bên nhận — hoàn toàn hợp lý khi giải thích.
+Câu đó vừa kéo Nam vào Bảng 8, vừa mở đường tự nhiên sang **Demo 3**.
 
 ---
 
@@ -342,7 +344,6 @@ cd ../frontend && npm run dev              # :17070
 
 ## Câu hỏi chưa giải quyết
 
-- **Nam mỏng (5 mục).** Có chấp nhận không, hay muốn kéo lên bằng cách chuyển bớt một mục từ Đức (ví dụ "Centralized logging" đã là của Nam; có thể thêm "Graceful shutdown")?
 - Có commit sẵn keypair JWT demo không? Hiện `secrets/` bị gitignore ⇒ người chấm **bắt buộc** chạy `make jwt-keys` trước.
 - Dữ liệu seed demo (hiện đã có 8 đơn thật, offset Kafka đã bị tua) — giữ hay dọn sạch trước khi nộp?
 - MoMo: có dựng địa chỉ công khai (ngrok) để demo trọn vòng IPN không?

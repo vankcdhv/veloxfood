@@ -94,3 +94,4 @@ worktrees/
 .run-logs/
 # Gemini CLI settings (contains user-specific config)
 .gemini/
+.playwright-mcp/*
