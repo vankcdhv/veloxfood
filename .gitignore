@@ -92,3 +92,5 @@ worktrees/
 
 # Local dev run logs (service/frontend stdout)
 .run-logs/
+# Gemini CLI settings (contains user-specific config)
+.gemini/
