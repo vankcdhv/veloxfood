@@ -56,42 +56,24 @@ next-env.d.ts
 build
 GoogleService-Info.plist
 
-repomix-output.xml
-.serena/cache
-plans/**/*
-!plans/templates/*
-screenshots/*
-docs/screenshots/*
-# Root docs/ holds business specs + real third-party secrets — never commit
+# screenshots / ảnh chụp màn hình
+screenshots/
+docs/screenshots/
+
+# Tài liệu nội bộ chứa thông tin nhạy cảm — không commit
 /docs/
+
+# logs & cache
 logs.txt
-test-ck
 __pycache__
+.cache
+.run-logs/
 
-# CK meta commands
-prompt.md
-ck.md
+# editor
+.idea
 
-# Dependency/installed artifacts (.venv, node_modules, __pycache__) and local
-
-
-.gemini/settings.json
-# Showoff/marketing assets (images, showcases)
-assets/
-# Exception: use-mcp ships a persistent tool catalog at assets/tools.json
-
-# External repos for study/reference
+# external repos dùng để tham khảo
 external/
 
-# Git worktrees (local development only)
+# git worktrees (chỉ dùng local)
 worktrees/
-
-.cache
-.idea
-.gstack/
-
-# Local dev run logs (service/frontend stdout)
-.run-logs/
-# Gemini CLI settings (contains user-specific config)
-.gemini/
-.playwright-mcp/*
