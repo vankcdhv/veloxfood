@@ -1,0 +1,94 @@
+/* Bảng màu lấy từ chính chủ đề báo cáo: sổ cái kế toán và phiếu điều vận.
+   Nền sáng là giấy sổ cái ám xanh lá; nhấn là đỏ mực con dấu — dùng đúng cho
+   thao tác bù trừ / rollback, nên màu mang nghĩa chứ không trang trí. */
+:root {
+  --paper:        #EDF1EE;
+  --paper-raised: #F7F9F7;
+  --paper-sunken: #E2E8E4;
+  --rule:         #C9D3CD;
+  --rule-strong:  #A9B7B0;
+
+  --ink:          #101A24;
+  --ink-soft:     #43535E;
+  --ink-faint:    #74838B;
+
+  --stamp:        #B4472E;  /* nhấn — bù trừ, rollback, con dấu */
+  --stamp-wash:   #F3DED8;
+
+  --ok:           #2E7D5B;  /* succeed */
+  --ok-wash:      #DCEBE3;
+  --wait:         #B07A1F;  /* prepared / chờ */
+  --wait-wash:    #F2E6CD;
+  --dead:         #6B7A82;  /* chưa chạy / vô hiệu */
+  --dead-wash:    #E4E9E7;
+  --link:         #2C5C8F;
+
+  --owner-van:    #2C5C8F;
+  --owner-duc:    #7A5BA6;
+  --owner-nam:    #2E7D5B;
+
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  --font-body:    "Avenir Next", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --font-mono:    "JetBrains Mono", "SF Mono", "Cascadia Mono", ui-monospace, "Menlo", monospace;
+
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px;
+
+  --measure: 68ch;
+  --rail: 260px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper:        #131A1F;
+    --paper-raised: #1B242B;
+    --paper-sunken: #0D1317;
+    --rule:         #2C3941;
+    --rule-strong:  #445560;
+
+    --ink:          #E6EDF0;
+    --ink-soft:     #A3B2BA;
+    --ink-faint:    #71838D;
+
+    --stamp:        #E0745A;
+    --stamp-wash:   #3A241F;
+
+    --ok:           #59C295;
+    --ok-wash:      #17332A;
+    --wait:         #D9A441;
+    --wait-wash:    #33290F;
+    --dead:         #6E8189;
+    --dead-wash:    #202A30;
+    --link:         #6FA8DC;
+
+    --owner-van:    #6FA8DC;
+    --owner-duc:    #B18BE0;
+    --owner-nam:    #59C295;
+  }
+}
+
+/* Nút chuyển theme của trình xem đóng dấu data-theme lên root — phải thắng
+   media query ở CẢ HAI chiều, nên định nghĩa lại token cho từng chiều. */
+:root[data-theme="dark"] {
+  --paper: #131A1F; --paper-raised: #1B242B; --paper-sunken: #0D1317;
+  --rule: #2C3941; --rule-strong: #445560;
+  --ink: #E6EDF0; --ink-soft: #A3B2BA; --ink-faint: #71838D;
+  --stamp: #E0745A; --stamp-wash: #3A241F;
+  --ok: #59C295; --ok-wash: #17332A;
+  --wait: #D9A441; --wait-wash: #33290F;
+  --dead: #6E8189; --dead-wash: #202A30;
+  --link: #6FA8DC;
+  --owner-van: #6FA8DC; --owner-duc: #B18BE0; --owner-nam: #59C295;
+}
+
+:root[data-theme="light"] {
+  --paper: #EDF1EE; --paper-raised: #F7F9F7; --paper-sunken: #E2E8E4;
+  --rule: #C9D3CD; --rule-strong: #A9B7B0;
+  --ink: #101A24; --ink-soft: #43535E; --ink-faint: #74838B;
+  --stamp: #B4472E; --stamp-wash: #F3DED8;
+  --ok: #2E7D5B; --ok-wash: #DCEBE3;
+  --wait: #B07A1F; --wait-wash: #F2E6CD;
+  --dead: #6B7A82; --dead-wash: #E4E9E7;
+  --link: #2C5C8F;
+  --owner-van: #2C5C8F; --owner-duc: #7A5BA6; --owner-nam: #2E7D5B;
+}

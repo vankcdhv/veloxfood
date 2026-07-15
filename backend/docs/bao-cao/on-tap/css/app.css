@@ -1,0 +1,335 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; font-weight: 600; }
+code, kbd, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+a { color: var(--link); }
+
+:focus-visible {
+  outline: 2px solid var(--stamp);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ── Thanh đầu trang ─────────────────────────────────────────── */
+.masthead {
+  border-bottom: 1px solid var(--rule-strong);
+  background: var(--paper-raised);
+  position: sticky; top: 0; z-index: 20;
+}
+.masthead-inner {
+  max-width: 1180px; margin: 0 auto;
+  padding: var(--s4) var(--s5) 0;
+  display: flex; flex-direction: column; gap: var(--s3);
+}
+.wordmark { display: flex; align-items: baseline; gap: var(--s3); flex-wrap: wrap; }
+.wordmark h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
+.wordmark .sub {
+  font-family: var(--font-mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-faint);
+}
+
+.tabs { display: flex; gap: var(--s5); overflow-x: auto; }
+.tab {
+  appearance: none; background: none; border: 0; cursor: pointer;
+  font-family: var(--font-body); font-size: 15px; color: var(--ink-soft);
+  padding: var(--s2) 0 var(--s3);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  display: flex; align-items: center; gap: var(--s2);
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--tab-accent, var(--stamp)); font-weight: 600; }
+.tab .count {
+  font-family: var(--font-mono); font-size: 11px;
+  padding: 1px 6px; border-radius: 9px;
+  background: var(--paper-sunken); color: var(--ink-faint);
+}
+.tab[aria-selected="true"] .count { background: var(--tab-accent, var(--stamp)); color: var(--paper-raised); }
+
+/* ── Bố cục hai cột ──────────────────────────────────────────── */
+.shell {
+  max-width: 1180px; margin: 0 auto;
+  padding: var(--s6) var(--s5) var(--s8);
+  display: grid; grid-template-columns: var(--rail) minmax(0, 1fr);
+  gap: var(--s7);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; gap: var(--s5); }
+  .rail { position: static !important; border-right: 0; }
+}
+
+.rail { position: sticky; top: 96px; }
+.rail-title {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-faint);
+  padding-bottom: var(--s2); border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--s3);
+}
+.rail ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rail a {
+  display: flex; gap: var(--s2); align-items: baseline;
+  text-decoration: none; color: var(--ink-soft);
+  font-size: 14px; line-height: 1.35;
+  padding: var(--s2) var(--s2) var(--s2) var(--s3);
+  border-left: 2px solid transparent;
+}
+.rail a:hover { color: var(--ink); background: var(--paper-raised); }
+.rail a.on { color: var(--ink); border-left-color: var(--tab-accent, var(--stamp)); font-weight: 600; }
+.rail .n {
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint);
+  min-width: 1.6em;
+}
+.rail a.has-scene .n::after { content: "▸"; color: var(--stamp); margin-left: 2px; }
+
+.column { min-width: 0; display: flex; flex-direction: column; gap: var(--s7); }
+
+/* ── Thẻ khái niệm ───────────────────────────────────────────── */
+.card { scroll-margin-top: 110px; display: flex; flex-direction: column; gap: var(--s4); }
+.card > header { display: flex; flex-direction: column; gap: var(--s2); }
+.card h2 { margin: 0; font-size: 27px; line-height: 1.2; }
+.eyebrow {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-faint);
+  display: flex; gap: var(--s3); flex-wrap: wrap; align-items: center;
+}
+.eyebrow .req {
+  color: var(--ink); background: var(--paper-sunken);
+  padding: 1px 6px; border: 1px solid var(--rule);
+}
+.lede { margin: 0; max-width: var(--measure); color: var(--ink-soft); }
+
+/* Khối "câu phải nói" — thứ duy nhất được đóng dấu accent */
+.say {
+  border-left: 3px solid var(--stamp);
+  background: var(--stamp-wash);
+  padding: var(--s4) var(--s5);
+  max-width: var(--measure);
+  display: flex; flex-direction: column; gap: var(--s2);
+}
+.say .label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--stamp);
+}
+.say p { margin: 0; font-family: var(--font-display); font-size: 18px; line-height: 1.55; }
+.say p + p { margin-top: var(--s2); }
+
+/* Hỏi sâu */
+.probe { max-width: var(--measure); display: flex; flex-direction: column; }
+.probe > .label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-faint);
+  padding-bottom: var(--s2); border-bottom: 1px solid var(--rule); margin-bottom: var(--s2);
+}
+.probe details { border-bottom: 1px solid var(--rule); }
+.probe summary {
+  cursor: pointer; padding: var(--s3) 0; list-style: none;
+  display: flex; gap: var(--s3); align-items: baseline;
+}
+.probe summary::-webkit-details-marker { display: none; }
+.probe summary::before {
+  content: "Q"; font-family: var(--font-mono); font-size: 11px;
+  color: var(--stamp); font-weight: 700;
+}
+.probe summary:hover { color: var(--stamp); }
+.probe details[open] summary { font-weight: 600; }
+.probe .a {
+  padding: 0 0 var(--s4) calc(11px + var(--s3));
+  color: var(--ink-soft); font-size: 15px;
+}
+.probe .a strong { color: var(--ink); }
+
+/* Nguồn code */
+.srcs { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.src {
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--ink-soft); background: var(--paper-raised);
+  border: 1px solid var(--rule); padding: 3px 8px;
+}
+
+/* ── Khung hoạt cảnh ─────────────────────────────────────────── */
+.scene {
+  border: 1px solid var(--rule-strong);
+  background: var(--paper-raised);
+  display: flex; flex-direction: column;
+}
+.scene-bar {
+  display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap;
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper-sunken);
+}
+.scene-bar .name {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-soft); margin-right: auto;
+}
+.scene-stage { padding: var(--s5) var(--s4); overflow-x: auto; }
+.scene-foot {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-top: 1px solid var(--rule);
+  background: var(--paper-sunken);
+  flex-wrap: wrap;
+}
+.scene-note {
+  margin-right: auto; font-size: 14px; color: var(--ink-soft);
+  min-height: 1.5em; max-width: 60ch;
+}
+.scene-note b { color: var(--ink); }
+.scene-note .hit { color: var(--stamp); font-weight: 600; }
+
+/* Điều khiển */
+button.ctl, select.ctl {
+  font-family: var(--font-body); font-size: 13px;
+  color: var(--ink); background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  padding: 5px 12px; cursor: pointer;
+}
+button.ctl:hover:not(:disabled) { border-color: var(--ink-soft); }
+button.ctl:disabled { opacity: 0.4; cursor: default; }
+button.ctl.go { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+button.ctl.go:hover { background: var(--stamp); border-color: var(--stamp); }
+button.ctl.fault {
+  color: var(--stamp); border-color: var(--stamp);
+  font-family: var(--font-mono); font-size: 12px;
+}
+button.ctl.fault[aria-pressed="true"] { background: var(--stamp); color: var(--paper-raised); }
+label.ctl-wrap {
+  display: flex; align-items: center; gap: var(--s2);
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint);
+}
+.steps {
+  font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint);
+  letter-spacing: 0.06em;
+}
+
+/* ── Sequence diagram (SVG) ──────────────────────────────────── */
+svg.seq { display: block; width: 100%; height: auto; min-width: 560px; overflow: visible; }
+
+.seq-life { stroke: var(--rule-strong); stroke-width: 1; stroke-dasharray: 2 4; }
+
+.seq-actor rect { fill: var(--paper-sunken); stroke: var(--rule-strong); stroke-width: 1; }
+.seq-actor-name {
+  fill: var(--ink); font-family: var(--font-body); font-size: 13px; font-weight: 600;
+  text-anchor: middle;
+}
+.seq-actor-sub {
+  fill: var(--ink-faint); font-family: var(--font-mono); font-size: 10px;
+  text-anchor: middle; letter-spacing: 0.03em;
+}
+
+/* Dải sáng đánh dấu bước đang chạy — thay cho việc tô nền cả hàng */
+.seq-now-band { fill: var(--paper-sunken); }
+
+.seq-msg { color: var(--ok); transition: opacity 160ms ease; }
+.seq-msg.fail,
+.seq-msg.comp { color: var(--stamp); }
+.seq-msg.wait { color: var(--wait); }
+.seq-msg.dead { color: var(--dead); }
+.seq-msg.future { opacity: 0.22; }
+
+.seq-line { stroke: currentColor; stroke-width: 1.5; }
+.seq-msg.comp .seq-line { stroke-dasharray: 6 3; }
+.seq-msg.now .seq-line { stroke-width: 2.5; }
+.seq-tip { fill: currentColor; }
+.seq-dot { fill: currentColor; }
+
+.seq-label-bg { fill: var(--paper-raised); }
+.seq-msg.now .seq-label-bg { fill: var(--paper-sunken); }
+.seq-label {
+  fill: currentColor; font-family: var(--font-mono); font-size: 11px;
+  text-anchor: middle; letter-spacing: 0.01em;
+}
+.seq-msg.now .seq-label { font-weight: 700; }
+.seq-msg.dead .seq-label { fill: var(--ink-faint); }
+
+/* ── Máy trạng thái (SVG) ────────────────────────────────────── */
+svg.fsm { display: block; width: 100%; height: auto; min-width: 560px; }
+
+.fsm-node circle { fill: var(--paper); stroke: var(--rule-strong); stroke-width: 1.5; }
+.fsm-node.on circle { fill: currentColor; stroke: currentColor; stroke-width: 2; }
+.fsm-node-label {
+  fill: var(--ink-faint); font-family: var(--font-mono); font-size: 12px;
+  font-weight: 700; letter-spacing: 0.06em; text-anchor: middle;
+}
+.fsm-node-sub {
+  fill: var(--ink-faint); font-family: var(--font-mono); font-size: 10px; text-anchor: middle;
+}
+.fsm-node.on .fsm-node-label,
+.fsm-node.on .fsm-node-sub { fill: var(--paper-raised); }
+
+.fsm-edge { stroke: currentColor; stroke-width: 1.25; opacity: 0.55; }
+.fsm-tip { fill: currentColor; opacity: 0.55; }
+.fsm-edge-label {
+  fill: currentColor; font-family: var(--font-mono); font-size: 10.5px;
+  text-anchor: middle; opacity: 0.9;
+}
+
+/* ── Ô số liệu lớn ───────────────────────────────────────────── */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--s3); margin-top: var(--s5); }
+.stat {
+  border: 1px solid var(--rule); background: var(--paper);
+  padding: var(--s3) var(--s4);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.stat-label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+.stat-value {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 26px; font-weight: 700; line-height: 1.25; color: var(--ink);
+}
+.stat-hint { font-size: 12px; color: var(--ink-soft); line-height: 1.4; }
+.stat.ok   { border-color: var(--ok);    background: var(--ok-wash); }
+.stat.ok   .stat-value { color: var(--ok); }
+.stat.bad  { border-color: var(--stamp); background: var(--stamp-wash); }
+.stat.bad  .stat-value { color: var(--stamp); }
+.stat.warn { border-color: var(--wait);  background: var(--wait-wash); }
+.stat.warn .stat-value { color: var(--wait); }
+.stat.hot  { box-shadow: inset 0 0 0 1px currentColor; }
+
+/* Chip trạng thái */
+.chip {
+  font-family: var(--font-mono); font-size: 11px;
+  padding: 1px 7px; border: 1px solid currentColor; white-space: nowrap;
+}
+.chip.ok   { color: var(--ok);    background: var(--ok-wash); }
+.chip.fail { color: var(--stamp); background: var(--stamp-wash); }
+.chip.wait { color: var(--wait);  background: var(--wait-wash); }
+.chip.dead { color: var(--dead);  background: var(--dead-wash); }
+
+/* Bảng số liệu trong hoạt cảnh */
+table.grid { border-collapse: collapse; width: 100%; font-size: 14px; }
+table.grid th, table.grid td {
+  border: 1px solid var(--rule); padding: var(--s2) var(--s3); text-align: left;
+}
+table.grid th {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-faint);
+  background: var(--paper-sunken); font-weight: 400;
+}
+table.grid td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+table.grid tr.flash td { background: var(--wait-wash); }
+table.grid td.strike { text-decoration: line-through; color: var(--ink-faint); }
+
+/* Bảng nội dung thường (ngoài hoạt cảnh) */
+.tablewrap { overflow-x: auto; max-width: 100%; }
+.tablewrap table { border-collapse: collapse; font-size: 14px; min-width: 460px; }
+.tablewrap th, .tablewrap td { border-bottom: 1px solid var(--rule); padding: var(--s2) var(--s4) var(--s2) 0; text-align: left; vertical-align: top; }
+.tablewrap th { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); font-weight: 400; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

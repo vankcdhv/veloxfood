@@ -1,0 +1,2565 @@
+<title>VeloxFood — Ôn tập bảo vệ đồ án hệ phân tán</title>
+<style>
+/* Bảng màu lấy từ chính chủ đề báo cáo: sổ cái kế toán và phiếu điều vận.
+   Nền sáng là giấy sổ cái ám xanh lá; nhấn là đỏ mực con dấu — dùng đúng cho
+   thao tác bù trừ / rollback, nên màu mang nghĩa chứ không trang trí. */
+:root {
+  --paper:        #EDF1EE;
+  --paper-raised: #F7F9F7;
+  --paper-sunken: #E2E8E4;
+  --rule:         #C9D3CD;
+  --rule-strong:  #A9B7B0;
+
+  --ink:          #101A24;
+  --ink-soft:     #43535E;
+  --ink-faint:    #74838B;
+
+  --stamp:        #B4472E;  /* nhấn — bù trừ, rollback, con dấu */
+  --stamp-wash:   #F3DED8;
+
+  --ok:           #2E7D5B;  /* succeed */
+  --ok-wash:      #DCEBE3;
+  --wait:         #B07A1F;  /* prepared / chờ */
+  --wait-wash:    #F2E6CD;
+  --dead:         #6B7A82;  /* chưa chạy / vô hiệu */
+  --dead-wash:    #E4E9E7;
+  --link:         #2C5C8F;
+
+  --owner-van:    #2C5C8F;
+  --owner-duc:    #7A5BA6;
+  --owner-nam:    #2E7D5B;
+
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  --font-body:    "Avenir Next", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --font-mono:    "JetBrains Mono", "SF Mono", "Cascadia Mono", ui-monospace, "Menlo", monospace;
+
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px;
+
+  --measure: 68ch;
+  --rail: 260px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper:        #131A1F;
+    --paper-raised: #1B242B;
+    --paper-sunken: #0D1317;
+    --rule:         #2C3941;
+    --rule-strong:  #445560;
+
+    --ink:          #E6EDF0;
+    --ink-soft:     #A3B2BA;
+    --ink-faint:    #71838D;
+
+    --stamp:        #E0745A;
+    --stamp-wash:   #3A241F;
+
+    --ok:           #59C295;
+    --ok-wash:      #17332A;
+    --wait:         #D9A441;
+    --wait-wash:    #33290F;
+    --dead:         #6E8189;
+    --dead-wash:    #202A30;
+    --link:         #6FA8DC;
+
+    --owner-van:    #6FA8DC;
+    --owner-duc:    #B18BE0;
+    --owner-nam:    #59C295;
+  }
+}
+
+/* Nút chuyển theme của trình xem đóng dấu data-theme lên root — phải thắng
+   media query ở CẢ HAI chiều, nên định nghĩa lại token cho từng chiều. */
+:root[data-theme="dark"] {
+  --paper: #131A1F; --paper-raised: #1B242B; --paper-sunken: #0D1317;
+  --rule: #2C3941; --rule-strong: #445560;
+  --ink: #E6EDF0; --ink-soft: #A3B2BA; --ink-faint: #71838D;
+  --stamp: #E0745A; --stamp-wash: #3A241F;
+  --ok: #59C295; --ok-wash: #17332A;
+  --wait: #D9A441; --wait-wash: #33290F;
+  --dead: #6E8189; --dead-wash: #202A30;
+  --link: #6FA8DC;
+  --owner-van: #6FA8DC; --owner-duc: #B18BE0; --owner-nam: #59C295;
+}
+
+:root[data-theme="light"] {
+  --paper: #EDF1EE; --paper-raised: #F7F9F7; --paper-sunken: #E2E8E4;
+  --rule: #C9D3CD; --rule-strong: #A9B7B0;
+  --ink: #101A24; --ink-soft: #43535E; --ink-faint: #74838B;
+  --stamp: #B4472E; --stamp-wash: #F3DED8;
+  --ok: #2E7D5B; --ok-wash: #DCEBE3;
+  --wait: #B07A1F; --wait-wash: #F2E6CD;
+  --dead: #6B7A82; --dead-wash: #E4E9E7;
+  --link: #2C5C8F;
+  --owner-van: #2C5C8F; --owner-duc: #7A5BA6; --owner-nam: #2E7D5B;
+}
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; font-weight: 600; }
+code, kbd, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+a { color: var(--link); }
+
+:focus-visible {
+  outline: 2px solid var(--stamp);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ── Thanh đầu trang ─────────────────────────────────────────── */
+.masthead {
+  border-bottom: 1px solid var(--rule-strong);
+  background: var(--paper-raised);
+  position: sticky; top: 0; z-index: 20;
+}
+.masthead-inner {
+  max-width: 1180px; margin: 0 auto;
+  padding: var(--s4) var(--s5) 0;
+  display: flex; flex-direction: column; gap: var(--s3);
+}
+.wordmark { display: flex; align-items: baseline; gap: var(--s3); flex-wrap: wrap; }
+.wordmark h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
+.wordmark .sub {
+  font-family: var(--font-mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-faint);
+}
+
+.tabs { display: flex; gap: var(--s5); overflow-x: auto; }
+.tab {
+  appearance: none; background: none; border: 0; cursor: pointer;
+  font-family: var(--font-body); font-size: 15px; color: var(--ink-soft);
+  padding: var(--s2) 0 var(--s3);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  display: flex; align-items: center; gap: var(--s2);
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--tab-accent, var(--stamp)); font-weight: 600; }
+.tab .count {
+  font-family: var(--font-mono); font-size: 11px;
+  padding: 1px 6px; border-radius: 9px;
+  background: var(--paper-sunken); color: var(--ink-faint);
+}
+.tab[aria-selected="true"] .count { background: var(--tab-accent, var(--stamp)); color: var(--paper-raised); }
+
+/* ── Bố cục hai cột ──────────────────────────────────────────── */
+.shell {
+  max-width: 1180px; margin: 0 auto;
+  padding: var(--s6) var(--s5) var(--s8);
+  display: grid; grid-template-columns: var(--rail) minmax(0, 1fr);
+  gap: var(--s7);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; gap: var(--s5); }
+  .rail { position: static !important; border-right: 0; }
+}
+
+.rail { position: sticky; top: 96px; }
+.rail-title {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-faint);
+  padding-bottom: var(--s2); border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--s3);
+}
+.rail ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rail a {
+  display: flex; gap: var(--s2); align-items: baseline;
+  text-decoration: none; color: var(--ink-soft);
+  font-size: 14px; line-height: 1.35;
+  padding: var(--s2) var(--s2) var(--s2) var(--s3);
+  border-left: 2px solid transparent;
+}
+.rail a:hover { color: var(--ink); background: var(--paper-raised); }
+.rail a.on { color: var(--ink); border-left-color: var(--tab-accent, var(--stamp)); font-weight: 600; }
+.rail .n {
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint);
+  min-width: 1.6em;
+}
+.rail a.has-scene .n::after { content: "▸"; color: var(--stamp); margin-left: 2px; }
+
+.column { min-width: 0; display: flex; flex-direction: column; gap: var(--s7); }
+
+/* ── Thẻ khái niệm ───────────────────────────────────────────── */
+.card { scroll-margin-top: 110px; display: flex; flex-direction: column; gap: var(--s4); }
+.card > header { display: flex; flex-direction: column; gap: var(--s2); }
+.card h2 { margin: 0; font-size: 27px; line-height: 1.2; }
+.eyebrow {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-faint);
+  display: flex; gap: var(--s3); flex-wrap: wrap; align-items: center;
+}
+.eyebrow .req {
+  color: var(--ink); background: var(--paper-sunken);
+  padding: 1px 6px; border: 1px solid var(--rule);
+}
+.lede { margin: 0; max-width: var(--measure); color: var(--ink-soft); }
+
+/* Khối "câu phải nói" — thứ duy nhất được đóng dấu accent */
+.say {
+  border-left: 3px solid var(--stamp);
+  background: var(--stamp-wash);
+  padding: var(--s4) var(--s5);
+  max-width: var(--measure);
+  display: flex; flex-direction: column; gap: var(--s2);
+}
+.say .label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--stamp);
+}
+.say p { margin: 0; font-family: var(--font-display); font-size: 18px; line-height: 1.55; }
+.say p + p { margin-top: var(--s2); }
+
+/* Hỏi sâu */
+.probe { max-width: var(--measure); display: flex; flex-direction: column; }
+.probe > .label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-faint);
+  padding-bottom: var(--s2); border-bottom: 1px solid var(--rule); margin-bottom: var(--s2);
+}
+.probe details { border-bottom: 1px solid var(--rule); }
+.probe summary {
+  cursor: pointer; padding: var(--s3) 0; list-style: none;
+  display: flex; gap: var(--s3); align-items: baseline;
+}
+.probe summary::-webkit-details-marker { display: none; }
+.probe summary::before {
+  content: "Q"; font-family: var(--font-mono); font-size: 11px;
+  color: var(--stamp); font-weight: 700;
+}
+.probe summary:hover { color: var(--stamp); }
+.probe details[open] summary { font-weight: 600; }
+.probe .a {
+  padding: 0 0 var(--s4) calc(11px + var(--s3));
+  color: var(--ink-soft); font-size: 15px;
+}
+.probe .a strong { color: var(--ink); }
+
+/* Nguồn code */
+.srcs { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.src {
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--ink-soft); background: var(--paper-raised);
+  border: 1px solid var(--rule); padding: 3px 8px;
+}
+
+/* ── Khung hoạt cảnh ─────────────────────────────────────────── */
+.scene {
+  border: 1px solid var(--rule-strong);
+  background: var(--paper-raised);
+  display: flex; flex-direction: column;
+}
+.scene-bar {
+  display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap;
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper-sunken);
+}
+.scene-bar .name {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-soft); margin-right: auto;
+}
+.scene-stage { padding: var(--s5) var(--s4); overflow-x: auto; }
+.scene-foot {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-top: 1px solid var(--rule);
+  background: var(--paper-sunken);
+  flex-wrap: wrap;
+}
+.scene-note {
+  margin-right: auto; font-size: 14px; color: var(--ink-soft);
+  min-height: 1.5em; max-width: 60ch;
+}
+.scene-note b { color: var(--ink); }
+.scene-note .hit { color: var(--stamp); font-weight: 600; }
+
+/* Điều khiển */
+button.ctl, select.ctl {
+  font-family: var(--font-body); font-size: 13px;
+  color: var(--ink); background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  padding: 5px 12px; cursor: pointer;
+}
+button.ctl:hover:not(:disabled) { border-color: var(--ink-soft); }
+button.ctl:disabled { opacity: 0.4; cursor: default; }
+button.ctl.go { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+button.ctl.go:hover { background: var(--stamp); border-color: var(--stamp); }
+button.ctl.fault {
+  color: var(--stamp); border-color: var(--stamp);
+  font-family: var(--font-mono); font-size: 12px;
+}
+button.ctl.fault[aria-pressed="true"] { background: var(--stamp); color: var(--paper-raised); }
+label.ctl-wrap {
+  display: flex; align-items: center; gap: var(--s2);
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint);
+}
+.steps {
+  font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint);
+  letter-spacing: 0.06em;
+}
+
+/* ── Sequence diagram (SVG) ──────────────────────────────────── */
+svg.seq { display: block; width: 100%; height: auto; min-width: 560px; overflow: visible; }
+
+.seq-life { stroke: var(--rule-strong); stroke-width: 1; stroke-dasharray: 2 4; }
+
+.seq-actor rect { fill: var(--paper-sunken); stroke: var(--rule-strong); stroke-width: 1; }
+.seq-actor-name {
+  fill: var(--ink); font-family: var(--font-body); font-size: 13px; font-weight: 600;
+  text-anchor: middle;
+}
+.seq-actor-sub {
+  fill: var(--ink-faint); font-family: var(--font-mono); font-size: 10px;
+  text-anchor: middle; letter-spacing: 0.03em;
+}
+
+/* Dải sáng đánh dấu bước đang chạy — thay cho việc tô nền cả hàng */
+.seq-now-band { fill: var(--paper-sunken); }
+
+.seq-msg { color: var(--ok); transition: opacity 160ms ease; }
+.seq-msg.fail,
+.seq-msg.comp { color: var(--stamp); }
+.seq-msg.wait { color: var(--wait); }
+.seq-msg.dead { color: var(--dead); }
+.seq-msg.future { opacity: 0.22; }
+
+.seq-line { stroke: currentColor; stroke-width: 1.5; }
+.seq-msg.comp .seq-line { stroke-dasharray: 6 3; }
+.seq-msg.now .seq-line { stroke-width: 2.5; }
+.seq-tip { fill: currentColor; }
+.seq-dot { fill: currentColor; }
+
+.seq-label-bg { fill: var(--paper-raised); }
+.seq-msg.now .seq-label-bg { fill: var(--paper-sunken); }
+.seq-label {
+  fill: currentColor; font-family: var(--font-mono); font-size: 11px;
+  text-anchor: middle; letter-spacing: 0.01em;
+}
+.seq-msg.now .seq-label { font-weight: 700; }
+.seq-msg.dead .seq-label { fill: var(--ink-faint); }
+
+/* ── Máy trạng thái (SVG) ────────────────────────────────────── */
+svg.fsm { display: block; width: 100%; height: auto; min-width: 560px; }
+
+.fsm-node circle { fill: var(--paper); stroke: var(--rule-strong); stroke-width: 1.5; }
+.fsm-node.on circle { fill: currentColor; stroke: currentColor; stroke-width: 2; }
+.fsm-node-label {
+  fill: var(--ink-faint); font-family: var(--font-mono); font-size: 12px;
+  font-weight: 700; letter-spacing: 0.06em; text-anchor: middle;
+}
+.fsm-node-sub {
+  fill: var(--ink-faint); font-family: var(--font-mono); font-size: 10px; text-anchor: middle;
+}
+.fsm-node.on .fsm-node-label,
+.fsm-node.on .fsm-node-sub { fill: var(--paper-raised); }
+
+.fsm-edge { stroke: currentColor; stroke-width: 1.25; opacity: 0.55; }
+.fsm-tip { fill: currentColor; opacity: 0.55; }
+.fsm-edge-label {
+  fill: currentColor; font-family: var(--font-mono); font-size: 10.5px;
+  text-anchor: middle; opacity: 0.9;
+}
+
+/* ── Ô số liệu lớn ───────────────────────────────────────────── */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--s3); margin-top: var(--s5); }
+.stat {
+  border: 1px solid var(--rule); background: var(--paper);
+  padding: var(--s3) var(--s4);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.stat-label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+.stat-value {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 26px; font-weight: 700; line-height: 1.25; color: var(--ink);
+}
+.stat-hint { font-size: 12px; color: var(--ink-soft); line-height: 1.4; }
+.stat.ok   { border-color: var(--ok);    background: var(--ok-wash); }
+.stat.ok   .stat-value { color: var(--ok); }
+.stat.bad  { border-color: var(--stamp); background: var(--stamp-wash); }
+.stat.bad  .stat-value { color: var(--stamp); }
+.stat.warn { border-color: var(--wait);  background: var(--wait-wash); }
+.stat.warn .stat-value { color: var(--wait); }
+.stat.hot  { box-shadow: inset 0 0 0 1px currentColor; }
+
+/* Chip trạng thái */
+.chip {
+  font-family: var(--font-mono); font-size: 11px;
+  padding: 1px 7px; border: 1px solid currentColor; white-space: nowrap;
+}
+.chip.ok   { color: var(--ok);    background: var(--ok-wash); }
+.chip.fail { color: var(--stamp); background: var(--stamp-wash); }
+.chip.wait { color: var(--wait);  background: var(--wait-wash); }
+.chip.dead { color: var(--dead);  background: var(--dead-wash); }
+
+/* Bảng số liệu trong hoạt cảnh */
+table.grid { border-collapse: collapse; width: 100%; font-size: 14px; }
+table.grid th, table.grid td {
+  border: 1px solid var(--rule); padding: var(--s2) var(--s3); text-align: left;
+}
+table.grid th {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-faint);
+  background: var(--paper-sunken); font-weight: 400;
+}
+table.grid td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+table.grid tr.flash td { background: var(--wait-wash); }
+table.grid td.strike { text-decoration: line-through; color: var(--ink-faint); }
+
+/* Bảng nội dung thường (ngoài hoạt cảnh) */
+.tablewrap { overflow-x: auto; max-width: 100%; }
+.tablewrap table { border-collapse: collapse; font-size: 14px; min-width: 460px; }
+.tablewrap th, .tablewrap td { border-bottom: 1px solid var(--rule); padding: var(--s2) var(--s4) var(--s2) 0; text-align: left; vertical-align: top; }
+.tablewrap th { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); font-weight: 400; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="wordmark">
+      <h1>VeloxFood — Ôn tập bảo vệ</h1>
+      <span class="sub">INT4409 · Hệ phân tán · Văn · Đức · Nam</span>
+    </div>
+    <nav class="tabs" id="tabs" role="tablist"></nav>
+  </div>
+</header>
+
+<main class="shell" id="shell">
+  <aside class="rail" id="rail"></aside>
+  <div class="column" id="column"></div>
+</main>
+<script>
+/* Engine hoạt cảnh dùng chung.
+ *
+ * Mỗi hoạt cảnh khai báo:
+ *   - controls: các nút / dropdown "gây lỗi" — đổi giá trị thì dựng lại kịch bản
+ *   - build(opts) -> [{ view, note }]  : mảng bước, mỗi bước là HTML tĩnh
+ *
+ * Engine lo phần chung: khung, thanh điều khiển, bấm tới/lui, đếm bước.
+ * Không có animation theo thời gian — người xem tự bấm từng bước, nên lúc bảo vệ
+ * có thể dừng ở đúng khung hình cần giải thích.
+ */
+window.VF = window.VF || {};
+VF.scenes = {};
+
+VF.scene = function (id, def) { VF.scenes[id] = def; };
+
+/* ── Nguyên liệu vẽ dùng chung ─────────────────────────────── */
+VF.esc = function (s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+};
+
+/* Sơ đồ tuần tự vẽ bằng SVG — mỗi service là một ĐƯỜNG ĐỜI dọc, mỗi lời gọi là
+ * một mũi tên bắc ngang giữa hai đường đời. Đây là ký pháp chuẩn của sequence
+ * diagram: có đường đời thì mắt mới bám được "ai đang nói với ai", còn danh sách
+ * mũi tên rời rạc thì không.
+ *
+ * rows: [{ from, to, label, cls }] — chỉ số cột; cls ∈ ok|fail|comp|wait|dead
+ * now:  chỉ số hàng đang chạy (hàng sau bị làm mờ, hàng này được tô đậm)
+ *
+ * Bù trừ (comp) vẽ NÉT ĐỨT màu mực dấu — nhìn là biết ngay đây là đường lùi. */
+VF.lanes = function (lanes, rows, now) {
+  var n = lanes.length;
+  var W = 880, PAD = 16, HEAD = 56, ROW = 48, TOP = HEAD + 26;
+  var H = TOP + rows.length * ROW + 14;
+  var colW = (W - 2 * PAD) / n;
+  var x = function (i) { return PAD + colW * (i + 0.5); };
+
+  var s = '<svg class="seq" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
+          'preserveAspectRatio="xMidYMid meet">';
+
+  // Đường đời — kẻ trước để mũi tên nằm đè lên
+  lanes.forEach(function (l, i) {
+    s += '<line class="seq-life" x1="' + x(i) + '" y1="' + (HEAD + 2) + '" x2="' + x(i) + '" y2="' + (H - 8) + '"/>';
+  });
+
+  // Hộp tên service
+  lanes.forEach(function (l, i) {
+    var bw = Math.min(colW - 16, 190);
+    s += '<g class="seq-actor">' +
+         '<rect x="' + (x(i) - bw / 2) + '" y="8" width="' + bw + '" height="42" rx="2"/>' +
+         '<text class="seq-actor-name" x="' + x(i) + '" y="26">' + VF.esc(l.name) + '</text>' +
+         '<text class="seq-actor-sub" x="' + x(i) + '" y="41">' + VF.esc(l.sub || '') + '</text>' +
+         '</g>';
+  });
+
+  rows.forEach(function (r, i) {
+    var y = TOP + i * ROW;
+    var cls = 'seq-msg ' + (r.cls || 'ok') +
+              (i > now ? ' future' : '') + (i === now ? ' now' : '');
+    var x1 = x(r.from), x2 = x(r.to);
+    s += '<g class="' + cls + '">';
+
+    if (i === now) {
+      s += '<rect class="seq-now-band" x="' + PAD + '" y="' + (y - 20) + '" ' +
+           'width="' + (W - 2 * PAD) + '" height="' + (ROW - 6) + '"/>';
+    }
+
+    if (r.from === r.to) {
+      // Lời gọi tự thân: cung vuông quay lại chính mình (retry, chờ, crash)
+      var w = 34;
+      s += '<path class="seq-line" d="M' + x1 + ' ' + (y - 7) + ' h' + w +
+           ' v14 h-' + (w - 8) + '" fill="none"/>' +
+           arrowHead(x1 + 9, y + 7, -1) +
+           // style thắng được CSS .seq-label{text-anchor:middle}; thuộc tính thường thì không
+           '<text class="seq-label" style="text-anchor:start" x="' + (x1 + w + 12) + '" y="' + (y + 4) + '">' +
+           VF.esc(r.label) + '</text>';
+    } else {
+      var dir = x2 > x1 ? 1 : -1;
+      var tip = x2 - dir * 7;
+      s += '<line class="seq-line" x1="' + x1 + '" y1="' + y + '" x2="' + tip + '" y2="' + y + '"/>' +
+           '<circle class="seq-dot" cx="' + x1 + '" cy="' + y + '" r="2.5"/>' +
+           arrowHead(x2, y, dir);
+
+      var mid = (x1 + x2) / 2;
+      var tw = r.label.length * 6.1 + 14;
+      s += '<rect class="seq-label-bg" x="' + (mid - tw / 2) + '" y="' + (y - 17) + '" ' +
+           'width="' + tw + '" height="15" />' +
+           '<text class="seq-label" x="' + mid + '" y="' + (y - 5) + '">' + VF.esc(r.label) + '</text>';
+    }
+    s += '</g>';
+  });
+
+  return s + '</svg>';
+
+  function arrowHead(px, py, dir) {
+    var b = px - dir * 8;
+    return '<path class="seq-tip" d="M' + px + ' ' + py + ' L' + b + ' ' + (py - 4.5) +
+           ' L' + b + ' ' + (py + 4.5) + ' Z"/>';
+  }
+};
+
+/* Ô số liệu lớn — dùng cho những con số PHẢI đập vào mắt (8 chứ không phải 16,
+ * 5.055ms so với 25ms). tone ∈ ok|bad|warn|mute */
+VF.stat = function (cards) {
+  return '<div class="stats">' + cards.map(function (c) {
+    return '<div class="stat ' + (c.tone || 'mute') + (c.hot ? ' hot' : '') + '">' +
+      '<div class="stat-label">' + VF.esc(c.label) + '</div>' +
+      '<div class="stat-value">' + c.value + '</div>' +
+      (c.hint ? '<div class="stat-hint">' + c.hint + '</div>' : '') +
+      '</div>';
+  }).join('') + '</div>';
+};
+
+/* ── Khung + vòng đời một hoạt cảnh ────────────────────────── */
+VF.mount = function (host, id) {
+  var def = VF.scenes[id];
+  if (!def) { host.innerHTML = '<p class="scene-note">Thiếu hoạt cảnh: ' + VF.esc(id) + '</p>'; return; }
+
+  var opts = {};
+  (def.controls || []).forEach(function (c) { opts[c.id] = c.value; });
+
+  var steps = [], i = 0;
+
+  var bar = document.createElement('div'); bar.className = 'scene-bar';
+  var stage = document.createElement('div'); stage.className = 'scene-stage';
+  var foot = document.createElement('div'); foot.className = 'scene-foot';
+
+  bar.innerHTML = '<span class="name">' + VF.esc(def.title) + '</span>';
+
+  (def.controls || []).forEach(function (c) {
+    if (c.kind === 'select') {
+      var wrap = document.createElement('label');
+      wrap.className = 'ctl-wrap';
+      wrap.append(c.label);
+      var sel = document.createElement('select');
+      sel.className = 'ctl';
+      c.options.forEach(function (o) {
+        var op = document.createElement('option');
+        op.value = o[0]; op.textContent = o[1];
+        if (o[0] === c.value) op.selected = true;
+        sel.append(op);
+      });
+      sel.addEventListener('change', function () { opts[c.id] = sel.value; rebuild(); });
+      wrap.append(sel);
+      bar.append(wrap);
+    } else {
+      var b = document.createElement('button');
+      b.className = 'ctl fault';
+      b.textContent = c.label;
+      b.setAttribute('aria-pressed', String(!!c.value));
+      b.addEventListener('click', function () {
+        opts[c.id] = !opts[c.id];
+        b.setAttribute('aria-pressed', String(opts[c.id]));
+        rebuild();
+      });
+      bar.append(b);
+    }
+  });
+
+  var note = document.createElement('p'); note.className = 'scene-note';
+  var count = document.createElement('span'); count.className = 'steps';
+  var prev = document.createElement('button'); prev.className = 'ctl'; prev.textContent = '◀ Trước';
+  var next = document.createElement('button'); next.className = 'ctl go'; next.textContent = 'Sau ▶';
+  var again = document.createElement('button'); again.className = 'ctl'; again.textContent = '↺';
+  again.title = 'Về bước đầu';
+  foot.append(note, count, again, prev, next);
+
+  prev.addEventListener('click', function () { if (i > 0) { i--; draw(); } });
+  next.addEventListener('click', function () { if (i < steps.length - 1) { i++; draw(); } });
+  again.addEventListener('click', function () { i = 0; draw(); });
+
+  function draw() {
+    stage.innerHTML = steps[i].view;
+    note.innerHTML = steps[i].note || '';
+    count.textContent = 'Bước ' + (i + 1) + '/' + steps.length;
+    prev.disabled = i === 0;
+    next.disabled = i === steps.length - 1;
+  }
+  function rebuild() { steps = def.build(opts); i = 0; draw(); }
+
+  host.classList.add('scene');
+  host.append(bar, stage, foot);
+  rebuild();
+};
+
+VF.mountAll = function (root) {
+  root.querySelectorAll('[data-scene]').forEach(function (el) {
+    if (el.dataset.mounted) return;
+    el.dataset.mounted = '1';
+    VF.mount(el, el.dataset.scene);
+  });
+};
+/* Saga đặt hàng — 3 nhánh, bù trừ chạy NGƯỢC.
+   Số liệu khớp Demo 1 đã chạy thật trên DTM UI. */
+VF.scene('saga-compensation', {
+  title: 'Saga đặt hàng — bù trừ ngược',
+  controls: [{
+    kind: 'select', id: 'failAt', label: 'Chèn lỗi ở', value: 'capture',
+    options: [
+      ['none', 'không — happy path'],
+      ['apply', 'ApplyPromotion (nhánh 1)'],
+      ['capture', 'Capture (nhánh 2)'],
+      ['confirm', 'ConfirmUsage (nhánh 3)']
+    ]
+  }],
+
+  build: function (o) {
+    var L = [
+      { name: 'Order', sub: 'điều phối' },
+      { name: 'DTM', sub: 'saga engine' },
+      { name: 'Promotion', sub: 'nhánh 1 & 3' },
+      { name: 'Payment', sub: 'nhánh 2' }
+    ];
+    var A = 2, P = 3, D = 1, O = 0;
+    var steps = [], rows = [];
+
+    function push(note) {
+      steps.push({ view: VF.lanes(L, rows.slice(), rows.length - 1), note: note });
+    }
+
+    rows.push({ from: O, to: D, label: 'SubmitSaga(gid)', cls: 'ok' });
+    push('Order <b>không tự gọi</b> Promotion hay Payment. Nó nộp saga cho DTM rồi chờ. ' +
+         'DTM mới là bên gọi từng nhánh — đây là <b>orchestration</b>.');
+
+    var failApply = o.failAt === 'apply';
+    rows.push({ from: D, to: A, label: 'ApplyPromotion' + (failApply ? ' ✖' : ' ✔'), cls: failApply ? 'fail' : 'ok' });
+    push(failApply
+      ? 'Nhánh 1 <span class="hit">hỏng ngay</span> (voucher hết lượt). Chưa nhánh nào chạy trước nó ⇒ chuỗi bù trừ rất ngắn.'
+      : 'Nhánh 1 xong: voucher chuyển <code>RESERVED</code>. <b>Chưa trừ quota thật</b> — mới chỉ giữ chỗ.');
+
+    if (!failApply) {
+      var failCap = o.failAt === 'capture';
+      rows.push({ from: D, to: P, label: 'Capture' + (failCap ? ' ✖' : ' ✔'), cls: failCap ? 'fail' : 'ok' });
+      push(failCap
+        ? 'Nhánh 2 <span class="hit">hỏng</span> — ví không đủ số dư. Ở đây <b>chưa đồng nào bị trừ</b>. Nhớ kỹ chi tiết này.'
+        : 'Nhánh 2 xong: sổ cái ghi 2 bút toán, tiền rời ví khách.');
+
+      if (!failCap) {
+        var failCf = o.failAt === 'confirm';
+        rows.push({ from: D, to: A, label: 'ConfirmUsage' + (failCf ? ' ✖' : ' ✔'), cls: failCf ? 'fail' : 'ok' });
+        push(failCf
+          ? 'Nhánh 3 <span class="hit">hỏng</span> ở bước cuối — <b>tiền đã bị trừ rồi</b>. Đây là ca bù trừ đắt nhất.'
+          : 'Nhánh 3 xong: voucher <code>RESERVED → CONFIRMED</code>, <code>used_count</code> tăng thật.');
+      }
+    }
+
+    if (o.failAt === 'none') {
+      steps.push({
+        view: VF.lanes(L, rows, rows.length - 1) + sagaBranchTable('none'),
+        note: '<b>Cả 3 nhánh succeed.</b> Order ghi đơn + outbox trong <b>một transaction</b>, phát <code>order.placed</code>. Saga <span class="chip ok">succeed</span>.'
+      });
+      return steps;
+    }
+
+    // Bù trừ chạy NGƯỢC thứ tự các nhánh đã chạy
+    if (o.failAt === 'confirm') {
+      rows.push({ from: D, to: A, label: '↩ ReleaseUsage (nhánh 3)', cls: 'comp' });
+      push('Bù trừ bắt đầu, và nó chạy <b>ngược</b>. Nhánh 3 tự bù trừ chính nó trước.');
+    }
+    if (o.failAt === 'confirm' || o.failAt === 'capture') {
+      var isNull = o.failAt === 'capture';
+      rows.push({ from: D, to: P, label: '↩ Refund (nhánh 2)' + (isNull ? ' — no-op' : ''), cls: 'comp' });
+      push(isNull
+        ? '<span class="hit">Đây là câu quan trọng nhất của cả demo.</span> <code>Refund</code> trả về <b>succeed</b> dù <b>chưa hề trừ đồng nào</b> — vì <code>Capture</code> đã hỏng. Bù trừ cho một việc chưa từng xảy ra gọi là <b>null compensation</b>, và nó <b>bắt buộc phải là no-op idempotent</b>, không được báo lỗi.'
+        : 'Tiền đã trừ thật ⇒ <code>Refund</code> hoàn lại thật: hai bút toán ngược chiều, ví về nguyên trạng.');
+    }
+    rows.push({ from: D, to: A, label: '↩ ReleaseUsage (nhánh 1)', cls: 'comp' });
+    push('Nhả chỗ giữ voucher. Bù trừ đã đi ngược hết chuỗi ⇒ hệ thống về đúng trạng thái trước khi đặt.');
+
+    steps.push({
+      view: VF.lanes(L, rows, rows.length - 1) + sagaBranchTable(o.failAt),
+      note: '<b>Saga <span class="chip fail">failed</span> — nhưng không rò rỉ gì.</b> Ví không đổi · <code>used_count</code> không tăng · không đẻ ra đơn · sổ cái không có bút toán mới. Khách nhận <code>400</code>.'
+    });
+    return steps;
+  }
+});
+
+/* Bảng nhánh, dựng giống hệt màn DTM UI thầy sẽ nhìn thấy lúc demo */
+function sagaBranchTable(failAt) {
+  var rows;
+  if (failAt === 'none') {
+    rows = [
+      ['01', 'action', 'succeed', 'ApplyPromotion'],
+      ['02', 'action', 'succeed', 'Capture'],
+      ['03', 'action', 'succeed', 'ConfirmUsage']
+    ];
+  } else if (failAt === 'apply') {
+    rows = [
+      ['01', 'action', 'failed', 'ApplyPromotion'],
+      ['01', 'compensate', 'succeed', 'ReleaseUsage'],
+      ['02', 'action', 'prepared', 'Capture'],
+      ['03', 'action', 'prepared', 'ConfirmUsage']
+    ];
+  } else if (failAt === 'capture') {
+    rows = [
+      ['01', 'action', 'succeed', 'ApplyPromotion'],
+      ['01', 'compensate', 'succeed', 'ReleaseUsage'],
+      ['02', 'action', 'failed', 'Capture'],
+      ['02', 'compensate', 'succeed', 'Refund'],
+      ['03', 'action', 'prepared', 'ConfirmUsage']
+    ];
+  } else {
+    rows = [
+      ['01', 'action', 'succeed', 'ApplyPromotion'],
+      ['01', 'compensate', 'succeed', 'ReleaseUsage'],
+      ['02', 'action', 'succeed', 'Capture'],
+      ['02', 'compensate', 'succeed', 'Refund'],
+      ['03', 'action', 'failed', 'ConfirmUsage'],
+      ['03', 'compensate', 'succeed', 'ReleaseUsage']
+    ];
+  }
+  var cls = { succeed: 'ok', failed: 'fail', prepared: 'wait' };
+  var h = '<p style="font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;' +
+          'text-transform:uppercase;color:var(--ink-faint);margin:24px 0 8px">' +
+          'Màn DTM UI sẽ hiện đúng thế này</p>';
+  h += '<table class="grid"><thead><tr><th>branch</th><th>op</th><th>status</th><th>RPC</th></tr></thead><tbody>';
+  rows.forEach(function (r) {
+    h += '<tr><td class="num">' + r[0] + '</td><td>' + r[1] +
+         '</td><td><span class="chip ' + cls[r[2]] + '">' + r[2] + '</span></td>' +
+         '<td><code>' + r[3] + '</code></td></tr>';
+  });
+  return h + '</tbody></table>';
+}
+/* Vì sao KHÔNG dùng 2PC. Câu này thầy gần như chắc chắn hỏi.
+   Điểm chốt: 2PC giữ KHOÁ xuyên service trong lúc chờ; saga không giữ khoá nào. */
+VF.scene('two-pc-vs-saga', {
+  title: '2PC và Saga khi mạng đứt',
+  controls: [
+    {
+      kind: 'select', id: 'engine', label: 'Giao thức', value: '2pc',
+      options: [['2pc', 'Two-Phase Commit'], ['saga', 'Saga (ta dùng cái này)']]
+    },
+    { kind: 'toggle', id: 'cut', label: '⚡ Cắt mạng tới Payment', value: true }
+  ],
+
+  build: function (o) {
+    var L = [
+      { name: 'Điều phối', sub: o.engine === '2pc' ? 'coordinator' : 'DTM' },
+      { name: 'Promotion', sub: 'voucher' },
+      { name: 'Payment', sub: 'ví tiền' }
+    ];
+    var C = 0, A = 1, P = 2;
+    var steps = [], rows = [];
+    function push(note, extra) {
+      steps.push({ view: VF.lanes(L, rows.slice(), rows.length - 1) + (extra || ''), note: note });
+    }
+
+    if (o.engine === '2pc') {
+      rows.push({ from: C, to: A, label: 'PREPARE', cls: 'wait' });
+      push('Pha 1 — hỏi Promotion: “sẵn sàng commit chưa?”. Promotion trả lời <b>yes</b> và <b>KHOÁ dòng voucher lại</b>.',
+        twoPcLockRow(['🔒 voucher khoá', '—']));
+
+      rows.push({ from: C, to: P, label: 'PREPARE', cls: o.cut ? 'fail' : 'wait' });
+      if (o.cut) {
+        push('Pha 1 tới Payment — <span class="hit">mạng đứt</span>. Coordinator <b>không biết</b> Payment đã prepare hay chưa. Nó chỉ biết: không có trả lời.',
+          twoPcLockRow(['🔒 voucher khoá', '❓ không rõ']));
+        rows.push({ from: C, to: C, label: '… chờ …', cls: 'dead' });
+        push('<b>Coordinator bị kẹt.</b> Không dám commit (lỡ Payment không prepare được), không dám abort (lỡ Payment đã prepare và đang giữ khoá).',
+          twoPcLockRow(['🔒 VẪN khoá', '❓ có thể cũng đang khoá']));
+        steps.push({
+          view: VF.lanes(L, rows, rows.length - 1) + twoPcLockRow(['🔒 khoá vô thời hạn', '❓ vô thời hạn']),
+          note: '<b>Đây chính là lý do loại 2PC.</b> Voucher bị khoá suốt thời gian mạng chưa lành — <b>mọi khách khác dùng voucher đó đều bị chặn</b>. 2PC là giao thức <b>blocking</b>: nó đánh đổi tính sẵn sàng để lấy tính nhất quán tức thời. Với hệ mạng thật (partition là chuyện thường), cái giá đó quá đắt.'
+        });
+      } else {
+        push('Payment cũng trả lời <b>yes</b>, và cũng khoá ví lại.', twoPcLockRow(['🔒 voucher khoá', '🔒 ví khoá']));
+        rows.push({ from: C, to: A, label: 'COMMIT', cls: 'ok' });
+        rows.push({ from: C, to: P, label: 'COMMIT', cls: 'ok' });
+        push('Pha 2 — commit cả hai, nhả khoá. <b>Chạy đúng thì 2PC cho nhất quán mạnh.</b> Vấn đề chỉ lộ ra khi mạng đứt — bật nút cắt mạng để thấy.',
+          twoPcLockRow(['✔ xong', '✔ xong']));
+      }
+      return steps;
+    }
+
+    // Saga
+    rows.push({ from: C, to: A, label: 'ApplyPromotion ✔', cls: 'ok' });
+    push('Saga <b>không có pha prepare</b>. Nhánh 1 <b>commit ngay</b> và <b>nhả khoá ngay</b> — voucher chuyển <code>RESERVED</code>, giao dịch DB đóng lại trong vài mili-giây.',
+      twoPcLockRow(['✔ đã commit, KHÔNG khoá', '—']));
+
+    rows.push({ from: C, to: P, label: 'Capture' + (o.cut ? ' ✖ Unavailable' : ' ✔'), cls: o.cut ? 'fail' : 'ok' });
+    if (o.cut) {
+      push('<span class="hit">Mạng đứt</span>. gRPC trả <code>Unavailable</code> sau <b>deadline 5 giây</b> — <b>không</b> treo vô hạn. Saga biết ngay là hỏng.',
+        twoPcLockRow(['✔ RESERVED, không khoá', '✖ không tới được']));
+      rows.push({ from: C, to: A, label: '↩ ReleaseUsage ✔', cls: 'comp' });
+      steps.push({
+        view: VF.lanes(L, rows, rows.length - 1) + twoPcLockRow(['✔ đã nhả chỗ giữ', '— không đụng tới']),
+        note: '<b>Bù trừ, rồi kết thúc.</b> Không ai bị khoá một giây nào. Đổi lại: có một khoảng ngắn (vài trăm ms) voucher ở trạng thái <code>RESERVED</code> dù đơn sẽ hỏng — đó là <b>nhất quán cuối</b>. Ta <b>chấp nhận</b> cái giá đó để đổi lấy tính sẵn sàng.'
+      });
+    } else {
+      push('Nhánh 2 xong, cũng commit ngay và nhả khoá ngay.', twoPcLockRow(['✔ RESERVED', '✔ đã trừ tiền']));
+      rows.push({ from: C, to: A, label: 'ConfirmUsage ✔', cls: 'ok' });
+      push('Nhánh 3 xong. Saga <span class="chip ok">succeed</span>. Bật nút cắt mạng để thấy khác biệt thật sự.',
+        twoPcLockRow(['✔ CONFIRMED', '✔ xong']));
+    }
+    return steps;
+  }
+});
+
+function twoPcLockRow(cells) {
+  var h = '<table class="grid" style="margin-top:24px"><thead><tr>' +
+          '<th>Promotion — trạng thái khoá</th><th>Payment — trạng thái khoá</th>' +
+          '</tr></thead><tbody><tr>';
+  cells.forEach(function (c) { h += '<td class="mono">' + VF.esc(c) + '</td>'; });
+  return h + '</tr></tbody></table>';
+}
+/* Sub-transaction barrier — cơ chế khó nhất trong cả báo cáo.
+   Nó giải HAI bài toán khác nhau, nên có 2 kịch bản riêng. Tắt barrier để thấy
+   chính xác cái gì hỏng. */
+VF.scene('sub-transaction-barrier', {
+  title: 'Sub-transaction barrier',
+  controls: [
+    {
+      kind: 'select', id: 'case', label: 'Kịch bản', value: 'dup',
+      options: [
+        ['dup', 'Bài toán 1 — gọi trùng nhánh'],
+        ['nul', 'Bài toán 2 — bù trừ đến trước']
+      ]
+    },
+    { kind: 'toggle', id: 'off', label: '⚡ TẮT barrier', value: false }
+  ],
+
+  build: function (o) {
+    var L = [
+      { name: 'DTM', sub: 'saga engine' },
+      { name: 'Payment', sub: 'nhánh 2' },
+      { name: 'payment_db', sub: 'barrier + ví' }
+    ];
+    var D = 0, P = 1, B = 2;
+    var steps = [], rows = [];
+    function push(note, extra) {
+      steps.push({ view: VF.lanes(L, rows.slice(), rows.length - 1) + (extra || ''), note: note });
+    }
+
+    if (o.case === 'dup') {
+      rows.push({ from: D, to: P, label: 'Capture (lần 1)', cls: 'ok' });
+      push('DTM gọi <code>Capture</code>. Bình thường.', barrierState([], 500000));
+
+      rows.push({ from: P, to: B, label: 'ghi barrier + trừ ví — MỘT tx', cls: 'ok' });
+      push(o.off
+        ? 'Không có barrier ⇒ chỉ trừ ví. Ví <code>500.000 → 423.000</code>.'
+        : 'Chỗ mấu chốt: dòng barrier <code>(gid, 02, action)</code> và việc trừ ví nằm trong <b>CÙNG một transaction</b>. Cả hai cùng sống hoặc cùng chết.',
+        barrierState(o.off ? [] : [['02', 'action', 'đã ghi']], 423000));
+
+      rows.push({ from: P, to: D, label: '✔ succeed — nhưng gói tin MẤT', cls: 'fail' });
+      push('Payment trả lời succeed, nhưng <span class="hit">gói tin trả lời rơi giữa đường</span>. DTM không nhận được ⇒ nó tưởng nhánh này chưa chạy.',
+        barrierState(o.off ? [] : [['02', 'action', 'đã ghi']], 423000));
+
+      rows.push({ from: D, to: P, label: 'Capture (lần 2 — retry)', cls: 'wait' });
+      push('DTM <b>retry</b>. Đây không phải bug — <b>mọi</b> hệ phân tán đều phải retry, vì không thể phân biệt “service chết” với “trả lời bị mất”.',
+        barrierState(o.off ? [] : [['02', 'action', 'đã ghi']], 423000));
+
+      if (o.off) {
+        rows.push({ from: P, to: B, label: 'trừ ví LẦN NỮA', cls: 'fail' });
+        steps.push({
+          view: VF.lanes(L, rows, rows.length - 1) + barrierState([], 346000),
+          note: '<b>Khách bị trừ tiền hai lần.</b> Ví <code>500.000 → 423.000 → 346.000</code> cho <b>một</b> đơn. Đây là <b>duplicate branch call</b> — và nó xảy ra ở mọi hệ thống retry mà không khử trùng lặp.'
+        });
+      } else {
+        rows.push({ from: P, to: B, label: 'INSERT barrier → trùng khoá', cls: 'wait' });
+        push('Payment thử ghi lại dòng barrier <code>(gid, 02, action)</code>. Khoá chính trùng ⇒ <b>INSERT thất bại</b>. Payment hiểu ngay: “việc này tôi làm rồi”.',
+          barrierState([['02', 'action', 'đã có — CHẶN']], 423000));
+        rows.push({ from: P, to: D, label: '✔ succeed (bỏ qua, không trừ lại)', cls: 'ok' });
+        steps.push({
+          view: VF.lanes(L, rows, rows.length - 1) + barrierState([['02', 'action', 'đã ghi']], 423000),
+          note: '<b>Ví vẫn 423.000.</b> Barrier biến <code>Capture</code> thành <b>idempotent</b>: gọi bao nhiêu lần cũng chỉ trừ một lần. Và nó làm được thế <b>không cần</b> Payment tự nghĩ ra cơ chế khử trùng lặp riêng.'
+        });
+      }
+      return steps;
+    }
+
+    // Bài toán 2 — null compensation / bù trừ vượt trước
+    rows.push({ from: D, to: P, label: 'Capture', cls: 'wait' });
+    push('DTM gọi <code>Capture</code>, nhưng <span class="hit">gói tin đi rất chậm</span> (nghẽn mạng). Payment chưa nhận được.',
+      barrierState([], 500000));
+
+    rows.push({ from: D, to: P, label: '↩ Refund (bù trừ)', cls: 'comp' });
+    push('DTM hết kiên nhẫn (deadline), coi nhánh 2 là hỏng, và gọi <b>bù trừ</b>. <code>Refund</code> <b>đến trước</b> <code>Capture</code>.',
+      barrierState([], 500000));
+
+    if (o.off) {
+      rows.push({ from: P, to: B, label: 'Refund: không có gì để hoàn → LỖI', cls: 'fail' });
+      push('Không có barrier ⇒ Payment tra bảng, không thấy payment nào, và <b>báo lỗi</b>. DTM thấy bù trừ hỏng ⇒ <b>retry mãi mãi</b>.',
+        barrierState([], 500000));
+      rows.push({ from: D, to: P, label: 'Capture (gói tin chậm, giờ mới tới)', cls: 'fail' });
+      steps.push({
+        view: VF.lanes(L, rows, rows.length - 1) + barrierState([], 423000),
+        note: '<b>Thảm hoạ.</b> <code>Capture</code> lết tới sau khi bù trừ đã chạy ⇒ <b>trừ tiền của một đơn đã bị huỷ</b>, và <b>không bao giờ có ai hoàn lại</b>. Tiền mất vĩnh viễn. Đây là <b>dangling action</b> — kèm theo <b>null compensation</b> (bù trừ cho việc chưa xảy ra) làm saga treo.'
+      });
+    } else {
+      rows.push({ from: P, to: B, label: 'ghi barrier (gid, 02, compensate)', cls: 'comp' });
+      push('Có barrier: <code>Refund</code> vẫn <b>ghi dòng chặn</b> rồi trả <b>succeed</b> mà <b>không hoàn đồng nào</b> — vì đúng là chưa trừ đồng nào. Đây chính là <b>null compensation</b>, và nó phải là <b>no-op</b>.',
+        barrierState([['02', 'compensate', 'đã ghi']], 500000));
+      rows.push({ from: D, to: P, label: 'Capture (gói tin chậm, giờ mới tới)', cls: 'wait' });
+      push('Gói tin <code>Capture</code> lết tới. Payment ghi barrier <code>(gid, 02, action)</code> và <b>nhìn thấy dòng compensate đã có trước</b>.',
+        barrierState([['02', 'compensate', 'đã ghi'], ['02', 'action', 'đến SAU compensate']], 500000));
+      rows.push({ from: P, to: D, label: '✔ succeed (bỏ qua — KHÔNG trừ tiền)', cls: 'ok' });
+      steps.push({
+        view: VF.lanes(L, rows, rows.length - 1) + barrierState([['02', 'compensate', 'đã ghi'], ['02', 'action', 'BỊ CHẶN']], 500000),
+        note: '<b>Ví vẫn nguyên 500.000.</b> Barrier chặn được cả action đến muộn. Câu để nói: <i>“Barrier ghi một dòng chặn trong cùng transaction với business write. Nó giải hai bài toán: <b>gọi trùng nhánh</b> và <b>null compensation</b> — và cả trường hợp action lết tới sau khi đã bù trừ.”</i>'
+      });
+    }
+    return steps;
+  }
+});
+
+function barrierState(bars, wallet) {
+  // 500.000 = nguyên vẹn · 423.000 = trừ đúng một lần · 346.000 = trừ hai lần (bug)
+  var tone = wallet === 346000 ? 'bad' : (wallet === 500000 ? 'ok' : 'mute');
+  var hint = wallet === 346000 ? 'ĐÃ TRỪ HAI LẦN cho một đơn'
+           : wallet === 423000 ? 'trừ đúng một lần'
+           : 'chưa trừ đồng nào';
+
+  var h = VF.stat([{ label: 'Ví khách', value: wallet.toLocaleString('vi-VN') + ' đ', tone: tone, hint: hint }]);
+
+  h += '<table class="grid" style="margin-top:12px"><thead><tr>' +
+       '<th>dtm_barrier — branch</th><th>op</th><th>ghi chú</th></tr></thead><tbody>';
+  if (!bars.length) {
+    h += '<tr><td colspan="3" style="color:var(--ink-faint)">— trống —</td></tr>';
+  } else {
+    bars.forEach(function (b) {
+      var hot = /CHẶN/.test(b[2]);
+      h += '<tr' + (hot ? ' class="flash"' : '') + '><td class="num">' + b[0] + '</td><td class="mono">' +
+           b[1] + '</td><td class="mono">' + VF.esc(b[2]) + '</td></tr>';
+    });
+  }
+  return h + '</tbody></table>';
+}
+/* Transactional Outbox — vì sao không được "ghi DB xong rồi publish Kafka".
+   Bật/tắt outbox rồi crash ở đúng khe hở để thấy sự kiện bốc hơi. */
+VF.scene('transactional-outbox', {
+  title: 'Transactional Outbox',
+  controls: [
+    { kind: 'toggle', id: 'naive', label: '⚡ Bỏ outbox (ghi DB rồi publish thẳng)', value: false },
+    { kind: 'toggle', id: 'crash', label: '⚡ Service chết giữa chừng', value: true }
+  ],
+
+  build: function (o) {
+    var L = [
+      { name: 'Order', sub: 'service' },
+      { name: 'order_db', sub: 'Postgres' },
+      { name: 'Dispatcher', sub: 'worker 2s' },
+      { name: 'Kafka', sub: 'order.events' }
+    ];
+    var S = 0, DB = 1, W = 2, K = 3;
+    var steps = [], rows = [];
+    function push(note, extra) {
+      steps.push({ view: VF.lanes(L, rows.slice(), rows.length - 1) + (extra || ''), note: note });
+    }
+
+    if (o.naive) {
+      rows.push({ from: S, to: DB, label: 'INSERT order · COMMIT', cls: 'ok' });
+      push('Cách ngây thơ: ghi đơn, commit. Đơn <b>đã có thật</b> trong DB.',
+        outboxState([['ĐƠN', 'đã commit', 'ok']], [], false));
+
+      if (o.crash) {
+        rows.push({ from: S, to: S, label: '💥 process chết', cls: 'fail' });
+        steps.push({
+          view: VF.lanes(L, rows, rows.length - 1) + outboxState([['ĐƠN', 'đã commit', 'ok']], [], false),
+          note: '<span class="hit">Khe hở chết người.</span> Đơn <b>đã nằm trong DB</b> nhưng sự kiện <code>order.placed</code> <b>chưa bao giờ được phát</b>. Notification không báo khách, Reporting không thấy doanh thu, Delivery không biết có đơn cần giao. <b>Hệ thống lệch nhau vĩnh viễn</b> — và không ai biết, vì API đã trả <code>201</code> cho khách rồi.'
+        });
+      } else {
+        rows.push({ from: S, to: K, label: 'publish order.placed', cls: 'ok' });
+        push('Không chết thì vẫn chạy đúng. <b>Vấn đề là bạn không điều khiển được lúc nào process chết.</b> Bật nút “service chết” để thấy.',
+          outboxState([['ĐƠN', 'đã commit', 'ok']], [], true));
+      }
+      return steps;
+    }
+
+    rows.push({ from: S, to: DB, label: 'INSERT order + INSERT outbox — MỘT tx', cls: 'ok' });
+    push('Cách đúng: đơn và <b>bản ghi sự kiện</b> được ghi trong <b>cùng một transaction</b>. Không có Kafka nào ở đây cả — chỉ là hai lệnh INSERT vào <b>cùng một database</b>.',
+      outboxState([['ĐƠN', 'đã commit', 'ok']], [['order.placed', 'PENDING']], false));
+
+    if (o.crash) {
+      rows.push({ from: S, to: S, label: '💥 process chết', cls: 'fail' });
+      push('Process chết đúng chỗ hiểm. Nhưng lần này <b>sự kiện đã nằm an toàn trong DB</b>, cùng chỗ với đơn hàng.',
+        outboxState([['ĐƠN', 'đã commit', 'ok']], [['order.placed', 'PENDING']], false));
+      rows.push({ from: W, to: DB, label: 'quét bảng outbox (mỗi 2s)', cls: 'wait' });
+      push('Service sống lại. Dispatcher quét bảng <code>outbox</code>, thấy dòng <code>PENDING</code> còn đó.',
+        outboxState([['ĐƠN', 'đã commit', 'ok']], [['order.placed', 'PENDING']], false));
+    } else {
+      rows.push({ from: W, to: DB, label: 'quét bảng outbox (mỗi 2s)', cls: 'wait' });
+      push('Dispatcher chạy nền, quét bảng <code>outbox</code>.',
+        outboxState([['ĐƠN', 'đã commit', 'ok']], [['order.placed', 'PENDING']], false));
+    }
+
+    rows.push({ from: W, to: K, label: 'publish order.placed', cls: 'ok' });
+    rows.push({ from: W, to: DB, label: 'đánh dấu SENT', cls: 'ok' });
+    steps.push({
+      view: VF.lanes(L, rows, rows.length - 1) + outboxState([['ĐƠN', 'đã commit', 'ok']], [['order.placed', 'SENT']], true),
+      note: '<b>Sự kiện vẫn được phát.</b> Câu để nói: <i>“Sự kiện được ghi <b>cùng transaction</b> với business write, nên không bao giờ có chuyện đơn tạo rồi mà sự kiện mất. Đổi lại, dispatcher có thể phát <b>trùng</b> (crash sau publish, trước khi đánh dấu SENT) — nên phía nhận <b>bắt buộc</b> phải idempotent.”</i> Đó chính là <b>at-least-once</b>, và là lý do phần của Nam tồn tại.'
+    });
+    return steps;
+  }
+});
+
+function outboxState(orders, events, published) {
+  var h = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px">';
+  h += '<table class="grid"><thead><tr><th>order_db — bảng orders</th><th>trạng thái</th></tr></thead><tbody>';
+  orders.forEach(function (r) { h += '<tr><td class="mono">' + r[0] + '</td><td><span class="chip ok">' + r[1] + '</span></td></tr>'; });
+  h += '</tbody></table>';
+  h += '<table class="grid"><thead><tr><th>order_db — bảng outbox</th><th>trạng thái</th></tr></thead><tbody>';
+  if (!events.length) {
+    h += '<tr><td colspan="2" style="color:var(--stamp)">— không tồn tại —</td></tr>';
+  } else {
+    events.forEach(function (r) {
+      h += '<tr><td class="mono">' + r[0] + '</td><td><span class="chip ' +
+           (r[1] === 'SENT' ? 'ok' : 'wait') + '">' + r[1] + '</span></td></tr>';
+    });
+  }
+  h += '</tbody></table></div>';
+  h += '<table class="grid" style="margin-top:12px"><thead><tr><th>Kafka — topic order.events</th></tr></thead><tbody><tr><td>' +
+       (published
+         ? '<span class="chip ok">order.placed</span> — consumer nhận được'
+         : '<span class="chip dead">— trống —</span>') +
+       '</td></tr></tbody></table>';
+  return h;
+}
+/* Circuit breaker — máy trạng thái + số đo THẬT của Demo 2.
+   Kịch bản cố định vì nó tái hiện đúng buổi chạy thật: dừng store-service,
+   bắn liên tiếp, mạch mở ở request thứ 5, độ trễ 5.055ms → 25ms. */
+VF.scene('circuit-breaker', {
+  title: 'Circuit breaker — sony/gobreaker',
+  controls: [],
+
+  build: function () {
+    // [nhãn, độ trễ ms, HTTP, trạng thái sau bước, ghi chú]
+    var seq = [
+      ['store-service còn sống', null, null, 'closed',
+       'Mạch <b>đóng</b>. Mọi lời gọi <code>GetStoreForOrder</code> đi thẳng tới store-service. Bấm tiếp để dừng store-service.'],
+      ['⚡ docker compose stop store-service', null, null, 'closed',
+       '<span class="hit">store-service chết.</span> Mạch <b>vẫn đóng</b> — breaker chưa biết gì. Nó chỉ học từ <b>lỗi thật</b>.'],
+      ['request #1', 5055, 400, 'closed',
+       '<b>Mất đúng 5,055 giây.</b> Đây không phải TCP treo vô hạn — <b>deadline 5s</b> của <code>pkg/grpcx</code> đã cắt. Fail-fast, chứ không chờ đến chết.'],
+      ['request #2', 3432, 400, 'closed',
+       'Vẫn đi qua mạch. Breaker đang đếm: <b>2 request, 2 lỗi hạ tầng</b>.'],
+      ['request #3', 361, 400, 'closed', 'Đếm tiếp: 3/3 lỗi.'],
+      ['request #4', 358, 400, 'closed', 'Đếm tiếp: 4/4 lỗi. <b>Vẫn chưa mở</b> — ngưỡng là <b>≥5 request trong 30 giây</b>.'],
+      ['request #5', 360, 400, 'open',
+       '<span class="hit">Mạch MỞ.</span> Đủ hai điều kiện: <b>≥5 request/30s</b> <b>VÀ</b> <b>≥60% lỗi hạ tầng</b>. Gauge <code>circuit_breaker_state</code> nhảy lên <b>2</b>.'],
+      ['request #6', 25, 400, 'open',
+       '<b>25 mili-giây.</b> Request bị <b>từ chối ngay tại client</b>, không hề chạm tới store-service. Độ trễ giảm <b>200 lần</b> so với #1.'],
+      ['request #7', 24, 400, 'open',
+       'Đây mới là giá trị thật của breaker: nó <b>không cứu</b> được request này (vẫn hỏng), nhưng nó <b>ngừng đập vào một service đang chết</b> và <b>trả lời thất bại tức thì</b> thay vì bắt khách chờ 5 giây.'],
+      ['▶ docker compose start store-service', 24, 400, 'open',
+       'store-service sống lại — nhưng mạch <b>vẫn mở</b>. Breaker <b>không biết</b> điều đó, và <b>cố ý không thử</b> cho tới khi hết <code>Timeout 15s</code>.'],
+      ['… qua mốc 15 giây …', null, null, 'half',
+       'Mạch chuyển <b>half-open</b> (gauge = <b>1</b>). Nó cho <b>đúng 3 request thăm dò</b> đi qua. Nếu bất kỳ cái nào hỏng ⇒ <b>mở lại ngay</b>.'],
+      ['probe #1', 210, 201, 'half', 'Thăm dò 1: <code>201</code> — đơn tạo <b>thật</b>.'],
+      ['probe #2', 190, 201, 'half', 'Thăm dò 2: <code>201</code>.'],
+      ['probe #3', 185, 201, 'closed',
+       '<b>Mạch đóng lại</b> (gauge = <b>0</b>). Hệ thống <b>tự phục hồi</b>, không ai phải restart gì. Đó là toàn bộ vòng đời: <code>closed → open → half-open → closed</code>.']
+    ];
+
+    var rows = [];
+    return seq.map(function (s, i) {
+      if (s[1] !== null) rows.push([s[0], s[1], s[2], s[3]]);
+      return {
+        view: breakerMachine(s[3]) + breakerLog(rows, s[3]),
+        note: s[4]
+      };
+    });
+  }
+});
+
+/* Máy trạng thái vẽ bằng SVG: ba nút tròn + các cung chuyển trạng thái có nhãn
+   điều kiện. Nhìn thấy CUNG mới hiểu vì sao nó chuyển, chứ ba cái hộp cạnh nhau
+   thì chỉ là ba cái hộp. */
+function breakerMachine(state) {
+  // H phải chứa cả cung vòng dưới (đáy của nó ở cy + r + 52 = 200) — thiếu là bị cắt
+  var W = 880, H = 216, cy = 108, r = 40;
+  var nodes = [
+    { id: 'closed', x: 130, label: 'ĐÓNG', sub: 'gauge 0', color: 'var(--ok)' },
+    { id: 'open', x: 440, label: 'MỞ', sub: 'gauge 2', color: 'var(--stamp)' },
+    { id: 'half', x: 750, label: 'HALF-OPEN', sub: 'gauge 1', color: 'var(--wait)' }
+  ];
+  var s = '<svg class="fsm" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img">';
+
+  s += fsmEdge(130 + r, 440 - r, cy, '≥5 req/30s VÀ ≥60% lỗi hạ tầng', 'up', 'var(--stamp)');
+  s += fsmEdge(440 + r, 750 - r, cy, 'sau Timeout 15s', 'up', 'var(--wait)');
+  s += fsmEdge(750 - r, 440 + r, cy, '1 probe hỏng → mở lại', 'down', 'var(--stamp)');
+  // Cung dài half-open → closed, vòng dưới cả sơ đồ
+  s += '<path class="fsm-edge" style="color:var(--ok)" fill="none" d="M750 ' + (cy + r) +
+       ' q0 52 -70 52 H200 q-70 0 -70 -52"/>' +
+       '<path class="fsm-tip" style="color:var(--ok)" d="M130 ' + (cy + r) + ' l5 9 l-10 0 Z"/>' +
+       '<text class="fsm-edge-label" style="color:var(--ok)" x="440" y="' + (cy + 68) + '">' +
+       '3 probe thành công → đóng lại</text>';
+
+  nodes.forEach(function (n) {
+    var on = n.id === state;
+    s += '<g class="fsm-node' + (on ? ' on' : '') + '" style="color:' + n.color + '">' +
+         '<circle cx="' + n.x + '" cy="' + cy + '" r="' + r + '"/>' +
+         '<text class="fsm-node-label" x="' + n.x + '" y="' + (cy - 2) + '">' + n.label + '</text>' +
+         '<text class="fsm-node-sub" x="' + n.x + '" y="' + (cy + 14) + '">' + n.sub + '</text>' +
+         '</g>';
+  });
+  return s + '</svg>';
+}
+
+function fsmEdge(x1, x2, cy, label, bend, color) {
+  var lift = bend === 'up' ? -46 : 46;
+  var my = cy + lift;
+  var dir = x2 > x1 ? 1 : -1;
+  var tip = x2 - dir * 2;
+  return '<path class="fsm-edge" style="color:' + color + '" fill="none" ' +
+         'd="M' + x1 + ' ' + cy + ' Q' + ((x1 + x2) / 2) + ' ' + my + ' ' + tip + ' ' + cy + '"/>' +
+         '<path class="fsm-tip" style="color:' + color + '" d="M' + x2 + ' ' + cy +
+         ' l' + (-dir * 9) + ' ' + (lift > 0 ? 3 : -3) + ' l' + (-dir * 2) + ' 8 Z"/>' +
+         '<text class="fsm-edge-label" style="color:' + color + '" x="' + ((x1 + x2) / 2) + '" y="' +
+         (cy + lift * 0.75) + '">' + VF.esc(label) + '</text>';
+}
+
+function breakerLog(rows, state) {
+  if (!rows.length) return '';
+  var h = '<table class="grid" style="margin-top:24px"><thead><tr>' +
+          '<th>Lời gọi</th><th style="text-align:right">Độ trễ</th><th>HTTP</th><th>Mạch</th>' +
+          '</tr></thead><tbody>';
+  rows.forEach(function (r, i) {
+    var last = i === rows.length - 1;
+    var slow = r[1] >= 3000, fast = r[1] <= 30;
+    h += '<tr' + (last ? ' class="flash"' : '') + '><td class="mono">' + VF.esc(r[0]) + '</td>' +
+         '<td class="num" style="' + (slow ? 'color:var(--stamp);font-weight:700' : fast ? 'color:var(--ok);font-weight:700' : '') + '">' +
+         r[1].toLocaleString('vi-VN') + ' ms</td>' +
+         '<td><span class="chip ' + (r[2] === 201 ? 'ok' : 'fail') + '">' + r[2] + '</span></td>' +
+         '<td class="mono">' + r[3] + '</td></tr>';
+  });
+  h += '</tbody></table>';
+  h += '<p style="font-family:var(--font-mono);font-size:12px;color:var(--ink-faint);margin-top:12px">' +
+       'Chỉ lỗi <b style="color:var(--stamp)">hạ tầng</b> (Unavailable, DeadlineExceeded) mới làm mạch trip. ' +
+       'Lỗi <b>nghiệp vụ</b> (NotFound, InvalidArgument) thì KHÔNG — service vẫn khoẻ, nó chỉ đang từ chối đúng.</p>';
+  return h;
+}
+/* Consumer retry → DLQ, và chi tiết tinh tế nhất: khi DLQ cũng chết thì
+   CỐ Ý không commit offset, để giữ thứ tự partition. */
+VF.scene('kafka-retry-dlq', {
+  title: 'Retry → DLQ và bảo toàn thứ tự partition',
+  controls: [
+    { kind: 'toggle', id: 'dlqDown', label: '⚡ DLQ cũng không ghi được', value: false }
+  ],
+
+  build: function (o) {
+    var L = [
+      { name: 'Kafka', sub: 'order.events · P0' },
+      { name: 'Consumer', sub: 'notification' },
+      { name: 'DLQ', sub: 'order.events.dlq' }
+    ];
+    var K = 0, C = 1, D = 2;
+    var steps = [], rows = [];
+    // offset 5 là message độc; 6 và 7 xếp sau nó trong CÙNG partition
+    function push(note, off, done) {
+      steps.push({ view: VF.lanes(L, rows.slice(), rows.length - 1) + partitionLog(off, done), note: note });
+    }
+
+    rows.push({ from: K, to: C, label: 'msg offset=5 (JSON hỏng)', cls: 'wait' });
+    push('Consumer nhận message ở <b>offset 5</b>. Payload hỏng — xử lý ném lỗi.', 5, 4);
+
+    rows.push({ from: C, to: C, label: 'retry #1 · chờ 0,5s', cls: 'wait' });
+    push('Retry lần 1 sau <b>0,5 giây</b>. Backoff luỹ tiến — vì phần lớn lỗi là <b>tạm thời</b> (DB nghẽn, mạng chớp).', 5, 4);
+
+    rows.push({ from: C, to: C, label: 'retry #2 · chờ 1s', cls: 'wait' });
+    push('Retry lần 2 sau <b>1 giây</b>.', 5, 4);
+
+    rows.push({ from: C, to: C, label: 'retry #3 · chờ 2s', cls: 'fail' });
+    push('Retry lần 3 sau <b>2 giây</b> — vẫn hỏng. Payload hỏng thì retry bao nhiêu lần cũng vô ích. <b>Hết quota retry.</b>', 5, 4);
+
+    if (o.dlqDown) {
+      rows.push({ from: C, to: D, label: 'park vào DLQ ✖', cls: 'fail' });
+      push('<span class="hit">DLQ cũng không ghi được.</span> Giờ consumer đứng trước hai lựa chọn, và <b>lựa chọn ở đây chính là chỗ đáng điểm</b>.', 5, 4);
+
+      steps.push({
+        view: VF.lanes(L, rows, rows.length - 1) + partitionLog(5, 4, true),
+        note: '<b>Consumer CỐ Ý không commit offset và dừng lại ở message này.</b> Nó <b>không</b> bỏ qua để chạy tiếp. Vì sao? Nếu bỏ qua, <code>offset 6</code> (<code>order.cancelled</code>) sẽ được xử lý <b>trước</b> <code>offset 5</code> — mà cả hai là sự kiện của <b>cùng một đơn</b> trong <b>cùng một partition</b>. Kafka đảm bảo thứ tự <b>trong partition</b>, và ta <b>không được phép phá</b> đảm bảo đó. Thà tắc nghẽn còn hơn xử lý sai thứ tự. Đây là đánh đổi <b>availability vs correctness</b>, và ta chọn correctness.'
+      });
+    } else {
+      rows.push({ from: C, to: D, label: 'park vào DLQ ✔', cls: 'comp' });
+      push('Message được đẩy sang <code>order.events.dlq</code> kèm header truy vết: ' +
+           '<code>x-original-topic</code> · <code>x-original-partition</code> · <code>x-original-offset</code> · <code>x-error</code> · <code>x-failed-at</code>. ' +
+           '<b>Không mất dữ liệu</b> — sau này mở DLQ ra là biết chính xác message nào hỏng, hỏng vì gì, ở đâu.', 5, 4);
+
+      rows.push({ from: C, to: K, label: 'commit offset 5', cls: 'ok' });
+      push('Giờ mới <b>commit</b>. Message độc đã được cách ly an toàn ⇒ tiến lên được.', 5, 5);
+
+      rows.push({ from: K, to: C, label: 'msg offset=6 ✔', cls: 'ok' });
+      steps.push({
+        view: VF.lanes(L, rows, rows.length - 1) + partitionLog(6, 6),
+        note: '<b>Luồng chạy tiếp.</b> Một message hỏng <b>không</b> làm tắc cả partition. Đây là lý do phải có DLQ chứ không chỉ retry. Bật nút “DLQ cũng chết” để thấy hệ thống <b>cố ý</b> chọn tắc nghẽn.'
+      });
+    }
+    return steps;
+  }
+});
+
+function partitionLog(cur, committed, stuck) {
+  var msgs = [
+    [3, 'order.placed', 'đã xử lý'],
+    [4, 'order.paid', 'đã xử lý'],
+    [5, 'order.status_changed (JSON hỏng)', 'ĐANG KẸT'],
+    [6, 'order.cancelled', 'chờ'],
+    [7, 'order.delivered', 'chờ']
+  ];
+  var h = '<table class="grid" style="margin-top:24px"><thead><tr>' +
+          '<th>offset</th><th>message trong partition 0</th><th>trạng thái</th></tr></thead><tbody>';
+  msgs.forEach(function (m) {
+    var isCur = m[0] === cur;
+    var done = m[0] <= committed;
+    var cls = done ? 'ok' : isCur ? (stuck ? 'fail' : 'wait') : 'dead';
+    var label = done ? 'đã commit' : isCur ? (stuck ? '⛔ KẸT — không commit' : 'đang xử lý') : 'chờ tới lượt';
+    h += '<tr' + (isCur ? ' class="flash"' : '') + '><td class="num">' + m[0] + '</td>' +
+         '<td class="mono">' + VF.esc(m[1]) + '</td>' +
+         '<td><span class="chip ' + cls + '">' + label + '</span></td></tr>';
+  });
+  h += '</tbody></table>';
+  if (stuck) {
+    h += '<p style="font-family:var(--font-mono);font-size:12px;color:var(--stamp);margin-top:12px">' +
+         'Con trỏ commit đứng im ở offset 4. Offset 6, 7 <b>không được xử lý vượt mặt</b> — thứ tự partition được giữ.</p>';
+  }
+  return h;
+}
+/* Trace waterfall — dựng lại đúng màn Jaeger sẽ hiện lúc demo:
+   1 trace · 9 span · 5 service. Kèm hạn chế tự nêu: chưa nối qua biên Kafka. */
+VF.scene('trace-waterfall', {
+  title: 'Một request, 9 span, 5 service',
+  controls: [],
+
+  build: function () {
+    // [tên span, service, độ sâu, bắt đầu ms, kéo dài ms, ghi chú]
+    var spans = [
+      ['POST /api/v1/orders', 'kong', 0, 0, 342, 'Trace bắt đầu ở <b>gateway</b>. Kong sinh <code>trace_id</code> và nhét vào header — <b>mọi thứ sau đây đều mang theo nó</b>.'],
+      ['POST /api/v1/orders', 'order', 1, 6, 330, 'Order nhận request. Span này là <b>cha</b> của tất cả lời gọi phía dưới.'],
+      ['grpc GetStoreForOrder', 'store', 2, 18, 46, 'Lời gọi gRPC <b>đồng bộ</b> đầu tiên. Đây chính là lời gọi mà <b>circuit breaker</b> bảo vệ.'],
+      ['grpc ResolveShipFee', 'location', 3, 30, 22, 'store gọi tiếp sang location. <b>Đây là chỗ mà không có tracing thì bạn mù</b>: nhìn từ order, bạn không hề biết location có tham gia.'],
+      ['dtm SubmitSaga', 'dtm', 2, 70, 250, 'Order nộp saga. Từ đây trở đi DTM là bên gọi.'],
+      ['grpc ApplyPromotion', 'promotion', 3, 80, 60, 'Nhánh 1.'],
+      ['grpc Capture', 'payment', 3, 145, 95, 'Nhánh 2 — chậm nhất trong ba nhánh, vì phải khoá hai ví và ghi hai bút toán.'],
+      ['grpc ConfirmUsage', 'promotion', 3, 245, 55, 'Nhánh 3.'],
+      ['tx: insert order + outbox', 'order', 2, 305, 28, 'Ghi đơn và sự kiện trong <b>một transaction</b>. Span cuối cùng.']
+    ];
+
+    var colors = {
+      kong: 'var(--ink-soft)', order: 'var(--owner-van)', store: 'var(--owner-duc)',
+      location: 'var(--owner-duc)', dtm: 'var(--stamp)', promotion: 'var(--ok)', payment: 'var(--wait)'
+    };
+    var total = 342;
+
+    var steps = spans.map(function (_, i) {
+      var rows = spans.slice(0, i + 1);
+      var h = '<div style="min-width:600px">';
+      rows.forEach(function (s, j) {
+        var last = j === i;
+        var left = (s[3] / total * 100).toFixed(1);
+        var w = Math.max(s[4] / total * 100, 1.2).toFixed(1);
+        h += '<div style="display:grid;grid-template-columns:260px 1fr 64px;gap:12px;align-items:center;' +
+             'padding:5px 0;border-bottom:1px dashed var(--rule);' + (last ? 'background:var(--paper-sunken)' : '') + '">';
+        h += '<div style="padding-left:' + (s[2] * 14) + 'px;font-family:var(--font-mono);font-size:11px;' +
+             'white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' +
+             '<span style="color:' + colors[s[1]] + ';font-weight:700">' + s[1] + '</span> ' +
+             '<span style="color:var(--ink-soft)">' + VF.esc(s[0]) + '</span></div>';
+        h += '<div style="position:relative;height:14px;background:var(--paper-sunken)">' +
+             '<div style="position:absolute;left:' + left + '%;width:' + w + '%;top:0;bottom:0;background:' +
+             colors[s[1]] + ';opacity:' + (last ? '1' : '.55') + '"></div></div>';
+        h += '<div class="num" style="font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);text-align:right">' +
+             s[4] + 'ms</div>';
+        h += '</div>';
+      });
+      h += '</div>';
+
+      var note = spans[i][5];
+      if (i === spans.length - 1) {
+        note += '<br><b>Tổng: 1 trace · 9 span · 5 service.</b> Một request của khách chạm 5 service — và ta <b>nhìn thấy toàn bộ</b> thay vì đoán. ' +
+                '<b>Hạn chế phải tự nêu trước khi thầy hỏi:</b> ngữ cảnh trace <b>chưa nối qua biên Kafka</b> — span của consumer là span <b>gốc mới</b>, hiện chỉ liên kết được qua <code>trace_id</code> trong log.';
+      }
+      return { view: h, note: note };
+    });
+
+    steps.unshift({
+      view: '<p style="font-family:var(--font-mono);font-size:12px;color:var(--ink-faint);min-width:600px">' +
+            'Trace rỗng. Bấm <b>Sau ▶</b> để dựng từng span đúng như Jaeger sẽ vẽ.</p>',
+      note: 'Đây là màn <b>Jaeger</b> (<code>localhost:17093</code>) mà thầy sẽ nhìn thấy. Mỗi thanh là một <b>span</b> — một đoạn công việc có bắt đầu, có kết thúc, và biết <b>cha</b> của mình là ai.'
+    });
+    return steps;
+  }
+});
+/* Fail-closed authorization — whitelist JTI trên Redis.
+   Chi tiết đáng điểm: chọn whitelist hay blacklist quyết định hệ thống sẽ hành xử
+   thế nào KHI REDIS CHẾT. Đó là một quyết định an ninh, không phải chi tiết kỹ thuật. */
+VF.scene('fail-closed-auth', {
+  title: 'Fail-closed: whitelist JTI, không phải blacklist',
+  controls: [
+    {
+      kind: 'select', id: 'mode', label: 'Cách lưu', value: 'white',
+      options: [['white', 'Whitelist (ta dùng)'], ['black', 'Blacklist (cách phổ biến)']]
+    },
+    { kind: 'toggle', id: 'down', label: '⚡ Redis chết', value: true }
+  ],
+
+  build: function (o) {
+    var L = [
+      { name: 'Client', sub: 'kèm JWT' },
+      { name: 'Service', sub: 'middleware auth' },
+      { name: 'Redis', sub: 'kho JTI' }
+    ];
+    var C = 0, S = 1, R = 2;
+    var white = o.mode === 'white';
+    var steps = [], rows = [];
+    function push(note, extra) {
+      steps.push({ view: VF.lanes(L, rows.slice(), rows.length - 1) + (extra || ''), note: note });
+    }
+
+    rows.push({ from: C, to: S, label: 'GET /orders + Bearer <jwt>', cls: 'ok' });
+    push('Request kèm JWT. Chữ ký RS256 <b>hợp lệ</b>, chưa hết hạn.',
+      authTable(white, 'Chữ ký hợp lệ ✔ — nhưng token này có thể đã bị <b>thu hồi</b> (logout, đổi mật khẩu, bị đánh cắp). JWT tự nó <b>không biết</b> điều đó.'));
+
+    rows.push({ from: S, to: R, label: white ? 'JTI có trong whitelist?' : 'JTI có trong blacklist?', cls: o.down ? 'fail' : 'wait' });
+
+    if (!o.down) {
+      rows.push({ from: R, to: S, label: white ? 'CÓ ⇒ token còn sống' : 'KHÔNG ⇒ token chưa bị thu hồi', cls: 'ok' });
+      rows.push({ from: S, to: C, label: '200 OK', cls: 'ok' });
+      push('Redis khoẻ ⇒ <b>cả hai cách đều chạy đúng</b>. Khác biệt chỉ lộ ra khi Redis chết. Bật nút để thấy.',
+        authTable(white, 'Redis trả lời được ⇒ quyết định đúng. Không phân biệt được whitelist hay blacklist ở đây.'));
+      return steps;
+    }
+
+    push('<span class="hit">Redis chết.</span> Service <b>không thể biết</b> token này còn sống hay đã bị thu hồi. Đây là lúc phải chọn: <b>đoán an toàn</b> hay <b>đoán tiện lợi</b>.',
+      authTable(white, 'Không có câu trả lời. Phải quyết định trong tình trạng mù.'));
+
+    if (white) {
+      rows.push({ from: S, to: C, label: '401 Unauthorized', cls: 'comp' });
+      steps.push({
+        view: VF.lanes(L, rows, rows.length - 1) +
+          authTable(true, '<b>Whitelist:</b> “còn trong kho ⇒ hợp lệ”. Redis chết ⇒ <b>không thấy JTI nào</b> ⇒ <b>từ chối tất cả</b>.'),
+        note: '<b>Fail-closed.</b> Redis chết thì <b>toàn hệ thống mất đăng nhập</b> — nghe rất tệ. Nhưng cái tệ hơn nằm ở phương án kia. Câu để nói: <i>“Khi không thể xác minh, hệ thống phải <b>từ chối</b>, không phải cho qua.”</i>'
+      });
+    } else {
+      rows.push({ from: S, to: C, label: '200 OK — CHO QUA HẾT', cls: 'fail' });
+      steps.push({
+        view: VF.lanes(L, rows, rows.length - 1) +
+          authTable(false, '<b>Blacklist:</b> “không có trong sổ đen ⇒ hợp lệ”. Redis chết ⇒ <b>sổ đen rỗng</b> ⇒ <b>mọi token đều “sạch”</b>.'),
+        note: '<span class="hit">Fail-open — và đây là lỗ hổng an ninh thật.</span> Mọi token <b>đã bị thu hồi</b> đều sống lại: token của người vừa logout, token bị đánh cắp mà nạn nhân đã báo, token của nhân viên vừa bị sa thải. Kẻ tấn công chỉ cần <b>làm Redis quá tải</b> là mở được cửa. Đây là lý do ta chọn whitelist — <b>chi phí là tính sẵn sàng, nhưng đổi lấy an toàn</b>.'
+      });
+    }
+    return steps;
+  }
+});
+
+function authTable(white, msg) {
+  return '<table class="grid" style="margin-top:24px"><thead><tr><th>' +
+    (white ? 'Whitelist — “có mặt nghĩa là còn sống”' : 'Blacklist — “vắng mặt nghĩa là còn sống”') +
+    '</th></tr></thead><tbody><tr><td>' + msg + '</td></tr></tbody></table>';
+}
+/* Idempotent receiver — Demo 3. Tua offset Kafka về 0, ép giao lại toàn bộ.
+   Số thật: 8 event → 8 thông báo. Tắt processed_events → 16. */
+VF.scene('idempotent-receiver', {
+  title: 'At-least-once + idempotent receiver',
+  controls: [
+    { kind: 'toggle', id: 'off', label: '⚡ TẮT bảng processed_events', value: false }
+  ],
+
+  build: function (o) {
+    var L = [
+      { name: 'Kafka', sub: 'order.events' },
+      { name: 'Notification', sub: 'consumer' },
+      { name: 'notification_db', sub: 'processed + notifications' }
+    ];
+    var K = 0, C = 1, D = 2;
+    var steps = [], rows = [];
+    function push(note, processed, notifs, hi) {
+      steps.push({
+        view: VF.lanes(L, rows.slice(), rows.length - 1) + idemState(processed, notifs, hi),
+        note: note
+      });
+    }
+
+    rows.push({ from: K, to: C, label: '8 event (offset 0…7)', cls: 'ok' });
+    push('Lần chạy bình thường: Kafka giao <b>8 sự kiện</b>.', 0, 0);
+
+    rows.push({ from: C, to: D, label: 'INSERT processed_events + INSERT notification — MỘT tx', cls: 'ok' });
+    push(o.off
+      ? 'Chỉ ghi thông báo. Không có bảng khử trùng lặp.'
+      : 'Mỗi sự kiện ghi <b>hai</b> thứ trong <b>cùng một transaction</b>: một dòng <code>processed_events</code> (khoá chính = <code>event_id</code>) và bản ghi thông báo. Cùng sống hoặc cùng chết.',
+      o.off ? 0 : 8, 8);
+
+    rows.push({ from: C, to: K, label: 'commit offset = 8', cls: 'ok' });
+    push('Xử lý xong 8/8. Khách nhận <b>8 thông báo</b>. Mọi thứ đúng.', o.off ? 0 : 8, 8);
+
+    rows.push({ from: C, to: C, label: '⚡ reset-offsets --to-earliest', cls: 'fail' });
+    push('<span class="hit">Giờ ép Kafka giao lại từ đầu.</span> Đây <b>không phải trò bịa</b> — nó mô phỏng đúng chuyện xảy ra thật khi consumer chết trước lúc commit, khi rebalance consumer group, hoặc khi outbox dispatcher phát trùng. <b>Kafka chỉ hứa at-least-once.</b>',
+      o.off ? 0 : 8, 8);
+
+    rows.push({ from: K, to: C, label: 'giao lại 8 event (offset 0…7)', cls: 'wait' });
+    push('Đúng 8 sự kiện <b>cũ</b> được giao lại. <code>event_id</code> của chúng <b>y hệt lần trước</b>.', o.off ? 0 : 8, 8);
+
+    if (o.off) {
+      rows.push({ from: C, to: D, label: 'INSERT 8 thông báo NỮA', cls: 'fail' });
+      steps.push({
+        view: VF.lanes(L, rows, rows.length - 1) + idemState(0, 16, true),
+        note: '<b>16 thông báo cho 8 đơn hàng.</b> Khách bị spam gấp đôi. Và nếu consumer này là <b>Payment</b> thay vì Notification, thì đó là <b>trừ tiền hai lần</b>. Đây chính là cái giá của at-least-once khi phía nhận không idempotent.'
+      });
+    } else {
+      rows.push({ from: C, to: D, label: 'INSERT processed_events → TRÙNG KHOÁ ✔', cls: 'comp' });
+      push('Consumer thử ghi <code>processed_events</code>, khoá chính <b>trùng</b> ⇒ INSERT hỏng ⇒ consumer hiểu <b>“event này tôi xử lý rồi”</b> và <b>bỏ qua</b>, không ghi thông báo.',
+        8, 8, true);
+
+      steps.push({
+        view: VF.lanes(L, rows, rows.length - 1) + idemState(8, 8, true),
+        note: '<b>Vẫn đúng 8 thông báo, không phải 16.</b> Câu để nói: <i>“Kafka <b>không</b> cho exactly-once xuyên biên service — nó giao <b>ít nhất một lần</b>. Ta đạt <b>hiệu ứng</b> đúng-một-lần bằng bảng <code>processed_events</code> ghi <b>cùng transaction</b> với business write. Giao lại bao nhiêu lần cũng chỉ có tác dụng một lần.”</i>'
+      });
+    }
+    return steps;
+  }
+});
+
+function idemState(processed, notifs, hot) {
+  var wrong = notifs === 16;
+  return VF.stat([
+    {
+      label: 'Kafka đã giao',
+      value: hot ? '16 lần' : '8 lần',
+      tone: 'mute',
+      hint: hot ? 'giao lại toàn bộ sau khi tua offset' : 'lần chạy đầu tiên'
+    },
+    {
+      label: 'processed_events',
+      value: processed === 0 ? '—' : processed + ' dòng',
+      tone: processed === 0 ? 'bad' : 'mute',
+      hint: processed === 0 ? 'bảng bị TẮT — không có gì chặn trùng' : 'khoá chính = event_id'
+    },
+    {
+      label: 'Thông báo gửi khách',
+      value: notifs + (wrong ? ' ✖' : hot ? ' ✔' : ''),
+      tone: wrong ? 'bad' : (hot ? 'ok' : 'mute'),
+      hot: hot,
+      hint: wrong ? 'nhân đôi — khách bị spam gấp đôi'
+                  : (hot ? 'giao 16, tác dụng 8 — exactly-once' : 'đúng một thông báo mỗi đơn')
+    }
+  ]);
+}
+/* CQRS — reporting là read model thuần, dựng 100% từ event, không có API ghi.
+   Điểm phải nói: nhất quán CUỐI là cái ta CHỌN, không phải cái ta chịu đựng. */
+VF.scene('cqrs-read-model', {
+  title: 'CQRS — tách đường ghi khỏi đường đọc',
+  controls: [
+    { kind: 'toggle', id: 'sync', label: '⚡ Gộp lại: tính báo cáo ngay trong đường ghi', value: false }
+  ],
+
+  build: function (o) {
+    var L = [
+      { name: 'Khách', sub: 'đặt đơn' },
+      { name: 'Order', sub: 'đường GHI' },
+      { name: 'Kafka', sub: 'order.placed' },
+      { name: 'Reporting', sub: 'đường ĐỌC' }
+    ];
+    var U = 0, O = 1, K = 2, R = 3;
+    var steps = [], rows = [];
+    function push(note, extra) {
+      steps.push({ view: VF.lanes(L, rows.slice(), rows.length - 1) + (extra || ''), note: note });
+    }
+
+    if (o.sync) {
+      rows.push({ from: U, to: O, label: 'POST /orders', cls: 'ok' });
+      push('Khách đặt đơn.', cqrsLatency(null, null));
+
+      rows.push({ from: O, to: R, label: 'gọi thẳng: tính lại doanh thu, top món, biểu đồ…', cls: 'wait' });
+      push('Cách gộp: đường ghi <b>tự tính luôn báo cáo</b> trước khi trả lời khách. Các truy vấn tổng hợp này <b>quét cả bảng</b>.',
+        cqrsLatency(null, null));
+
+      rows.push({ from: O, to: U, label: '201 — sau 1.400 ms', cls: 'fail' });
+      steps.push({
+        view: VF.lanes(L, rows, rows.length - 1) + cqrsLatency(1400, 0),
+        note: '<span class="hit">Khách phải chờ 1,4 giây để đặt một bát phở.</span> Báo cáo thì luôn chính xác tuyệt đối — nhưng <b>mọi khách hàng</b> đều trả giá cho việc <b>admin thỉnh thoảng mở dashboard</b>. Và khi lượng đơn tăng, con số này chỉ có tăng.'
+      });
+      return steps;
+    }
+
+    rows.push({ from: U, to: O, label: 'POST /orders', cls: 'ok' });
+    push('Khách đặt đơn.', cqrsLatency(null, null));
+
+    rows.push({ from: O, to: U, label: '201 — sau 120 ms', cls: 'ok' });
+    push('<b>Trả lời khách ngay.</b> Đường ghi chỉ làm đúng việc của nó: ghi đơn, ghi outbox, xong.',
+      cqrsLatency(120, null));
+
+    rows.push({ from: O, to: K, label: 'order.placed', cls: 'ok' });
+    push('Sự kiện đi vào Kafka. Đường ghi <b>không quan tâm</b> ai đọc nó — nó đã trả lời khách xong rồi.',
+      cqrsLatency(120, null));
+
+    rows.push({ from: K, to: R, label: 'consume → cập nhật read model', cls: 'ok' });
+    steps.push({
+      view: VF.lanes(L, rows, rows.length - 1) + cqrsLatency(120, 2500),
+      note: '<b>Read model cập nhật sau ~2 giây.</b> Trong 2 giây đó, dashboard admin <b>chưa thấy đơn này</b> — đó là <b>nhất quán cuối</b>, và ta <b>chấp nhận có ý thức</b>. Câu để nói: <i>“Reporting <b>không có một API ghi nghiệp vụ nào</b>. Toàn bộ trạng thái dựng từ sự kiện. Nếu read model hỏng, ta chỉ cần <b>replay lại event</b> là dựng lại được từ đầu.”</i> Đổi lại: khách đặt hàng <b>không bao giờ</b> phải chờ vì admin muốn xem báo cáo.'
+    });
+    return steps;
+  }
+});
+
+function cqrsLatency(write, read) {
+  return VF.stat([
+    {
+      label: 'Khách chờ bao lâu',
+      value: write === null ? '…' : write.toLocaleString('vi-VN') + ' ms',
+      tone: write === null ? 'mute' : (write > 1000 ? 'bad' : 'ok'),
+      hint: write === null ? 'đang xử lý'
+          : (write > 1000 ? 'mọi khách trả giá cho báo cáo của admin' : 'ghi đơn xong là trả lời ngay')
+    },
+    {
+      label: 'Dashboard trễ bao lâu',
+      value: read === null ? '…' : (read === 0 ? '0 ms' : '~' + (read / 1000) + ' giây'),
+      tone: 'mute',
+      hint: read === 0 ? 'chính xác tuyệt đối — nhưng phải trả giá bên trái'
+          : (read === null ? 'chưa cập nhật' : 'nhất quán cuối — chấp nhận có ý thức')
+    }
+  ]);
+}
+/* Single-flight refresh — bài toán điều phối đồng thời ở BIÊN CLIENT.
+   Refresh token là single-use, nên N request cùng hết hạn mà mỗi cái tự gọi
+   /auth/refresh sẽ tự vô hiệu hoá lẫn nhau. */
+VF.scene('single-flight-refresh', {
+  title: 'Single-flight refresh ở biên client',
+  controls: [
+    { kind: 'toggle', id: 'off', label: '⚡ TẮT single-flight (mỗi request tự refresh)', value: false }
+  ],
+
+  build: function (o) {
+    var L = [
+      { name: 'Trang', sub: '3 request song song' },
+      { name: 'Client', sub: 'lớp auth-refresh' },
+      { name: 'user-service', sub: '/auth/refresh' }
+    ];
+    var P = 0, C = 1, S = 2;
+    var steps = [], rows = [];
+    function push(note, extra) {
+      steps.push({ view: VF.lanes(L, rows.slice(), rows.length - 1) + (extra || ''), note: note });
+    }
+
+    rows.push({ from: P, to: C, label: '3 request cùng lúc: /orders · /cart · /profile', cls: 'wait' });
+    push('Người dùng mở trang. Ba lời gọi API chạy <b>song song</b>. Access token vừa hết hạn.',
+      rtState([['RT-1', 'còn sống']], null));
+
+    rows.push({ from: C, to: C, label: 'cả 3 nhận 401', cls: 'fail' });
+    push('Cả ba cùng nhận <code>401</code>. Cả ba cùng muốn làm <b>một việc giống hệt nhau</b>: đi làm mới token.',
+      rtState([['RT-1', 'còn sống']], null));
+
+    if (o.off) {
+      rows.push({ from: C, to: S, label: 'refresh(RT-1) ×3 — cùng lúc', cls: 'fail' });
+      push('Không có single-flight ⇒ <b>ba lời gọi <code>/auth/refresh</code> cùng bắn đi</b>, cùng mang <b>một</b> refresh token <code>RT-1</code>.',
+        rtState([['RT-1', 'còn sống']], null));
+
+      rows.push({ from: S, to: C, label: '#1 → RT-2 ✔ · RT-1 bị thu hồi', cls: 'ok' });
+      push('Lời gọi thứ nhất thắng: đổi được <code>RT-2</code>. Và vì refresh token là <b>single-use</b>, server <b>thu hồi ngay <code>RT-1</code></b>.',
+        rtState([['RT-1', 'ĐÃ THU HỒI'], ['RT-2', 'còn sống']], null));
+
+      rows.push({ from: S, to: C, label: '#2, #3 → 401 (RT-1 chết rồi)', cls: 'fail' });
+      steps.push({
+        view: VF.lanes(L, rows, rows.length - 1) + rtState([['RT-1', 'ĐÃ THU HỒI'], ['RT-2', 'còn sống']], 'Đăng xuất oan'),
+        note: '<span class="hit">Ba request tự vô hiệu hoá lẫn nhau.</span> Lời gọi #2 và #3 vẫn cầm <code>RT-1</code> — token vừa bị chính #1 thu hồi. Server thấy refresh token đã dùng ⇒ nghi <b>replay attack</b> ⇒ <b>đăng xuất sạch</b>. Người dùng bị <b>văng ra khỏi ứng dụng vì chính hệ thống của mình</b>, không phải vì lỗi gì cả. Trớ trêu: <b>tính năng an ninh</b> (rotation single-use) lại thành <b>bug</b>, chỉ vì phía client thiếu điều phối.'
+      });
+    } else {
+      rows.push({ from: C, to: S, label: 'refresh(RT-1) — CHỈ MỘT lời gọi', cls: 'ok' });
+      push('Có single-flight: lớp <code>auth-refresh.ts</code> thấy <b>đã có một refresh đang bay</b> ⇒ <b>request #2 và #3 không gọi nữa, chúng chờ chung vào cùng một Promise</b>.',
+        rtState([['RT-1', 'còn sống']], null));
+
+      rows.push({ from: S, to: C, label: '→ RT-2 ✔ (RT-1 thu hồi bình thường)', cls: 'ok' });
+      push('Refresh thành công. <code>RT-1</code> bị thu hồi — nhưng <b>không ai còn cầm nó</b> để dùng lại.',
+        rtState([['RT-1', 'đã thu hồi (không ai dùng)'], ['RT-2', 'còn sống']], null));
+
+      rows.push({ from: C, to: P, label: 'retry cả 3 request bằng token mới', cls: 'ok' });
+      steps.push({
+        view: VF.lanes(L, rows, rows.length - 1) + rtState([['RT-2', 'còn sống']], 'Cả 3 request thành công'),
+        note: '<b>Một lời gọi refresh, ba request được cứu.</b> Câu để nói: <i>“Refresh token là <b>single-use</b>, nên nhiều request cùng hết hạn phải được <b>gom về một lời gọi refresh duy nhất</b>. Đây là bài toán <b>điều phối đồng thời</b> — chỉ khác là nó nằm ở <b>biên client</b> chứ không phải trong server.”</i>'
+      });
+    }
+    return steps;
+  }
+});
+
+function rtState(tokens, verdict) {
+  var h = '<table class="grid" style="margin-top:24px"><thead><tr><th>Refresh token</th><th>trạng thái trên server</th></tr></thead><tbody>';
+  tokens.forEach(function (t) {
+    var dead = /THU HỒI|thu hồi/.test(t[1]);
+    h += '<tr><td class="mono' + (dead ? ' strike' : '') + '">' + t[0] + '</td>' +
+         '<td><span class="chip ' + (dead ? 'dead' : 'ok') + '">' + VF.esc(t[1]) + '</span></td></tr>';
+  });
+  h += '</tbody></table>';
+  if (verdict) {
+    var bad = /oan/.test(verdict);
+    h += '<p style="font-family:var(--font-mono);font-size:14px;margin-top:12px;font-weight:700;color:' +
+         (bad ? 'var(--stamp)' : 'var(--ok)') + '">Kết cục: ' + VF.esc(verdict) + '</p>';
+  }
+  return h;
+}
+/* Sổ cái kép — mỗi luồng tiền sinh HAI bút toán, tổng luôn = 0.
+   Điểm phải nói: SYSTEM được phép âm, vì số âm chính là nghĩa vụ phải trả. */
+VF.scene('double-entry-ledger', {
+  title: 'Sổ cái kép (double-entry)',
+  controls: [
+    {
+      kind: 'select', id: 'flow', label: 'Luồng tiền', value: 'capture',
+      options: [
+        ['capture', 'Khách trả tiền đơn 42.000đ'],
+        ['refund', 'Hoàn tiền đơn 42.000đ'],
+        ['payout', 'Chi trả cho quán']
+      ]
+    },
+    { kind: 'toggle', id: 'single', label: '⚡ Ghi một chiều (chỉ trừ ví khách)', value: false }
+  ],
+
+  build: function (o) {
+    var steps = [];
+    var amt = 42000;
+    var flows = {
+      capture: [['Ví khách', -amt], ['SYSTEM (clearing)', +amt]],
+      refund: [['SYSTEM (clearing)', -amt], ['Ví khách', +amt]],
+      payout: [['SYSTEM (clearing)', -amt], ['Ví quán', +amt]]
+    };
+    var pair = flows[o.flow];
+
+    steps.push({
+      view: ledgerTable([], 500000, 0),
+      note: 'Trạng thái đầu: ví khách <code>500.000đ</code>, tài khoản <code>SYSTEM</code> = 0. <code>SYSTEM</code> là <b>tài khoản trung gian</b> (clearing) — tiền đi qua nó, không nằm lại.'
+    });
+
+    if (o.single) {
+      steps.push({
+        view: ledgerTable([pair[0]], 500000 + pair[0][1], 0, true),
+        note: '<span class="hit">Ghi một chiều: tiền bốc hơi.</span> Ví khách <code>-42.000</code>, nhưng <b>không tài khoản nào nhận</b>. Tổng hệ thống <b>không còn cân</b>. Đến cuối tháng đối soát, bạn <b>không thể trả lời</b> được câu “42.000 này đi đâu?”. Sổ một chiều <b>không có khả năng tự kiểm tra</b>.'
+      });
+      return steps;
+    }
+
+    steps.push({
+      view: ledgerTable([pair[0]], 500000 + (pair[0][0] === 'Ví khách' ? pair[0][1] : 0), pair[0][0] === 'SYSTEM (clearing)' ? pair[0][1] : 0),
+      note: 'Bút toán thứ nhất: <code>' + pair[0][0] + ' ' + fmtSigned(pair[0][1]) + '</code>. <b>Chưa xong</b> — một mình nó thì sổ chưa cân.'
+    });
+
+    var wallet = 500000, sys = 0;
+    pair.forEach(function (p) {
+      if (p[0] === 'Ví khách') wallet += p[1];
+      if (p[0] === 'SYSTEM (clearing)') sys += p[1];
+    });
+
+    steps.push({
+      view: ledgerTable(pair, wallet, sys, false, true),
+      note: '<b>Hai bút toán, tổng = 0.</b> Cả hai được ghi trong <b>một transaction</b>, khoá <code>FOR UPDATE</code> <b>cả hai ví</b> ⇒ không ai chen ngang được. Câu để nói: <i>“Mỗi luồng tiền sinh <b>hai</b> bút toán cân bằng. Nếu tổng khác 0 thì có bug — và ta <b>phát hiện được ngay</b>, thay vì phát hiện lúc đối soát cuối tháng.”</i>' +
+        (sys < 0 ? ' <b>Chú ý <code>SYSTEM</code> đang ÂM</b> — và điều đó <b>đúng</b>: số âm ở tài khoản clearing chính là <b>nghĩa vụ hệ thống phải trả</b>. Chỉ <code>SYSTEM</code> được phép âm; ví người dùng thì không.' : '')
+    });
+    return steps;
+  }
+});
+
+function fmtSigned(n) {
+  return (n > 0 ? '+' : '−') + Math.abs(n).toLocaleString('vi-VN');
+}
+
+function ledgerTable(entries, wallet, sys, broken, done) {
+  var sum = entries.reduce(function (a, e) { return a + e[1]; }, 0);
+  var h = '<table class="grid"><thead><tr><th>Bút toán</th><th>Tài khoản</th><th style="text-align:right">Số tiền</th></tr></thead><tbody>';
+  if (!entries.length) {
+    h += '<tr><td colspan="3" style="color:var(--ink-faint)">— chưa có bút toán —</td></tr>';
+  } else {
+    entries.forEach(function (e, i) {
+      h += '<tr' + (i === entries.length - 1 ? ' class="flash"' : '') + '><td class="num">' + (i + 1) +
+           '</td><td class="mono">' + VF.esc(e[0]) + '</td><td class="num" style="color:' +
+           (e[1] < 0 ? 'var(--stamp)' : 'var(--ok)') + ';font-weight:600">' + fmtSigned(e[1]) + ' đ</td></tr>';
+    });
+    var okSum = sum === 0;
+    h += '<tr><td></td><td class="mono" style="font-weight:700">TỔNG</td>' +
+         '<td class="num" style="font-weight:700;color:' + (okSum ? 'var(--ok)' : 'var(--stamp)') + '">' +
+         (okSum ? '0 ✔ cân' : fmtSigned(sum) + ' ✖ LỆCH') + '</td></tr>';
+  }
+  h += '</tbody></table>';
+
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px">';
+  h += '<table class="grid"><thead><tr><th>Số dư ví khách</th></tr></thead><tbody><tr><td class="num" style="font-size:18px">' +
+       wallet.toLocaleString('vi-VN') + ' đ</td></tr></tbody></table>';
+  h += '<table class="grid"><thead><tr><th>Số dư SYSTEM (clearing)</th></tr></thead><tbody><tr><td class="num" style="font-size:18px;color:' +
+       (sys < 0 ? 'var(--wait)' : 'inherit') + '">' + fmtSigned(sys).replace('+', '') + ' đ' +
+       (sys < 0 ? ' <span style="font-size:11px">← âm là ĐÚNG</span>' : '') +
+       '</td></tr></tbody></table></div>';
+
+  if (broken) {
+    h += '<p style="font-family:var(--font-mono);font-size:12px;color:var(--stamp);margin-top:12px">' +
+         '42.000đ rời khỏi ví khách nhưng không vào tài khoản nào. Sổ sách không thể đối soát.</p>';
+  }
+  return h;
+}
+/* Tab Tổng quan — bản đồ hệ thống, ranh giới sở hữu, lịch demo, checklist. */
+VF.content = VF.content || {};
+VF.content.tongquan = {
+  label: 'Tổng quan',
+  accent: 'var(--stamp)',
+  blurb: 'Ai sở hữu tầng nào, ai nói mục nào, và buổi bảo vệ chạy theo trình tự ra sao.',
+  cards: [
+
+    {
+      id: 'ov-map',
+      title: 'Bản đồ hệ thống và ranh giới sở hữu',
+      eyebrow: ['đọc cái này trước'],
+      lede: 'Môn này chấm <b>kiến thức hệ phân tán</b>, không chấm số dòng code. Nên nhóm chia theo <b>tầng khái niệm</b>, không chia theo “ai gõ file nào”.',
+      html: [
+        '<div class="tablewrap"><table style="min-width:560px">',
+        '<thead><tr><th>Người</th><th>Tầng sở hữu</th><th>Một câu định nghĩa</th></tr></thead><tbody>',
+        '<tr><td style="color:var(--owner-van);font-weight:700">Văn</td>',
+        '<td><b>Kênh truyền &amp; quan sát</b></td>',
+        '<td>Mọi thứ nằm <b>giữa</b> các service: saga/DTM, outbox → Kafka, DLQ, gRPC client, Redis, và toàn bộ tầng quan sát</td></tr>',
+        '<tr><td style="color:var(--owner-duc);font-weight:700">Đức</td>',
+        '<td><b>Service &amp; vận hành</b></td>',
+        '<td>Mọi thứ <b>bên trong</b> một service: 8 service có đường ghi, REST, DB riêng, RBAC, gateway, probe, Docker</td></tr>',
+        '<tr><td style="color:var(--owner-nam);font-weight:700">Nam</td>',
+        '<td><b>Bên nhận &amp; biên client</b></td>',
+        '<td>Cơ chế <b>nhận về</b>: idempotent receiver, versioning, CQRS, hai service thuần-tiêu-thụ (<code>reporting</code>, <code>notification</code>), frontend, kiểm thử</td></tr>',
+        '</tbody></table></div>',
+
+        '<div class="say" style="margin-top:24px;max-width:none">',
+        '<span class="label">Câu trả lời khi thầy hỏi “ai làm gì”</span>',
+        '<p>“Văn làm <b>tầng giao tiếp giữa các service</b> — saga, hàng đợi, gRPC client, và tầng quan sát xuyên hệ. ',
+        'Đức làm <b>tầng nghiệp vụ bên trong</b> mỗi service. ',
+        'Nam làm <b>bên nhận sự kiện và biên client</b> — khử trùng lặp, dựng read model, giao diện.”</p>',
+        '</div>',
+
+        '<p style="margin-top:24px"><b>Ranh giới hay bị hỏi vặn nhất:</b> vì sao <code>reporting</code> và <code>notification</code> là của Nam chứ không phải Đức? ',
+        'Vì chúng <b>không có API ghi nghiệp vụ</b> — toàn bộ trạng thái dựng từ sự kiện. Chúng <b>là</b> bên nhận. ',
+        'Tám service còn lại có đường ghi, và đó là của Đức.</p>'
+      ].join('')
+    },
+
+    {
+      id: 'ov-tally',
+      title: 'Ai nói mục nào — bản đồ tới barem chấm điểm',
+      eyebrow: ['§14 của báo cáo Word'],
+      lede: 'Ba bảng trong §14 chính là thứ thầy dùng để tick điểm. Mỗi ô đã gán <b>một</b> người chịu trách nhiệm nói — để không sót yêu cầu nào và không ai nói chồng lên nhau.',
+      html: [
+        '<div class="tablewrap"><table style="min-width:420px">',
+        '<thead><tr><th></th><th style="text-align:right">Bảng 7<br>(bắt buộc)</th><th style="text-align:right">Bảng 8<br>(cộng điểm)</th>',
+        '<th style="text-align:right">Vượt khung</th><th style="text-align:right">Tổng</th></tr></thead><tbody>',
+        '<tr><td style="color:var(--owner-van);font-weight:700">Văn</td>',
+        '<td class="num">2</td><td class="num">8</td><td class="num">6</td><td class="num" style="font-weight:700">16</td></tr>',
+        '<tr><td style="color:var(--owner-duc);font-weight:700">Đức</td>',
+        '<td class="num">3</td><td class="num">6</td><td class="num">2</td><td class="num" style="font-weight:700">11</td></tr>',
+        '<tr><td style="color:var(--owner-nam);font-weight:700">Nam</td>',
+        '<td class="num">2</td><td class="num" style="color:var(--stamp)">0</td><td class="num">4</td><td class="num" style="font-weight:700">6</td></tr>',
+        '</tbody></table></div>',
+
+        '<div class="say" style="margin-top:24px;max-width:none">',
+        '<span class="label">Rủi ro đã biết — Nam không có dòng nào ở Bảng 8</span>',
+        '<p>Nếu thầy đi <b>từng dòng</b> của bảng nâng cao để hỏi, Nam sẽ <b>im lặng suốt</b>. ',
+        'Cách chữa: khi Văn trình bày <b>dòng 8 (Retry policy)</b> và vừa nói xong <i>“hết retry thì message vào DLQ”</i>, <b>Nam tiếp lời ngay</b>:</p>',
+        '<p style="border-left:2px solid var(--stamp);padding-left:16px;font-style:italic">',
+        '“Và khi Kafka giao lại message — vì nó chỉ đảm bảo at-least-once — thì <code>processed_events</code> chặn trùng, ',
+        'nên hiệu ứng nghiệp vụ vẫn đúng một lần. Em có demo tua offset về 0 để chứng minh.”</p>',
+        '<p>Câu đó vừa kéo Nam vào Bảng 8, vừa mở đường tự nhiên sang <b>Demo 3</b>.</p>',
+        '</div>'
+      ].join('')
+    },
+
+    {
+      id: 'ov-demos',
+      title: 'Kịch bản demo — không demo happy path',
+      eyebrow: ['6 demo', 'đã chạy thật'],
+      lede: '<b>Demo lúc hệ thống gãy.</b> Happy path không chứng minh được gì về hệ phân tán — mọi đồ án đều có happy path.',
+      html: [
+        '<div class="tablewrap"><table style="min-width:600px">',
+        '<thead><tr><th>Demo</th><th>Ai</th><th>Chứng minh điều gì</th></tr></thead><tbody>',
+        '<tr><td><b>0</b> · Happy path</td><td>cả nhóm</td><td>Đặt đơn qua UI → DTM UI hiện saga <code>succeed</code> 3 nhánh → Jaeger hiện 1 trace 9 span</td></tr>',
+        '<tr><td><b>1</b> · Saga bù trừ ngược</td><td style="color:var(--owner-van);font-weight:700">Văn</td>',
+        '<td>Đặt đơn <b>vượt số dư ví</b> → saga <code>failed</code>, bù trừ chạy ngược, <b>null compensation</b> vẫn succeed</td></tr>',
+        '<tr><td><b>2</b> · Circuit breaker</td><td style="color:var(--owner-van);font-weight:700">Văn</td>',
+        '<td>Dừng <b>store-service</b> (KHÔNG phải payment!), bắn <b>≥5 request</b> → mạch mở, <b>5.055ms → 25ms</b></td></tr>',
+        '<tr><td><b>3</b> · Idempotent receiver</td><td style="color:var(--owner-nam);font-weight:700">Nam</td>',
+        '<td>Tua offset Kafka về 0 → giao lại 8 event → thông báo vẫn <b>8, không phải 16</b></td></tr>',
+        '<tr><td><b>4</b> · Readiness + degrade</td><td style="color:var(--owner-duc);font-weight:700">Đức</td>',
+        '<td>Dừng Postgres → <code>/readyz</code> <b>503</b> nhưng <code>/health</code> vẫn <b>200</b>; dừng location → store degrade, không sập</td></tr>',
+        '<tr><td><b>5</b> · Quan sát xuyên hệ</td><td style="color:var(--owner-van);font-weight:700">Văn</td>',
+        '<td>Chạy <b>ngay sau Demo 2</b> để panel breaker có dữ liệu. Jaeger + Grafana + Kibana lọc theo một <code>trace_id</code></td></tr>',
+        '<tr><td><b>6</b> · CQRS read model</td><td style="color:var(--owner-nam);font-weight:700">Nam</td>',
+        '<td>Đặt đơn → vài giây sau <code>/admin</code> cập nhật, dù reporting <b>không có API ghi nào</b></td></tr>',
+        '</tbody></table></div>',
+
+        '<div class="say" style="margin-top:24px;max-width:none">',
+        '<span class="label">Ba cái bẫy đã vấp phải khi chạy thử — đừng vấp lại</span>',
+        '<p style="font-family:var(--font-body);font-size:16px">',
+        '<b>Demo 2:</b> dừng <b>payment-service</b> thì breaker <b>KHÔNG</b> trip — vì với engine DTM, <b>DTM server</b> gọi participant, không phải order-service. Phải dừng <b>store-service</b>. Và phải bắn <b>≥5 request</b>; bấm 1–2 lần thì demo trông như hỏng.<br><br>',
+        '<b>Demo 3:</b> chỉ restart consumer thì <b>chỉ chứng minh catch-up</b>, không chứng minh idempotency. Phải <b>tua offset</b> bằng <code>kafka-consumer-groups.sh --reset-offsets --to-earliest</code>.<br><br>',
+        '<b>Demo 5:</b> panel <code>circuit_breaker_state</code> <b>trống trơn</b> nếu mở trước Demo 2 — vì gauge <b>chỉ publish khi breaker đổi trạng thái</b>.</p>',
+        '</div>'
+      ].join('')
+    },
+
+    {
+      id: 'ov-setup',
+      title: 'Chuẩn bị trước buổi bảo vệ',
+      eyebrow: ['checklist'],
+      lede: 'Chạy đúng thứ tự này. Bỏ bước đầu là <b>auth tắt im lặng</b> và mọi route protected trả 404 — rất khó đoán ra giữa buổi.',
+      html: [
+        '<pre style="background:var(--paper-sunken);border:1px solid var(--rule);padding:16px;overflow-x:auto;',
+        'font-family:var(--font-mono);font-size:13px;line-height:1.7"><code>cd backend\n',
+        'make jwt-keys                              <span style="color:var(--stamp)"># BẮT BUỘC — thiếu là auth tắt, mọi route protected trả 404</span>\n',
+        'docker compose up -d                       <span style="color:var(--ink-faint)"># 10 service + Postgres/Redis/Kafka/DTM/MinIO/Kong</span>\n',
+        'docker compose --profile monitoring up -d  <span style="color:var(--ink-faint)"># Prometheus :17095, Grafana :17096, Jaeger :17093</span>\n',
+        'go run ./services/store/cmd/seed-catalog   <span style="color:var(--ink-faint)"># 20 quán, ~950 món</span>\n',
+        'cd ../frontend &amp;&amp; npm run dev              <span style="color:var(--ink-faint)"># :17070</span></code></pre>',
+
+        '<p style="margin-top:20px"><b>Không chạy trộn Docker và <code>go run</code>.</b> <code>config/*.docker.yaml</code> địa chỉ hoá DTM và các nhánh saga theo <b>DNS của compose</b>, ',
+        'còn <code>config/*.yaml</code> dùng <code>localhost</code> — trộn hai chế độ sẽ khiến DTM <b>không gọi được vào nhánh</b> và saga gãy.</p>',
+
+        '<p style="margin-top:16px"><b>Tab mở sẵn:</b> Frontend <code>:17070</code> · Kong <code>:17000</code> · ',
+        '<b>DTM UI <code>:17789</code></b> · <b>Jaeger <code>:17093</code></b> · <b>Grafana <code>:17096</code></b> · Prometheus <code>:17095</code></p>',
+
+        '<p style="margin-top:16px"><b>Tài khoản seed</b> (mật khẩu chung <code>Password123!</code>): ',
+        '<code>cust@</code> · <code>shop@</code> · <code>ship@</code> · <code>admin@</code> · <code>super-admin@</code> — tất cả <code>@velox.test</code></p>',
+
+        '<div class="say" style="margin-top:24px;max-width:none">',
+        '<span class="label">Một mục phải thống nhất trước — đừng ai nhận RabbitMQ</span>',
+        '<p style="font-family:var(--font-body);font-size:16px"><code>pkg/messaging/rabbitmq</code> <b>có code nhưng 0 call site</b> — toàn hệ chạy Kafka. ',
+        'Nếu thầy hỏi <i>“RabbitMQ dùng ở luồng nào”</i> mà có người ậm ừ nhận bừa là <b>mất điểm ngay</b>. ',
+        'Khai đúng như §15 của báo cáo: <b>đã hiện thực, chưa wire, để dành mở rộng</b>.</p>',
+        '</div>'
+      ].join('')
+    }
+  ]
+};
+/* Văn — kênh truyền & quan sát. Mọi thứ nằm GIỮA các service. */
+VF.content = VF.content || {};
+VF.content.van = {
+  label: 'Văn',
+  tally: 16,
+  accent: 'var(--owner-van)',
+  blurb: 'Kênh truyền &amp; quan sát — mọi thứ nằm <b>giữa</b> các service: saga, hàng đợi, gRPC client, và toàn bộ tầng nhìn thấy hệ thống.',
+  cards: [
+
+    {
+      id: 'van-saga-vs-2pc',
+      title: 'Vì sao saga, không phải 2PC',
+      eyebrow: ['§6', 'nền tảng — hỏi là chắc chắn'],
+      lede: 'Đây là câu hỏi mở đầu kinh điển. Trả lời được câu này là đã chứng minh hiểu bản chất giao dịch phân tán; trả lời trượt thì mọi thứ sau đó đều lung lay.',
+      scene: 'two-pc-vs-saga',
+      say: [
+        '“Giao dịch của chúng em trải qua <b>ba database khác nhau</b> — order_db, promotion_db, payment_db. Không có transaction nào của Postgres phủ được cả ba.”',
+        '“2PC làm được, nhưng nó là giao thức <b>blocking</b>: trong lúc chờ pha 2, mọi tài nguyên đều <b>bị khoá</b>. Nếu coordinator chết hoặc mạng đứt giữa hai pha, khoá đó <b>treo vô thời hạn</b>. Với hệ phân tán thật, nơi partition là chuyện thường ngày, cái giá đó quá đắt.”',
+        '“Saga đổi <b>nhất quán tức thời</b> lấy <b>tính sẵn sàng</b>: mỗi bước commit ngay và nhả khoá ngay; nếu bước sau hỏng thì <b>bù trừ ngược</b> các bước trước. Hệ thống có thể <b>tạm thời</b> không nhất quán, nhưng <b>không bao giờ khoá ai</b>.”'
+      ],
+      probes: [
+        ['Vậy saga có đảm bảo ACID không?', 'Không. Saga <b>hy sinh tính cô lập</b> (Isolation). Có một khoảng ngắn mà voucher đã <code>RESERVED</code> nhưng đơn chưa chắc tồn tại — người khác nhìn vào thấy trạng thái “nửa vời”. Đó là cái giá phải thừa nhận thẳng. Ta bù lại bằng cách <b>rút ngắn khoảng đó</b> (deadline 5s) và <b>đảm bảo cuối cùng luôn hội tụ</b> (bù trừ bền vững + janitor).'],
+        ['Sao không dùng transaction phân tán của Postgres (PREPARE TRANSACTION)?', 'Vẫn là 2PC, chỉ đổi tên. Và nó chỉ hoạt động giữa các Postgres — trong khi nhánh <code>Capture</code> có thể phải gọi <b>MoMo</b>, một hệ thống bên ngoài hoàn toàn không biết PREPARE TRANSACTION là gì.'],
+        ['Orchestration hay choreography?', '<b>Orchestration</b> — có một bên chỉ huy (DTM, do Order khởi xướng) gọi từng nhánh theo thứ tự và biết phải bù trừ cái gì. Choreography (mỗi service tự phản ứng với event) thì ta <b>cũng có</b>, nhưng dùng cho luồng sau khi đặt hàng thành công — phần đó là của Nam.']
+      ],
+      srcs: ['pkg/saga/saga.go', 'services/order/internal/usecase/place_order_dtm.go', 'config/order.yaml:38']
+    },
+
+    {
+      id: 'van-saga-compensation',
+      title: 'Saga đặt hàng và chuỗi bù trừ ngược',
+      eyebrow: ['§6', 'Bảng 8 · dòng 4', 'Demo 1'],
+      lede: 'Ba nhánh, mỗi nhánh một cặp action / compensate. Khi một nhánh hỏng, DTM chạy bù trừ <b>ngược thứ tự</b> qua đúng những nhánh đã thành công.',
+      scene: 'saga-compensation',
+      say: [
+        '“Saga đặt hàng có <b>ba nhánh</b>: ApplyPromotion / ReleaseUsage · Capture / Refund · ConfirmUsage / ReleaseUsage. Order <b>không tự gọi</b> ai — nó nộp saga cho DTM, và DTM gọi từng nhánh.”',
+        '“Nếu nhánh 2 hỏng, DTM chạy bù trừ <b>ngược</b>: Refund trước, rồi ReleaseUsage. Kết quả: ví không đổi, voucher không tăng lượt dùng, không đẻ ra đơn nào, sổ cái không có bút toán mới.”',
+        '“<b>Chi tiết em muốn thầy chú ý:</b> compensate của nhánh 2 — <code>Refund</code> — trả về <b>succeed</b> dù <b>chưa hề trừ đồng nào</b>. Đó là <b>null compensation</b>: bù trừ cho một hành động chưa từng chạy. Nó <b>bắt buộc phải là no-op idempotent</b>, không được báo lỗi — vì nếu nó báo lỗi, DTM sẽ retry mãi và saga treo vĩnh viễn.”'
+      ],
+      probes: [
+        ['Store có phải một nhánh saga không?', '<b>Không.</b> Store chỉ được <b>đọc</b> (validate quán còn mở, tính phí ship) trước khi mở saga — thao tác <b>read-only</b> thì không cần bù trừ. Chỉ những bước <b>làm thay đổi trạng thái</b> mới thành nhánh.'],
+        ['Bù trừ có thể hỏng không? Thì sao?', 'Có, và đây là chỗ hệ thống đi xa hơn saga sách vở. Ý định bù trừ được ghi <b>bền</b> vào bảng <code>pending_compensations</code>; một worker quét <b>mỗi 30 giây</b>, gọi lại tối đa <b>20 lần</b>. Vì lời gọi bù trừ <b>idempotent</b> (khoá theo order-id), retry không gây tác dụng phụ. Xem thẻ “Bù trừ bền vững”.'],
+        ['Đơn COD thì Capture làm gì?', 'Bỏ qua — không trừ tiền lúc đặt. Nhưng nhánh <b>vẫn tồn tại</b> trong saga, và compensate của nó vẫn chạy khi rollback. Đây chính là ca <b>null compensation trong đời thật</b>, không phải tình huống giả định: <code>order.cancelled</code> của đơn COD gọi <code>Refund</code> cho một payment <b>chưa bao giờ tồn tại</b>.'],
+        ['Saga huỷ đơn có giống saga đặt đơn không?', 'Không — nó là kiểu <b>khác</b>. Đặt đơn là <b>compensating saga</b> (hỏng thì lùi). Huỷ đơn là <b>idempotent-retry saga</b> (forward-only): không có đường lùi, chỉ có <b>tiến tới cho bằng được</b>, retry đến khi thành công. Vì bạn <b>không thể “bù trừ” một cú huỷ đơn</b> — khách đã bấm huỷ rồi.']
+      ],
+      srcs: ['services/order/internal/usecase/place_order_dtm.go', 'services/order/internal/usecase/order_cancel_dtm.go', 'services/payment/internal/usecase/refund_usecase.go']
+    },
+
+    {
+      id: 'van-barrier',
+      title: 'Sub-transaction barrier',
+      eyebrow: ['§6', 'vượt khung', 'cơ chế khó nhất'],
+      lede: 'Cơ chế tinh vi nhất trong cả hệ thống, và cũng là thứ dễ ghi điểm nhất — vì rất ít đồ án sinh viên có nó. Nó giải <b>hai</b> bài toán mà retry sinh ra.',
+      scene: 'sub-transaction-barrier',
+      say: [
+        '“Trong hệ phân tán, <b>không thể phân biệt</b> ‘service chết’ với ‘service làm xong nhưng trả lời bị mất’. Nên DTM <b>bắt buộc phải retry</b>. Mà retry thì sinh ra hai bệnh.”',
+        '“Bệnh một — <b>gọi trùng nhánh</b>: <code>Capture</code> chạy hai lần, khách bị trừ tiền hai lần. Bệnh hai — <b>bù trừ đến trước</b>: <code>Refund</code> tới trước <code>Capture</code>, rồi <code>Capture</code> lết tới sau và trừ tiền của một đơn đã huỷ, không ai hoàn lại.”',
+        '“Barrier chữa cả hai bằng <b>một</b> ý tưởng: mỗi nhánh, trước khi làm việc, <b>ghi một dòng chặn</b> <code>(gid, branch, op)</code> vào bảng <code>dtm_barrier</code> — trong <b>CÙNG transaction</b> với thao tác nghiệp vụ. Khoá chính trùng ⇒ biết là đã chạy rồi ⇒ bỏ qua. Thấy dòng <code>compensate</code> có trước ⇒ biết action đến muộn ⇒ từ chối.”'
+      ],
+      probes: [
+        ['Vì sao phải CÙNG transaction? Ghi riêng hai lệnh có được không?', '<b>Không.</b> Nếu ghi barrier ở transaction riêng, sẽ có khe hở: ghi barrier xong → crash → tiền chưa trừ nhưng barrier nói “đã trừ rồi” ⇒ retry sẽ bị chặn ⇒ <b>đơn mất tiền vĩnh viễn</b>. Ghi chung một transaction thì <b>cả hai cùng sống hoặc cùng chết</b> — không có trạng thái nửa vời. Đây là toàn bộ lý do cơ chế này hoạt động.'],
+        ['Barrier khác gì bảng processed_events của Nam?', 'Cùng <b>nguyên lý</b> (khử trùng lặp bằng khoá chính, ghi cùng transaction), khác <b>ngữ cảnh</b>. Barrier bảo vệ <b>nhánh saga</b> (gọi gRPC đồng bộ, có cả action lẫn compensate, nên còn phải xử lý chuyện <b>thứ tự đảo ngược</b>). <code>processed_events</code> bảo vệ <b>consumer Kafka</b> (bất đồng bộ, chỉ có một chiều). Nói được cả hai giống và khác chỗ nào là ghi điểm.'],
+        ['Ai ghi bảng dtm_barrier — DTM hay service?', '<b>Service tự ghi</b>, vào <b>chính database của mình</b> (payment_db, promotion_db). DTM không đụng vào DB nghiệp vụ. Đó là điều bắt buộc — vì chỉ khi barrier nằm cùng DB với dữ liệu nghiệp vụ thì mới ghi chung một transaction được.']
+      ],
+      srcs: ['pkg/saga/barrier.go', 'bảng dtm_barrier trong payment_db & promotion_db']
+    },
+
+    {
+      id: 'van-durable-compensation',
+      title: 'Khi chính bước bù trừ cũng hỏng',
+      eyebrow: ['§9', 'vượt khung ×3'],
+      lede: 'Saga trong sách dừng ở “hỏng thì bù trừ”. Câu hỏi bỏ ngỏ: <b>nếu bù trừ cũng hỏng thì sao?</b> Hệ thống trả lời câu đó bằng ba cơ chế khác nhau.',
+      say: [
+        '“Bù trừ cũng là một lời gọi mạng — nó cũng hỏng được. Nếu bỏ qua thì tiền của khách mắc kẹt vĩnh viễn. Nên chúng em có <b>ba tầng</b>.”',
+        '“<b>Bù trừ bền vững:</b> ý định rollback được ghi <b>bền</b> vào bảng <code>pending_compensations</code>. Một worker quét <b>mỗi 30 giây</b>, gọi lại, tối đa <b>20 lần</b>. Vì lời gọi idempotent (khoá theo order-id) nên retry an toàn.”',
+        '“<b>Bù trừ theo thời gian:</b> nếu saga chết hẳn giữa chừng, nó để lại voucher <code>RESERVED</code> mồ côi — không ai bù trừ nữa. Một janitor void chúng sau <b>TTL 15 phút</b> và trả lại <code>used_count</code>. Không có nó thì hạn mức voucher <b>rò rỉ vĩnh viễn</b>.”',
+        '“<b>Bù trừ một bước đã commit:</b> huỷ một đơn <b>đã đặt thành công</b> vẫn void được usage ở trạng thái <code>CONFIRMED</code> — khác hẳn với việc chỉ nhả một chỗ giữ tạm.”'
+      ],
+      probes: [
+        ['Sao lại 20 lần? Sao không retry vô hạn?', 'Vì có những lỗi <b>không bao giờ tự khỏi</b> (dữ liệu hỏng, hợp đồng API đổi). Retry vô hạn cho những ca đó chỉ đốt tài nguyên và <b>giấu sự cố</b>. Hết 20 lần thì nó <b>đứng lại và ồn ào</b> để con người vào xem — thà báo động còn hơn im lặng thử mãi.'],
+        ['Vì sao TTL 15 phút, không phải 1 phút?', 'Vì saga bình thường chỉ mất <b>vài trăm mili-giây</b>. 15 phút là biên <b>rất rộng</b> — đủ để chắc chắn saga đó <b>thật sự đã chết</b> chứ không phải đang chậm. Void nhầm một voucher đang được dùng hợp lệ thì tệ hơn nhiều so với việc giữ chỗ thừa thêm vài phút.'],
+        ['Worker chạy ở đâu? Nhiều replica thì có đua nhau không?', 'Worker nằm trong chính <code>order-service</code> (<code>wire_compensation_worker.go</code>). Nhiều replica thì mỗi lần quét đều lấy bản ghi <b>có khoá</b>, và bản thân lời gọi bù trừ <b>idempotent</b> — nên kể cả hai replica cùng gọi, kết quả vẫn đúng một lần.']
+      ],
+      srcs: ['services/order/cmd/wire_compensation_worker.go', 'services/promotion/cmd/wire_reservation_janitor.go', 'bảng pending_compensations']
+    },
+
+    {
+      id: 'van-outbox',
+      title: 'Transactional Outbox',
+      eyebrow: ['§7', 'Bảng 8 · dòng 4'],
+      lede: 'Bài toán: ghi DB và phát Kafka là <b>hai hệ thống khác nhau</b>, không có transaction chung. Crash đúng khe giữa hai thao tác là mất sự kiện vĩnh viễn.',
+      scene: 'transactional-outbox',
+      say: [
+        '“Không thể ghi Postgres và publish Kafka trong <b>một</b> transaction — chúng là hai hệ thống khác nhau. Nếu ghi đơn xong, commit, rồi mới publish, mà process chết đúng khe đó, thì <b>đơn tồn tại nhưng sự kiện không bao giờ được phát</b>: khách không được báo, doanh thu không được ghi nhận, đơn không được giao. Hệ thống lệch nhau <b>vĩnh viễn</b> và không ai biết.”',
+        '“Outbox lật ngược vấn đề: sự kiện được ghi thành <b>một dòng trong cùng database</b>, trong <b>cùng transaction</b> với đơn hàng. Rồi một dispatcher chạy nền (mỗi 2 giây) quét bảng đó và phát lên Kafka.”',
+        '“Đánh đổi: dispatcher có thể phát <b>trùng</b> — nếu nó publish xong rồi chết trước khi kịp đánh dấu <code>SENT</code>. Nên đây <b>chính xác</b> là <b>at-least-once</b>, và phía nhận <b>bắt buộc</b> phải idempotent. Đó là lý do phần của Nam tồn tại.”'
+      ],
+      probes: [
+        ['Vì sao không publish Kafka trước rồi mới ghi DB?', 'Còn tệ hơn: publish xong rồi ghi DB hỏng ⇒ <b>sự kiện nói về một đơn không tồn tại</b>. Notification báo khách “đơn đã đặt” trong khi <b>không có đơn nào</b>. Mất sự kiện còn cứu được (phát lại); <b>bịa</b> ra sự kiện thì không.'],
+        ['Dispatcher chết thì sao?', 'Sự kiện vẫn nằm nguyên trong bảng <code>outbox</code> ở trạng thái <code>PENDING</code>. Dispatcher sống lại là quét thấy và phát tiếp. <b>Không mất gì</b> — chỉ trễ.'],
+        ['Có bị trễ không? 2 giây là nhiều đấy.', 'Có, và đó là <b>đánh đổi có ý thức</b>: outbox theo kiểu polling thì độ trễ = chu kỳ quét. Muốn tức thì thì phải dùng CDC (đọc WAL của Postgres, ví dụ Debezium) — phức tạp hơn nhiều. Với đồ án này, 2 giây là quá đủ, và em <b>biết</b> hướng nâng cấp là gì.']
+      ],
+      srcs: ['pkg/outbox/', 'bảng outbox trong mỗi service']
+    },
+
+    {
+      id: 'van-kafka-dlq',
+      title: 'Retry, DLQ, và bảo toàn thứ tự partition',
+      eyebrow: ['Bảng 7 · #5', 'Bảng 8 · dòng 8', 'vượt khung'],
+      lede: 'Consumer retry 3 lần rồi park vào dead-letter. Nhưng chi tiết đáng giá nhất nằm ở chỗ <b>khi DLQ cũng chết</b> — lúc đó hệ thống <b>cố ý</b> chọn tắc nghẽn.',
+      scene: 'kafka-retry-dlq',
+      say: [
+        '“Consumer retry <b>3 lần</b>, backoff <b>0,5 → 1 → 2 giây</b>. Hết retry thì message được park sang <code><topic>.dlq</code>, kèm header truy vết: topic gốc, partition, offset, lỗi, thời điểm. Rồi mới commit offset — nên một message độc <b>không làm tắc cả partition</b>.”',
+        '“<b>Chỗ em muốn nói kỹ:</b> nếu <b>vừa không xử lý được, vừa không park được sang DLQ</b> — thì consumer <b>cố ý KHÔNG commit</b> và <b>dừng lại ngay tại message đó</b>.”',
+        '“Vì sao không bỏ qua để chạy tiếp? Vì Kafka đảm bảo <b>thứ tự trong partition</b>, và các sự kiện của <b>cùng một đơn</b> nằm <b>cùng một partition</b>. Bỏ qua <code>order.status_changed</code> để xử lý <code>order.cancelled</code> trước là <b>phá vỡ nhân quả</b>. Thà tắc nghẽn và ồn ào, còn hơn chạy tiếp và <b>sai âm thầm</b>.”'
+      ],
+      probes: [
+        ['Vì sao 3 lần retry, không phải 10?', 'Vì retry chỉ chữa được lỗi <b>tạm thời</b> (DB nghẽn, mạng chớp). Lỗi <b>vĩnh viễn</b> (JSON hỏng, dữ liệu sai) thì retry 10 lần cũng vô ích, chỉ làm <b>chậm cả partition</b> phía sau. 3 lần là đủ vượt qua các nhịp trục trặc ngắn, còn lại thì cách ly ngay vào DLQ.'],
+        ['Message vào DLQ rồi thì làm gì?', 'Nó nằm đó, <b>không mất</b>, kèm đủ ngữ cảnh để điều tra (<code>x-original-topic</code>, <code>x-original-offset</code>, <code>x-error</code>). Sau khi sửa nguyên nhân, có thể phát lại từ DLQ về topic gốc. Ở quy mô đồ án, ta chưa dựng công cụ replay tự động — <b>và em nói thẳng là chưa có</b>.'],
+        ['Tại sao lại quan tâm thứ tự? Kafka có đảm bảo thứ tự toàn cục không?', '<b>Không</b> — Kafka chỉ đảm bảo thứ tự <b>trong một partition</b>. Toàn cục thì không. Đó là lý do phải chọn <b>khoá partition</b> cẩn thận: các sự kiện cùng một đơn hàng dùng cùng khoá ⇒ vào cùng partition ⇒ được xử lý đúng thứ tự. Đây là <b>quyết định thiết kế</b>, không phải mặc định.']
+      ],
+      srcs: ['pkg/messaging/kafka/']
+    },
+
+    {
+      id: 'van-grpc-breaker',
+      title: 'gRPC client: deadline, retry, circuit breaker',
+      eyebrow: ['Bảng 8 · dòng 12', 'Demo 2'],
+      lede: 'Mọi lời gọi gRPC đi qua <code>pkg/grpcx.Dial</code>, với chuỗi bảo vệ: trace → <b>breaker</b> → <b>deadline 5s</b> → <b>retry ×2</b>. Số đo thật: <b>5.055ms → 25ms</b>.',
+      scene: 'circuit-breaker',
+      say: [
+        '“Breaker mở khi thoả <b>cả hai</b> điều kiện: <b>≥5 request trong 30 giây</b> <b>VÀ</b> <b>≥60% lỗi hạ tầng</b>. Mở rồi thì request bị <b>từ chối ngay tại client</b>, không chạm tới service chết nữa. Sau <b>15 giây</b> nó chuyển <b>half-open</b>, cho <b>3 request thăm dò</b>; qua hết thì đóng lại.”',
+        '“<b>Chi tiết phân biệt người hiểu và người copy:</b> breaker <b>chỉ trip trên lỗi hạ tầng</b> — <code>Unavailable</code>, <code>DeadlineExceeded</code>. Lỗi <b>nghiệp vụ</b> như <code>NotFound</code> hay <code>InvalidArgument</code> thì <b>không</b>. Vì service lúc đó vẫn <b>hoàn toàn khoẻ mạnh</b> — nó chỉ đang từ chối <b>đúng</b>. Nếu để lỗi nghiệp vụ trip breaker, thì chỉ cần 5 khách tra nhầm mã voucher là cả hệ thống ngắt kết nối tới promotion-service.”',
+        '“Và deadline <b>5 giây</b> có lý do: participant treo thì phải <b>fail-fast để saga kịp bù trừ</b>, chứ không treo cả chuỗi. Số đo thật: request đầu tiên mất <b>đúng 5,055 giây</b> — đó là deadline cắt, không phải TCP treo vô hạn.”'
+      ],
+      probes: [
+        ['Demo breaker thì dừng service nào?', '<b>store-service.</b> KHÔNG phải payment. Vì với engine DTM, <b>order-service không gọi thẳng payment</b> — <b>DTM server</b> mới là bên gọi participant. Lời gọi gRPC <b>trực tiếp</b> của order là <code>GetStoreForOrder</code> sang store. Dừng nhầm payment thì breaker <b>không trip</b> và demo trông như hỏng.'],
+        ['Vì sao breaker giúp ích, nếu request vẫn hỏng?', 'Nó <b>không cứu</b> request đó. Nó làm hai việc khác: (1) <b>trả lời thất bại trong 25ms thay vì 5 giây</b> — khách không phải ngồi chờ; (2) <b>ngừng đập vào một service đang hấp hối</b>, cho nó cơ hội hồi phục. Không có breaker, service chết sẽ bị hàng nghìn request dồn vào và <b>không bao giờ đứng dậy nổi</b> — đó là <b>cascading failure</b>.'],
+        ['Retry ×2 có làm hỏng thêm không?', 'Có nguy cơ, nên retry <b>chỉ trên <code>Unavailable</code></b> — nghĩa là “chưa chắc đã tới nơi”. Không retry trên lỗi nghiệp vụ (retry cũng vô ích) và không retry trên <code>DeadlineExceeded</code> (có thể đã tới nơi và đang xử lý — retry là <b>gọi trùng</b>). Còn nếu vẫn trùng, thì đã có <b>barrier</b> đỡ.'],
+        ['Panel Grafana của breaker trống, sao vậy?', 'Vì gauge <code>circuit_breaker_state</code> <b>chỉ publish khi breaker ĐỔI trạng thái</b>. Lúc <code>closed</code> ban đầu <b>không có mẫu nào</b>. Phải bắn đủ 5 request cho breaker trip <b>trước</b>, rồi mới mở panel. <b>Biết trước điều này</b> để không lúng túng giữa buổi demo.']
+      ],
+      srcs: ['pkg/grpcx/client.go', 'pkg/grpcx/breaker.go', 'sony/gobreaker']
+    },
+
+    {
+      id: 'van-fail-closed',
+      title: 'Redis: JTI whitelist fail-closed, cache-aside',
+      eyebrow: ['§10', 'Bảng 8 · dòng 5', 'vượt khung'],
+      lede: 'JWT tự nó <b>không thu hồi được</b>. Cách giải quyết là tra Redis — và <b>chọn whitelist hay blacklist</b> quyết định hệ thống hành xử thế nào <b>khi Redis chết</b>.',
+      scene: 'fail-closed-auth',
+      say: [
+        '“JWT là stateless: đã ký thì <b>hợp lệ tới khi hết hạn</b>, kể cả khi người dùng đã logout hay token bị đánh cắp. Muốn thu hồi thì phải có <b>trạng thái</b> ở đâu đó — chúng em để trong Redis.”',
+        '“Và chúng em dùng <b>whitelist</b> chứ không phải blacklist: Redis lưu các JTI <b>còn sống</b>. Hệ quả: Redis chết ⇒ không thấy JTI nào ⇒ <b>từ chối tất cả</b>. Đó là <b>fail-closed</b>.”',
+        '“Nếu dùng blacklist — cách phổ biến hơn — thì Redis chết ⇒ sổ đen rỗng ⇒ <b>mọi token đều được coi là sạch</b>, kể cả token đã bị thu hồi. Đó là <b>fail-open</b>, và nó là một <b>lỗ hổng an ninh thật</b>: kẻ tấn công chỉ cần làm Redis quá tải là mở được cửa. Chúng em chấp nhận mất tính sẵn sàng để đổi lấy an toàn.”'
+      ],
+      probes: [
+        ['Redis chết là cả hệ thống mất đăng nhập? Nghe rất tệ.', '<b>Đúng, và đó là lựa chọn có ý thức.</b> Khi không thể xác minh, hệ thống phải <b>từ chối</b>, không phải cho qua. Mất đăng nhập tạm thời thì khôi phục được; cho token bị đánh cắp đi qua thì <b>không</b>. Giảm nhẹ thì có: chạy Redis replica. Nhưng <b>hướng fail</b> thì không đổi.'],
+        ['Cache-aside dùng ở đâu?', 'Ở <b>RBAC</b>: quyền của người dùng được cache 5 phút trong Redis, vì mỗi request protected đều phải hỏi. Khi quyền bị đổi thì <b>chủ động invalidate</b>. Đây là thứ giảm nhẹ cho vấn đề <b>SPOF của user-service</b> — vấn đề mà Đức sẽ thừa nhận thẳng.'],
+        ['Redis chết thì cache-aside cũng chết chứ?', 'Có, nhưng hành vi <b>ngược lại</b> với JTI: cache RBAC <b>degrade về không cache</b> — vẫn gọi gRPC sang user-service, chỉ chậm hơn. Nghĩa là cùng một Redis, nhưng <b>một chỗ fail-closed, một chỗ fail-open</b>. Đó là <b>chủ ý</b>: cache là để tăng tốc (mất thì chậm), whitelist là để bảo vệ (mất thì phải khoá).']
+      ],
+      srcs: ['pkg/auth/store/', 'services/user/internal/usecase/rbac_usecase.go']
+    },
+
+    {
+      id: 'van-jwt',
+      title: 'JWT và bảo mật xác thực',
+      eyebrow: ['Bảng 8 · dòng 5'],
+      lede: 'RS256, chống algorithm-confusion, refresh token xoay vòng single-use, khoá tài khoản, OTP băm bcrypt, Google OAuth2.',
+      say: [
+        '“Token ký <b>RS256</b> — bất đối xứng: user-service giữ khoá riêng để ký, 9 service kia chỉ cần khoá công khai để xác minh. Không service nào ngoài user-service có khả năng <b>tạo</b> token.”',
+        '“Có chặn <b>algorithm confusion</b>: nếu kẻ tấn công đổi header thành <code>alg: HS256</code> và ký bằng chính khoá công khai (thứ ai cũng biết), hệ thống sẽ <b>từ chối</b> — vì nó <b>chỉ chấp nhận RS256</b>, không tin vào cái mà token tự khai.”',
+        '“Refresh token <b>xoay vòng single-use</b>: mỗi lần refresh sinh token mới và <b>thu hồi ngay</b> token cũ. Dùng lại token cũ ⇒ nghi replay ⇒ <b>đăng xuất sạch</b>. Có test riêng chứng minh. Ngoài ra: khoá tài khoản 15 phút sau 5 lần sai, OTP <b>băm bcrypt</b> chứ không lưu thô.”'
+      ],
+      probes: [
+        ['Vì sao RS256 chứ không HS256?', 'HS256 <b>đối xứng</b> — muốn xác minh thì phải biết <b>khoá ký</b>. Nghĩa là <b>cả 10 service</b> đều giữ khoá tạo token. Một service bị chiếm là <b>toàn hệ thống</b> bị giả mạo. RS256 tách bạch: <b>một</b> nơi ký, <b>mọi</b> nơi xác minh.'],
+        ['Single-use rotation gây bug gì ở phía client không?', '<b>Có — và đó chính là bài toán của Nam.</b> N request cùng hết hạn, mỗi cái tự gọi <code>/auth/refresh</code> với cùng một token ⇒ cái đầu thắng và thu hồi token ⇒ các cái sau bị coi là replay ⇒ <b>người dùng bị đăng xuất oan</b>. Phải gom về <b>một</b> lời gọi refresh — <b>single-flight</b>.']
+      ],
+      srcs: ['services/user/internal/usecase/auth_usecase.go', 'pkg/auth/', 'refresh_logout_test.go']
+    },
+
+    {
+      id: 'van-tracing',
+      title: 'Distributed tracing',
+      eyebrow: ['Bảng 8 · dòng 11', 'Demo 5'],
+      lede: 'Một request của khách chạm <b>5 service</b>. Không có tracing thì khi nó chậm, bạn chỉ có thể <b>đoán</b> xem chậm ở đâu.',
+      scene: 'trace-waterfall',
+      say: [
+        '“<code>trace_id</code> sinh ở <b>Kong</b>, rồi lan truyền qua HTTP → gRPC → Kafka. OpenTelemetry gom span, đẩy qua OTLP về <b>Jaeger</b>. Đo được: <b>1 trace, 9 span, 5 service</b>.”',
+        '“Giá trị thật nằm ở chỗ này: nhìn từ order-service, bạn <b>không hề biết</b> location-service có tham gia — vì order gọi store, và <b>store</b> mới gọi location. Chỉ có trace mới lộ ra chuỗi đó.”',
+        '“<b>Hạn chế em xin nêu trước:</b> ngữ cảnh trace <b>chưa nối qua biên Kafka</b>. Span của consumer là một span <b>gốc mới</b>, hiện chỉ liên kết được với luồng gốc qua <code>trace_id</code> trong log, chứ chưa thành một cây span liền mạch trong Jaeger. Muốn nối thì phải truyền <code>traceparent</code> qua header của Kafka message.”'
+      ],
+      probes: [
+        ['Span là gì, khác trace chỗ nào?', '<b>Trace</b> là toàn bộ hành trình của <b>một</b> request. <b>Span</b> là <b>một đoạn công việc</b> trong hành trình đó — có thời điểm bắt đầu, thời lượng, và biết <b>span cha</b> của mình là ai. Ghép các quan hệ cha–con lại thì ra <b>cây</b>, vẽ ra chính là biểu đồ thác nước.'],
+        ['Vì sao tự nêu hạn chế? Không sợ mất điểm à?', 'Ngược lại. Thầy <b>sẽ</b> hỏi “trace có xuyên qua Kafka không”. Tự nêu trước thì chứng minh mình <b>hiểu giới hạn của chính hệ thống mình</b>. Bị hỏi mới lúng túng thì <b>tệ hơn nhiều</b>.']
+      ],
+      srcs: ['pkg/otel/otel.go', 'pkg/trace/', 'Jaeger :17093']
+    },
+
+    {
+      id: 'van-logging-metrics',
+      title: 'Log tập trung và dashboard',
+      eyebrow: ['Bảng 8 · dòng 3 & 13', 'Demo 5'],
+      lede: 'Mười service, mười luồng log. Không gom lại thì mỗi lần điều tra một sự cố là <code>docker logs</code> mười lần rồi tự ghép bằng mắt.',
+      say: [
+        '“Log là <b>JSON</b> (slog) và <b>luôn kèm <code>trace_id</code></b> → Fluentd → Elasticsearch → Kibana. Nhờ vậy, lọc theo <b>một</b> <code>trace_id</code> là thấy log của <b>cả 5 service</b> trong <b>một</b> truy vấn — <b>đây chính là lý do phải lan truyền trace-id</b>, chứ không chỉ để vẽ biểu đồ đẹp.”',
+        '“Có <b>ILM</b> tự xoá log sau <b>7 ngày</b> và index template khai kiểu tường minh (<code>trace_id</code>, <code>latency_ms</code>, <code>client_ip</code> kiểu <code>ip</code>). Không có ILM thì Elasticsearch <b>ăn hết đĩa</b> — đó là chuyện xảy ra thật ở hệ thống chạy lâu.”',
+        '“<b>Metrics:</b> mỗi service phơi <code>/metrics</code>, Prometheus scrape <b>10/10</b>. Grafana provision sẵn dashboard <b>4 panel</b>: request rate, latency p95, lỗi gRPC client, và trạng thái circuit breaker.”'
+      ],
+      probes: [
+        ['Ba thứ này khác nhau thế nào — log, metric, trace?', 'Ba lăng kính khác nhau của cùng một sự cố. <b>Metric</b> trả lời “<b>có</b> đang hỏng không?” (một con số, rẻ, lưu lâu). <b>Trace</b> trả lời “hỏng <b>ở đâu</b> trong chuỗi?”. <b>Log</b> trả lời “<b>vì sao</b> hỏng?” (chi tiết, đắt, lưu ngắn). Ba trụ cột của observability — và ta có đủ cả ba.'],
+        ['Vì sao log phải là JSON?', 'Để <b>máy</b> đọc được. Log dạng văn xuôi thì phải viết regex để bóc trường ra — mong manh và chậm. JSON thì Elasticsearch index thẳng, lọc theo <code>trace_id</code> hay <code>latency_ms > 1000</code> là chuyện tức thì.'],
+        ['Vì sao 7 ngày?', 'Đủ để điều tra một sự cố (thường phát hiện trong vài giờ), và đủ ngắn để không ngốn đĩa. Đây là <b>đánh đổi dung lượng ↔ khả năng điều tra</b>, và ta chọn con số một cách <b>có chủ ý</b>, không phải để mặc định.']
+      ],
+      srcs: ['docker-compose.logging.yml', 'docker/logging-init/init.sh', 'pkg/metrics/metrics.go', 'docker/grafana/dashboards/']
+    },
+
+    {
+      id: 'van-discovery',
+      title: 'Service discovery — mục ◐ duy nhất',
+      eyebrow: ['Bảng 8 · dòng 7', 'thừa nhận thẳng'],
+      lede: 'Đây là mục ta <b>không</b> ghi ✅. Nói thẳng và nói đúng còn ghi điểm hơn là gồng lên nhận.',
+      say: [
+        '“Chúng em <b>chưa</b> có service registry động kiểu Consul hay etcd. Định tuyến vào là <b>tập trung qua Kong</b>.”',
+        '“Nhưng có một điểm em muốn nêu: <b>mọi</b> địa chỉ downstream — gRPC peer, DTM, saga branch, Kafka, MoMo — đều nằm trong <code>config/*.yaml</code>, <b>không một dòng nào hard-code trong Go</b>. Chuyển sang Kubernetes chỉ cần đổi giá trị config sang DNS của service (<code>payment-service.default.svc:50056</code>) — <b>không sửa một dòng code</b>.”',
+        '“Nghĩa là chúng em <b>chưa làm</b> service discovery động, nhưng <b>đã chuẩn bị sẵn đường</b> cho nó.”'
+      ],
+      probes: [
+        ['Vậy Kong có phải service discovery không?', 'Kong là <b>ingress</b> — nó giải quyết “từ ngoài vào thì gõ cửa ở đâu”. Service discovery giải quyết “<b>service này tìm service kia ở đâu</b>” <b>bên trong</b> hệ thống, và <b>tự cập nhật</b> khi instance lên/xuống. Chúng em làm việc thứ hai bằng <b>config tĩnh</b> — chạy được ở quy mô cố định, nhưng <b>không</b> tự co giãn.']
+      ],
+      srcs: ['kong/kong.yml', 'config/*.yaml']
+    }
+  ]
+};
+/* Đức — tầng service & vận hành. Mọi thứ BÊN TRONG một service. */
+VF.content = VF.content || {};
+VF.content.duc = {
+  label: 'Đức',
+  tally: 11,
+  accent: 'var(--owner-duc)',
+  blurb: 'Service &amp; vận hành — mọi thứ nằm <b>bên trong</b> một service: 10 service, REST, DB riêng, RBAC, gateway, probe, Docker.',
+  cards: [
+
+    {
+      id: 'duc-decomposition',
+      title: 'Phân rã hệ thống thành 10 service',
+      eyebrow: ['Bảng 7 · #1', '§4'],
+      lede: 'Đề bài yêu cầu ≥ 3 microservice. Ta có <b>10</b>. Nhưng con số không phải là điểm — <b>ranh giới chia ở đâu và vì sao</b> mới là.',
+      say: [
+        '“Chúng em chia theo <b>bounded context</b> — mỗi service sở hữu <b>trọn vẹn</b> một miền nghiệp vụ và <b>dữ liệu</b> của miền đó: user (danh tính), location, store (quán + thực đơn), order (đơn hàng), promotion (voucher), payment (ví + sổ cái), delivery (giao vận), review, reporting, notification.”',
+        '“Tiêu chí chia: <b>cái gì thay đổi cùng nhau thì ở cùng một chỗ</b>. Thực đơn và giờ mở cửa luôn đổi cùng nhau ⇒ cùng nằm trong store. Còn voucher đổi theo lịch marketing, chẳng liên quan gì tới thực đơn ⇒ tách ra.”',
+        '“Mỗi service theo <b>clean architecture</b>: handler → usecase → repository (interface) ← persistence. Entity là lá, không phụ thuộc gì. Nhờ vậy usecase <b>test được mà không cần database</b> — ta inject stub vào interface.”'
+      ],
+      probes: [
+        ['Vì sao 10 mà không phải 3? Có bị chia quá nhỏ không?', 'Câu hỏi công bằng — <b>chia quá nhỏ</b> là bệnh có thật. Nhưng mỗi service ở đây đều <b>sở hữu dữ liệu riêng</b> và có <b>vòng đời riêng</b>. Kiểm tra ngược lại: <b>reporting</b> và <b>notification</b> tách ra vì chúng chỉ <b>đọc sự kiện</b>, không có API ghi — gộp vào order sẽ làm đường ghi <b>chậm đi</b> vì phải tính báo cáo.'],
+        ['Nếu phải gộp bớt thì gộp cái nào?', '<b>location</b> có thể gộp vào store — nó nhỏ, và gần như chỉ store gọi tới. Em giữ riêng vì cây Toà → Tầng → Phòng là dữ liệu <b>dùng chung</b> cho cả đơn hàng lẫn giao vận. Nhưng em <b>công nhận</b> đó là ranh giới mỏng nhất trong hệ thống.']
+      ],
+      srcs: ['services/*/internal/{entity,repository,usecase,handler}']
+    },
+
+    {
+      id: 'duc-rest',
+      title: 'RESTful API — 180 endpoint',
+      eyebrow: ['Bảng 7 · #2'],
+      lede: 'Tài nguyên là danh từ, hành động là động từ HTTP, mã trạng thái đúng ngữ nghĩa.',
+      say: [
+        '“<b>180 endpoint</b> qua Kong. Tài nguyên là <b>danh từ số nhiều</b> (<code>/orders</code>, <code>/stores</code>), hành động dùng <b>động từ HTTP</b>, và mã trạng thái mang đúng nghĩa: <code>201</code> khi tạo, <code>204</code> khi xoá, <code>409</code> khi xung đột, <code>503</code> khi chưa sẵn sàng.”',
+        '“Quy ước chung toàn hệ: <b>request body snake_case, response entity PascalCase</b>. Tiền là <code>int64</code> đơn vị nhỏ nhất — <b>không dùng float</b>, vì số thực <b>không biểu diễn chính xác</b> được tiền tệ.”'
+      ],
+      probes: [
+        ['Vì sao tiền là int64 chứ không phải float?', '<code>0.1 + 0.2 !== 0.3</code> trong dấu phẩy động. Với tiền thì sai số đó <b>tích luỹ</b> thành lệch sổ. Nên lưu <b>đơn vị nhỏ nhất</b> (đồng) dưới dạng số nguyên — <b>chính xác tuyệt đối</b>.'],
+        ['Có endpoint nào không RESTful không?', 'Có, và em nói thẳng: các hành động <b>chuyển trạng thái</b> như <code>POST /orders/:id/cancel</code> không phải REST thuần (nó là <b>động từ</b> trong URL). Nhưng ép thành <code>PATCH /orders/:id {status: "CANCELLED"}</code> sẽ <b>giấu mất</b> việc đó là một thao tác <b>nghiệp vụ phức tạp</b> — nó mở cả một saga. Em <b>chọn</b> sự rõ ràng.']
+      ],
+      srcs: ['services/*/internal/handler/http/router.go']
+    },
+
+    {
+      id: 'duc-db-per-service',
+      title: 'Database riêng mỗi service',
+      eyebrow: ['Bảng 7 · #4'],
+      lede: 'Mười service, mười database. Không service nào đọc thẳng bảng của service khác. <b>Và cái giá phải trả là gì?</b>',
+      say: [
+        '“Mỗi service có <b>database riêng</b> — <code>order_db</code>, <code>payment_db</code>… Không ai được đọc thẳng bảng của người khác; muốn dữ liệu thì phải <b>gọi API</b>.”',
+        '“<b>Cái giá phải trả — và em xin nói thẳng:</b> <b>không có khoá ngoại liên database</b>. <code>orders.user_id</code> chỉ là một UUID <b>mềm</b> — database <b>không thể</b> đảm bảo người dùng đó tồn tại. Ta <b>mất ràng buộc toàn vẹn ở tầng DB</b> và phải tự lo ở tầng ứng dụng.”',
+        '“Đổi lại: mỗi service <b>tiến hoá schema độc lập</b>, triển khai độc lập, và một database chết <b>không kéo cả hệ thống chết theo</b>.”'
+      ],
+      probes: [
+        ['Vậy làm sao join dữ liệu giữa các service?', '<b>Không join.</b> Hai cách: (1) <b>gọi API</b> lấy dữ liệu rồi ghép ở tầng ứng dụng — dùng khi cần dữ liệu tươi; (2) <b>dựng read model từ event</b> — đó chính là <code>reporting</code>. Cách 2 là lý do CQRS tồn tại.'],
+        ['Xoá một user thì dữ liệu ở service khác thành mồ côi à?', '<b>Đúng vậy</b>, và không có DB nào chặn được. Xử lý bằng <b>sự kiện</b>: <code>user.deleted</code> được phát, các service quan tâm tự dọn phần của mình. Nhất quán <b>cuối</b>, không tức thì — và đó chính là bản chất của kiến trúc này.'],
+        ['Sao vẫn để chung một instance Postgres?', 'Đó là <b>giới hạn của Docker Compose trên máy đồ án</b>, và em nói thẳng. Về mặt <b>logic</b> chúng vẫn là 10 database tách biệt (10 connection string riêng, không cross-query). Chuyển sang 10 instance thật chỉ là đổi host trong config — <b>không sửa code</b>.']
+      ],
+      srcs: ['config/*.yaml', 'migrations riêng từng service']
+    },
+
+    {
+      id: 'duc-rbac',
+      title: 'RBAC tập trung — và SPOF phải thừa nhận',
+      eyebrow: ['§10', 'trade-off lớn nhất của hệ thống'],
+      lede: 'Đây là <b>điểm yếu kiến trúc lớn nhất</b> của cả hệ thống. Chủ động nêu ra và giải thích được vì sao chấp nhận nó — đó là dấu hiệu của người thiết kế, không phải người gõ code.',
+      say: [
+        '“Phân quyền tập trung ở user-service: <b>40 permission, 6 role</b>, có cả phạm vi theo vendor. Chín service kia, mỗi khi gặp route protected, đều gọi gRPC <code>CheckPermission</code> sang user-service.”',
+        '“<b>Và đây là SPOF.</b> user-service chết ⇒ <b>mọi route protected của toàn hệ thống</b> ngừng hoạt động. Em <b>không giấu</b> điều đó.”',
+        '“Vì sao vẫn chọn? Vì phương án kia — <b>mỗi service tự giữ bản sao phân quyền</b> — nghe thì phi tập trung hơn, nhưng nó tạo ra <b>10 nguồn sự thật</b>. Thu quyền của một người thì phải cập nhật 10 chỗ, và trong lúc chưa kịp đồng bộ thì <b>quyền đã bị thu vẫn còn hiệu lực</b> ở đâu đó. Với <b>phân quyền</b>, em cho rằng <b>một nguồn sự thật duy nhất</b> đáng giá hơn tính sẵn sàng.”',
+        '“Giảm nhẹ: cache 5 phút trong Redis, nên không phải request nào cũng đi mạng.”'
+      ],
+      probes: [
+        ['Cache 5 phút thì quyền bị thu hồi vẫn còn hiệu lực 5 phút?', '<b>Đúng.</b> Nên khi quyền đổi, ta <b>chủ động invalidate cache</b> chứ không đợi hết hạn. Cái 5 phút chỉ là lưới an toàn cuối cùng cho trường hợp invalidate bị lỡ.'],
+        ['Có cách nào bỏ SPOF mà vẫn giữ một nguồn sự thật?', 'Có — nhét quyền <b>vào chính JWT</b> lúc đăng nhập. Mỗi service tự đọc, <b>không gọi ai</b>. Nhưng thế thì <b>không thu hồi được</b> cho tới khi token hết hạn, và token <b>phình to</b>. Đó là đánh đổi <b>ngược lại</b>, và em <b>biết</b> nó tồn tại — em chọn hướng còn lại một cách có ý thức.']
+      ],
+      srcs: ['pkg/auth/remotechecker/', 'services/user/internal/usecase/rbac_usecase.go']
+    },
+
+    {
+      id: 'duc-gateway',
+      title: 'API Gateway và rate limiting hai tầng',
+      eyebrow: ['Bảng 8 · dòng 1 & 2'],
+      lede: 'Kong là <b>cổng vào duy nhất</b>. Khách không bao giờ biết bên trong có bao nhiêu service.',
+      say: [
+        '“Kong khai báo <b>declarative</b> (<code>kong.yml</code>), <b>46 route</b>. Nó là <b>ingress duy nhất</b> — nó <b>giấu toàn bộ topology bên trong</b>. Client chỉ thấy <code>:17000</code>; ta có tách hay gộp service bên trong, client <b>không cần biết</b>.”',
+        '“Kong cũng lo phần <b>xuyên suốt</b>: CORS, correlation-id, và rate limiting — để 10 service <b>không phải mỗi anh tự viết một kiểu</b>.”',
+        '“Rate limit <b>hai tầng</b>, và tầng thứ hai mới là chỗ có suy nghĩ: <b>300 request/phút</b> toàn cục theo IP, nhưng riêng <code>/auth/*</code> và đăng ký shipper chỉ <b>10/phút</b>. Vì đó là các route <b>đoán được</b>: mật khẩu và OTP <b>brute-force được</b>. 300 lần thử OTP 6 số mỗi phút là <b>quá đủ để dò ra</b>.”'
+      ],
+      probes: [
+        ['Rate limit theo IP thì NAT chung IP bị chặn oan?', '<b>Đúng</b> — cả một ký túc xá sau một NAT sẽ dùng chung hạn mức. Chuẩn hơn là giới hạn theo <b>user</b> hoặc <b>API key</b>. Với đồ án thì theo IP là đủ, và em <b>biết</b> giới hạn của cách này.'],
+        ['Khách bị 429 thì thấy gì?', 'Frontend bắt <code>429</code> và hiện thông báo thân thiện, chứ không quăng lỗi thô. Chi tiết nhỏ nhưng nó cho thấy giới hạn được <b>thiết kế</b> chứ không phải bật đại một plugin.']
+      ],
+      srcs: ['kong/kong.yml']
+    },
+
+    {
+      id: 'duc-probes',
+      title: 'Health, readiness, graceful shutdown, degrade',
+      eyebrow: ['Bảng 8 · dòng 9 & 10', 'Demo 4'],
+      lede: 'Bốn cơ chế trả lời bốn câu khác nhau. Trộn lẫn chúng là hiểu sai.',
+      say: [
+        '“<code>/health</code> là <b>liveness</b> — process còn sống không? Chết thì orchestrator <b>giết và khởi động lại</b>.”',
+        '“<code>/readyz</code> là <b>readiness</b> — có sẵn sàng <b>nhận traffic</b> không? Nó ping DB và Redis; mất DB thì trả <code>503</code>. Orchestrator <b>rút service khỏi rotation</b> nhưng <b>không giết</b> — vì restart <b>không</b> chữa được database chết.”',
+        '“<b>Chi tiết cố ý:</b> <code>/readyz</code> <b>KHÔNG</b> probe Kafka. Vì consumer <b>tự retry</b> — một nhịp trục trặc của broker <b>không nên</b> kéo cả service ra khỏi rotation trong khi API HTTP của nó vẫn phục vụ tốt.”',
+        '“<b>Graceful shutdown</b> có thứ tự <b>có chủ đích</b>: HTTP drain 15s → gRPC GracefulStop → consumer → flush span OTel → đóng Redis/DB. Đảo thứ tự là mất request đang xử lý dở.”',
+        '“<b>Graceful degradation:</b> location-service chết thì store <b>không sập</b> — resolver phí ship rơi về <code>noop</code>, trả lời ‘không phục vụ khu vực này’ thay vì <code>500</code>.”'
+      ],
+      probes: [
+        ['Vì sao tách liveness và readiness? Một cái không đủ à?', 'Vì <b>hai câu hỏi khác nhau dẫn tới hai hành động khác nhau</b>. Gộp lại thì database chết ⇒ readiness fail ⇒ orchestrator tưởng process hỏng ⇒ <b>restart liên tục</b> ⇒ <b>crash loop</b>. Mà restart <b>không chữa được</b> database chết. Tách ra thì: DB chết ⇒ rút khỏi rotation, <b>giữ process sống</b>, chờ DB về.'],
+        ['Vì sao drain HTTP đúng 15 giây?', 'Đủ dài để request đang xử lý dở chạy xong (p95 chỉ vài trăm ms), đủ ngắn để deploy không lê thê. Và phải drain <b>trước</b> khi đóng DB — đóng DB trước thì request đang dở <b>chết giữa chừng</b>.']
+      ],
+      srcs: ['pkg/app/app.go', 'services/store/cmd/main.go']
+    },
+
+    {
+      id: 'duc-ledger',
+      title: 'Sổ cái kép',
+      eyebrow: ['§8', 'vượt khung'],
+      lede: 'Tiền không được phép “bốc hơi”. Sổ kép làm cho mọi sai lệch <b>tự lộ ra ngay</b>, thay vì lộ lúc đối soát cuối tháng.',
+      scene: 'double-entry-ledger',
+      say: [
+        '“Mỗi luồng tiền sinh <b>hai</b> bút toán, <b>tổng luôn bằng 0</b>: tiền rời ví khách thì <b>phải</b> có tài khoản nào đó nhận. Cả hai ghi trong <b>một transaction</b>, khoá <code>FOR UPDATE</code> <b>cả hai ví</b>.”',
+        '“Nếu tổng khác 0 thì <b>chắc chắn có bug</b> — và ta <b>phát hiện được ngay</b>. Sổ ghi một chiều thì tiền biến mất mà <b>không ai biết</b> cho tới lúc đối soát.”',
+        '“<b>Chi tiết em muốn nói:</b> tài khoản <code>SYSTEM</code> (clearing) <b>được phép âm</b>, ví người dùng thì <b>không</b>. Vì số âm ở tài khoản trung gian chính là <b>nghĩa vụ hệ thống phải trả lại</b> — nó có <b>ý nghĩa kế toán</b>, không phải lỗi.”'
+      ],
+      probes: [
+        ['Vì sao FOR UPDATE cả hai ví, không phải một?', 'Vì cả hai đều bị <b>sửa</b>. Chỉ khoá một bên thì hai giao dịch song song có thể đọc–ghi chồng lên nhau ở bên còn lại (<b>lost update</b>). Và phải khoá theo <b>thứ tự cố định</b> (ví dụ tăng dần theo id) — nếu không thì hai transaction khoá ngược chiều nhau sẽ <b>deadlock</b>.'],
+        ['Refund thì ghi ngược lại hay xoá bút toán cũ?', '<b>Ghi ngược lại.</b> Sổ cái là <b>append-only</b> — <b>không bao giờ sửa hay xoá</b> bút toán đã ghi. Hoàn tiền là <b>hai bút toán mới</b> ngược chiều. Nhờ vậy <b>toàn bộ lịch sử được giữ nguyên</b> và có thể kiểm toán.']
+      ],
+      srcs: ['services/payment/internal/usecase/ledger_helper.go']
+    },
+
+    {
+      id: 'duc-concurrency',
+      title: 'Chống tranh chấp trong service',
+      eyebrow: ['§9', 'vượt khung'],
+      lede: 'Ba tình huống đua nhau khác nhau, ba cách xử lý khác nhau.',
+      say: [
+        '“<b>Voucher:</b> khoá <code>FOR UPDATE</code> khi siết <code>usage_limit</code>. Không có nó thì 100 người bấm cùng lúc sẽ <b>vượt hạn mức</b> — vì cả 100 cùng đọc thấy ‘còn 1 lượt’.”',
+        '“<b>Nhận đơn giao:</b> <b>atomic claim</b> — <code>UPDATE … WHERE shipper_id IS NULL</code>. Chỉ <b>một</b> tài xế thắng, database tự quyết định. Không cần khoá, không cần hỏi trước rồi ghi sau (kiểu đó là <b>TOCTOU</b>: kiểm tra xong mới ghi, khe hở giữa hai bước đủ cho người khác chen vào).”',
+        '“<b>Chi trả cho quán:</b> đối soát <b>loại trừ</b> các đơn đã nằm trong batch <code>PENDING</code>/<code>SETTLED</code> — nếu không thì chạy payout hai lần là <b>trả tiền gấp đôi</b>.”'
+      ],
+      probes: [
+        ['Khoá bi quan (FOR UPDATE) và lạc quan (CAS) — chọn cái nào khi nào?', '<b>Bi quan</b> khi tranh chấp <b>hay xảy ra</b> và việc làm lại thì đắt — như voucher hot 100 người tranh 1 suất. <b>Lạc quan</b> (atomic claim / CAS) khi tranh chấp <b>hiếm</b> — như tài xế nhận đơn: thường chỉ 1–2 người cùng bấm, người thua chỉ cần thấy “đơn đã có người nhận”.']
+      ],
+      srcs: ['promotion_gorm_repository.go', 'delivery_gorm_repository.go']
+    },
+
+    {
+      id: 'duc-docker',
+      title: 'Docker — và vì sao chưa có Kubernetes',
+      eyebrow: ['Bảng 8 · dòng 6 & 14'],
+      lede: 'Docker ✅ thật, chạy được từ máy sạch. Kubernetes ✗, và ta nói thẳng.',
+      say: [
+        '“<code>docker compose up -d</code> dựng <b>10 service + Postgres, Redis, Kafka, DTM, MinIO, Kong</b> từ <b>máy sạch</b>. Script init tự tạo 10 database và cả bảng của DTM.”',
+        '“<b>Kubernetes: chưa có, em nói thẳng.</b> Nhưng có một chi tiết đã <b>sẵn sàng cho nó</b>: auto-migrate dùng <b>advisory lock của Postgres</b> — nên nhiều replica khởi động <b>song song</b> sẽ <b>không đua nhau chạy migration</b>. Đúng một replica thắng khoá và chạy, các replica khác chờ rồi đi tiếp.”',
+        '“<b>Ràng buộc phải nêu trước khi thầy chạy thử:</b> không được chạy <b>trộn</b> Docker với <code>go run</code>. <code>config/*.docker.yaml</code> địa chỉ hoá theo <b>DNS của compose</b>, còn <code>config/*.yaml</code> dùng <code>localhost</code> — trộn hai chế độ là DTM <b>không gọi được vào nhánh saga</b>.”'
+      ],
+      probes: [
+        ['Advisory lock là gì?', 'Một khoá <b>do ứng dụng tự đặt tên</b>, Postgres giữ hộ, <b>không gắn với bảng nào</b>. Ở đây nó dùng để đảm bảo <b>đúng một</b> process chạy migration tại một thời điểm. Không có nó, 3 replica cùng start sẽ cùng chạy <code>CREATE TABLE</code> ⇒ hai cái lỗi ⇒ <b>crash loop</b>.'],
+        ['Chuyển sang K8s cần đổi gì?', 'Chủ yếu là <b>config</b>: địa chỉ downstream đổi sang DNS của K8s. Thêm manifest cho Deployment/Service, và trỏ liveness/readiness probe vào <code>/health</code>, <code>/readyz</code> — <b>hai endpoint đã có sẵn</b>. Phần khó thật sự là <b>stateful</b> (Postgres, Kafka), chứ không phải service Go.']
+      ],
+      srcs: ['docker-compose.yml', 'docker/services/Dockerfile', 'docker/postgres/init/']
+    }
+  ]
+};
+/* Nam — bên nhận & biên client. Cơ chế NHẬN VỀ. */
+VF.content = VF.content || {};
+VF.content.nam = {
+  label: 'Nam',
+  tally: 6,
+  accent: 'var(--owner-nam)',
+  blurb: 'Bên nhận &amp; biên client — cơ chế <b>nhận về</b>: khử trùng lặp, dựng read model, versioning sự kiện, và điều phối đồng thời phía trình duyệt.',
+  cards: [
+
+    {
+      id: 'nam-mq-flow',
+      title: 'Luồng nghiệp vụ chạy trên hàng đợi',
+      eyebrow: ['Bảng 7 · #3', 'yêu cầu BẮT BUỘC'],
+      lede: 'Đây là <b>yêu cầu bắt buộc</b> của đề bài, và cũng là chỗ dễ trả lời hời hợt nhất. Đừng chỉ nói “em có Kafka”. Phải chỉ ra <b>giá trị</b> mà hàng đợi mang lại.',
+      say: [
+        '“Luồng minh hoạ: tài xế bấm <b>‘Đã giao’</b>. Order phát <b>một</b> sự kiện <code>order.delivered</code>. Rồi <b>bốn</b> service phản ứng, <b>độc lập với nhau</b>: <b>Payment</b> ghi sổ tiền mặt COD · <b>Order</b> tự chuyển sang COMPLETED · <b>Review</b> mở khoá cho khách đánh giá · <b>Notification</b> báo khách.”',
+        '“<b>Điểm cốt lõi: không service nào gọi service nào.</b> Order <b>không hề biết</b> Review tồn tại. Ngày mai muốn thêm một service tính điểm thưởng, chỉ cần <b>subscribe thêm</b> — <b>không sửa một dòng nào</b> trong Order.”',
+        '“Và <b>chịu lỗi từng phần</b>: Notification chết thì Payment <b>vẫn</b> ghi sổ, Review <b>vẫn</b> mở khoá. Sự kiện nằm chờ trong Kafka; Notification sống lại là bắt kịp từ offset cũ. Nếu là gọi đồng bộ thì <b>một service chết kéo cả chuỗi chết</b>.”',
+        '“Toàn hệ: <b>9 topic, 21 consumer group</b>. Notification consume <b>7 trên 9</b> topic — thiếu <code>user.events</code> và <code>store.events</code>.”'
+      ],
+      probes: [
+        ['Vì sao không gọi gRPC cho nhanh?', 'Vì gọi đồng bộ tạo ra <b>ràng buộc thời gian</b>: Order phải <b>chờ</b> cả bốn service trả lời mới xong việc. Bốn service ⇒ bốn cơ hội hỏng ⇒ độ trễ cộng dồn. Và Order phải <b>biết tên</b> cả bốn. Hàng đợi cắt đứt cả hai ràng buộc: Order chỉ <b>công bố một sự thật</b> (“đơn đã giao”), ai quan tâm thì tự xử.'],
+        ['Nếu Payment xử lý sự kiện đó bị lỗi thì sao?', 'Nó <b>retry 3 lần</b>, rồi vào <b>DLQ</b> — cơ chế đó là phần của Văn. Điều quan trọng ở đây: <b>lỗi của Payment không ảnh hưởng Review hay Notification</b>. Mỗi consumer group có <b>offset riêng</b>, chúng <b>hoàn toàn độc lập</b>.'],
+        ['Sao lại là "21 consumer group"?', 'Vì <b>mỗi cặp (service, topic) là một consumer group riêng</b> — ví dụ <code>notification-service-order</code>, <code>reporting-service-order</code>. Nhờ vậy Notification và Reporting cùng đọc <code>order.events</code> mà <b>không tranh nhau message</b>: mỗi group nhận <b>đầy đủ</b> mọi message, giữ offset riêng. Đó là khác biệt giữa <b>pub/sub</b> và <b>hàng đợi công việc</b>.']
+      ],
+      srcs: ['services/notification/**', 'services/*/internal/handler/event/**']
+    },
+
+    {
+      id: 'nam-idempotent',
+      title: 'At-least-once + idempotent receiver = exactly-once',
+      eyebrow: ['vượt khung', 'Demo 3', 'câu để chen vào Bảng 8'],
+      lede: 'Câu hỏi bẫy kinh điển: <i>“Kafka có exactly-once không?”</i>. Trả lời “có” là <b>mất điểm</b>. Đây là chỗ Nam ghi điểm mạnh nhất.',
+      scene: 'idempotent-receiver',
+      say: [
+        '“<b>Kafka không cho exactly-once xuyên biên service.</b> Nó giao <b>ít nhất một lần</b> — at-least-once. Nguyên nhân đơn giản: consumer xử lý xong rồi chết <b>trước khi kịp commit offset</b>, thì message đó <b>sẽ được giao lại</b>. Và outbox dispatcher cũng có thể phát trùng vì đúng lý do đó.”',
+        '“Nên chúng em <b>không cố ép Kafka</b> làm điều nó không làm được. Thay vào đó, chúng em làm cho <b>hiệu ứng nghiệp vụ</b> đúng một lần: bảng <code>processed_events</code>, khoá chính là <code>event_id</code>, ghi trong <b>CÙNG transaction</b> với business write. Giao lại lần hai ⇒ trùng khoá ⇒ bỏ qua.”',
+        '“<b>Demo 3</b>: em tua offset consumer về 0, ép Kafka giao lại <b>toàn bộ 8 sự kiện</b>. Số thông báo vẫn là <b>8</b> — <b>không phải 16</b>.”'
+      ],
+      probes: [
+        ['Vì sao phải cùng transaction? Ghi processed_events trước có được không?', '<b>Không.</b> Ghi trước rồi crash ⇒ đánh dấu “đã xử lý” nhưng <b>thông báo chưa hề được tạo</b> ⇒ event đó <b>mất vĩnh viễn</b>, và retry cũng bị chặn. Ghi sau rồi crash ⇒ thông báo tạo rồi nhưng chưa đánh dấu ⇒ giao lại ⇒ <b>nhân đôi</b>. <b>Chỉ có chung một transaction mới đúng.</b>'],
+        ['Kafka quảng cáo có exactly-once mà?', 'Có — nhưng chỉ <b>trong phạm vi Kafka</b> (transaction giữa topic với topic, đọc-xử lý-ghi khép kín trong Kafka Streams). Còn khi consumer phải <b>ghi vào Postgres</b> — một hệ thống <b>bên ngoài</b> — thì Kafka <b>không thể</b> đảm bảo hai bên cùng commit. Đó là <b>vấn đề two-generals</b>, và cách duy nhất là <b>phía nhận tự idempotent</b>.'],
+        ['Bảng processed_events có phình mãi không?', '<b>Có</b>, và em nói thẳng: hiện <b>chưa dọn</b>. Đúng ra nên xoá các dòng cũ hơn khoảng thời gian giao lại tối đa (ví dụ giữ 7 ngày). Nếu không, sau vài triệu event thì bảng thành gánh nặng. <b>Đây là hạn chế em biết và chưa xử lý.</b>'],
+        ['Cái này khác gì barrier của saga?', 'Cùng <b>nguyên lý</b> — khử trùng lặp bằng khoá chính, ghi cùng transaction. Khác <b>ngữ cảnh</b>: barrier bảo vệ <b>nhánh saga đồng bộ</b> và còn phải xử lý cả chuyện <b>bù trừ đến trước action</b>. <code>processed_events</code> bảo vệ <b>consumer bất đồng bộ</b>, chỉ có một chiều.']
+      ],
+      srcs: ['bảng processed_events (7 service)', 'services/*/internal/handler/event/**']
+    },
+
+    {
+      id: 'nam-versioning',
+      title: 'Versioning sự kiện',
+      eyebrow: ['vượt khung'],
+      lede: 'Sự kiện là một <b>hợp đồng công khai</b> giữa các service. Đổi nó mà không nghĩ là <b>phá hỏng consumer của người khác</b>.',
+      say: [
+        '“Envelope sự kiện mang trường <code>version</code>. Consumer đọc version để biết cách giải mã.”',
+        '“<b>Chỗ đáng nói:</b> envelope <b>cũ</b> — loại chưa hề có trường <code>version</code> — <b>vẫn decode được</b>. Nghĩa là có thể <b>tiến hoá schema sự kiện</b> mà <b>không phá vỡ</b> consumer đang chạy và không phải deploy đồng loạt toàn bộ 10 service cùng lúc. Có <b>test riêng</b> chứng minh (<code>envelope_version_test.go</code>).”',
+        '“Vì sao quan trọng: producer và consumer <b>deploy độc lập</b>. Sẽ luôn có một khoảng thời gian producer đã lên version mới còn consumer vẫn ở bản cũ — và ngược lại. Hệ thống <b>phải sống được</b> trong khoảng đó.”'
+      ],
+      probes: [
+        ['Đổi schema thì làm sao cho an toàn?', 'Nguyên tắc: <b>chỉ thêm, không xoá, không đổi nghĩa</b>. Thêm trường mới thì consumer cũ <b>bỏ qua</b> — vẫn chạy. Xoá hay đổi nghĩa một trường thì consumer cũ <b>hiểu sai</b> — vỡ. Muốn xoá thì phải qua <b>hai nhịp deploy</b>: nhịp một cho consumer thôi dùng trường đó, nhịp hai mới bỏ khỏi producer.'],
+        ['Sao không dùng schema registry (Avro/Protobuf)?', 'Đó là cách <b>chuẩn công nghiệp</b> — registry <b>ép</b> kiểm tra tương thích ngay lúc publish, không dựa vào kỷ luật của người viết code. Ở quy mô đồ án thì envelope có version là đủ, và em <b>biết</b> hướng nâng cấp là gì. Nói được điều này là chứng minh mình hiểu <b>vấn đề</b>, không chỉ hiểu <b>giải pháp mình đã làm</b>.']
+      ],
+      srcs: ['pkg/outbox/outbox.go (EnvelopeVersion)', 'envelope_version_test.go']
+    },
+
+    {
+      id: 'nam-cqrs',
+      title: 'CQRS read model',
+      eyebrow: ['§4, §8', 'vượt khung', 'Demo 6'],
+      lede: '<code>reporting-service</code> <b>không có một API ghi nghiệp vụ nào</b>. Toàn bộ trạng thái của nó dựng <b>100% từ sự kiện</b>.',
+      scene: 'cqrs-read-model',
+      say: [
+        '“CQRS là <b>tách đường ghi khỏi đường đọc</b>. Đường ghi (order, payment…) tối ưu cho <b>ghi nhanh, đúng</b>. Đường đọc (reporting) tối ưu cho <b>truy vấn tổng hợp</b> — doanh thu, top món, biểu đồ.”',
+        '“Nếu gộp lại — tính báo cáo <b>ngay trong</b> đường ghi — thì <b>mọi khách đặt hàng</b> đều phải trả giá cho việc <b>admin thỉnh thoảng mở dashboard</b>. Các truy vấn tổng hợp quét cả bảng và <b>chỉ chậm dần</b> khi dữ liệu lớn lên.”',
+        '“Cái giá: <b>nhất quán cuối</b>. Đơn vừa đặt thì dashboard <b>chưa thấy ngay</b> — trễ khoảng <b>vài giây</b>. Chúng em <b>chấp nhận có ý thức</b>: báo cáo trễ 2 giây <b>không ai chết</b>, còn đặt hàng chậm 1,4 giây thì khách bỏ đi.”',
+        '“Và một hệ quả đẹp: nếu read model hỏng, chỉ cần <b>replay lại event</b> từ đầu là <b>dựng lại được toàn bộ</b>.”'
+      ],
+      probes: [
+        ['Reporting mất dữ liệu thì làm sao khôi phục?', '<b>Replay event từ Kafka.</b> Vì read model là <b>hàm thuần</b> của dòng sự kiện — cùng một chuỗi event thì luôn cho ra cùng một trạng thái. Đây là ưu điểm lớn nhất của kiến trúc hướng sự kiện, và nó <b>chỉ đúng khi consumer idempotent</b> — nối thẳng sang thẻ trên.'],
+        ['Vài giây trễ, admin có phàn nàn không?', 'Với báo cáo doanh thu thì không — <b>không ai ra quyết định dựa trên số liệu của 2 giây trước</b>. Nếu là màn hình cần realtime (ví dụ theo dõi đơn đang giao) thì <b>không dùng CQRS</b> — phải đọc thẳng từ đường ghi. <b>Chọn đúng công cụ cho đúng bài toán.</b>'],
+        ['Choreography khác orchestration chỗ nào?', 'Reporting và Notification <b>tự phản ứng với sự kiện, không ai gọi chúng</b> — đó là <b>choreography</b>: điều phối <b>phi tập trung</b>, không có nhạc trưởng. Ngược lại, saga đặt hàng là <b>orchestration</b>: Order (qua DTM) <b>chỉ huy từng bước</b> và biết phải bù trừ cái gì. Hệ thống dùng <b>cả hai</b>, mỗi cái cho đúng việc của nó — và đó là câu trả lời tốt.']
+      ],
+      srcs: ['services/reporting/** (không có API ghi)']
+    },
+
+    {
+      id: 'nam-single-flight',
+      title: 'Single-flight refresh — đồng bộ ở biên client',
+      eyebrow: ['§10', 'vượt khung'],
+      lede: 'Bài toán <b>điều phối đồng thời</b> — chỉ khác là nó nằm trong <b>trình duyệt</b>, không phải trong server. Đây là chỗ chứng minh frontend cũng là hệ phân tán.',
+      scene: 'single-flight-refresh',
+      say: [
+        '“Refresh token là <b>single-use</b>: dùng một lần là bị thu hồi ngay. Đó là <b>tính năng an ninh</b> — nó chặn replay.”',
+        '“Nhưng nó tạo ra một cái bẫy ở phía client: khi access token hết hạn, <b>N request đang bay cùng nhận <code>401</code></b> <b>cùng lúc</b>. Nếu mỗi request tự gọi <code>/auth/refresh</code>, cả N cùng mang <b>một</b> refresh token. Cái đầu tiên thắng và <b>thu hồi</b> token đó ⇒ N−1 cái còn lại bị coi là <b>replay attack</b> ⇒ <b>đăng xuất sạch</b>. Người dùng bị văng ra <b>không vì lý do gì cả</b>.”',
+        '“Chữa bằng <b>single-flight</b>: lớp <code>auth-refresh.ts</code> gom tất cả về <b>đúng một</b> lời gọi refresh; các request khác <b>chờ chung một Promise</b> rồi cùng retry bằng token mới.”',
+        '“Nói cách khác: <b>tính năng an ninh của server biến thành bug, chỉ vì client thiếu điều phối</b>. Bài toán race condition này <b>giống hệt</b> race condition trong server — chỉ đổi chỗ.”'
+      ],
+      probes: [
+        ['Sao không để refresh token dùng nhiều lần cho gọn?', 'Thì mất <b>khả năng phát hiện replay</b>. Refresh token sống rất lâu (7 ngày) — nếu bị đánh cắp mà <b>dùng lại được nhiều lần</b>, kẻ tấn công dùng thoải mái. Với single-use, nạn nhân và kẻ tấn công <b>sẽ va nhau</b>: một trong hai gặp token đã bị thu hồi ⇒ hệ thống <b>phát hiện được</b> và đăng xuất toàn bộ phiên.'],
+        ['Frontend còn cơ chế phân tán nào nữa không?', '<b>Optimistic update + rollback</b> ở tính năng yêu thích (<code>use-favorites.ts</code>): UI cập nhật <b>ngay lập tức</b>, nếu server từ chối thì <b>hoàn tác</b>. Về bản chất đó là <b>bù trừ</b> — <b>cùng một ý tưởng với saga</b>, chỉ khác quy mô.']
+      ],
+      srcs: ['frontend/src/shared/lib/auth-refresh.ts', 'trace-id.ts', 'use-favorites.ts']
+    },
+
+    {
+      id: 'nam-tests',
+      title: 'Kiểm thử luồng liên service',
+      eyebrow: ['Bảng 7 · #6', '§12'],
+      lede: '<b>21 package, 264 test-case, 0 FAIL, 0 SKIP.</b> Nhưng con số không phải là điểm — <b>test cái gì</b> mới là.',
+      say: [
+        '“<b>264 test PASS, 0 FAIL.</b> Quan trọng hơn con số: ba bộ test <b>chứng minh trực tiếp các cơ chế phân tán</b>.”',
+        '“<code>place_order_compensation_test.go</code> — <b>inject lỗi vào từng bước saga</b> rồi kiểm tra bù trừ có chạy đủ không. Đây là test <b>khó viết nhất</b>, vì phải giả lập một service hỏng <b>đúng lúc</b>.”',
+        '“<code>refresh_logout_test.go</code> — <b>replay refresh token</b> đã dùng, kiểm tra hệ thống trả <code>401</code>. Test một <b>thuộc tính an ninh</b>, không phải một tính năng.”',
+        '“<code>envelope_version_test.go</code> — envelope <b>cũ, chưa có version</b>, vẫn decode được. Test <b>khả năng tương thích ngược</b>.”'
+      ],
+      probes: [
+        ['Test saga mà không cần dựng cả hệ thống?', 'Được, vì các gateway là <b>interface</b> (<code>PaymentGateway</code>, <code>PromotionGateway</code>). Test <b>inject stub</b> có thể ném lỗi <b>theo ý muốn</b>, đúng ở bước mình chọn. Đó chính là <b>lý do</b> phải tách interface — không phải để cho “sạch kiến trúc”, mà để <b>test được các đường hỏng</b>.'],
+        ['Có integration test thật không hay chỉ mock?', '<b>Có thật.</b> Chúng dùng <code>pkg/testutil</code> để tạo database <code>&lt;svc&gt;_db_test</code> riêng, auto-migrate, truncate giữa các test. Chạy thật với Postgres và Redis — không phải mock. (Chi tiết đáng nhớ: trước đây <code>go test</code> trả về “ok” từ <b>cache</b> và <b>che mất</b> việc test đang bị SKIP. Phải chạy <code>-count=1</code> mới ra kết quả thật.)']
+      ],
+      srcs: ['21 package · 264 test-case', 'pkg/testutil/db.go']
+    }
+  ]
+};
+/* Tab Hỏi chéo — thầy hay hỏi người này về phần người kia.
+   Đây là chỗ cả nhóm dễ vỡ trận nhất, nên tách riêng. */
+VF.content = VF.content || {};
+VF.content.hoicheo = {
+  label: 'Hỏi chéo',
+  accent: 'var(--stamp)',
+  blurb: 'Thầy sẽ hỏi Nam về saga và hỏi Đức về exactly-once. <b>Ba câu bắt buộc</b> ai cũng phải trả lời được, cộng các câu bẫy hay gặp.',
+  cards: [
+
+    {
+      id: 'x-mandatory',
+      title: 'Ba câu bắt buộc — ai cũng phải trả lời được',
+      eyebrow: ['không được trượt câu nào'],
+      lede: 'Không phải câu khó. Nhưng nếu người được hỏi <b>không phải chủ sở hữu</b> mà ấp úng, thì cả nhóm lộ ra là <b>chia việc chứ không chia hiểu biết</b>. Đó là thứ mất điểm nặng nhất.',
+      probes: [
+        ['<b>Nam</b> phải trả lời được: Saga là gì, vì sao không dùng 2PC?',
+         'Giao dịch trải qua <b>3 database khác nhau</b> — không transaction nào của Postgres phủ được cả ba. <b>2PC</b> làm được nhưng nó <b>khoá tài nguyên</b> trong lúc chờ pha 2; coordinator chết hoặc mạng đứt thì khoá <b>treo vô thời hạn</b> ⇒ giao thức <b>blocking</b>. <b>Saga</b> đổi nhất quán tức thời lấy tính sẵn sàng: mỗi bước <b>commit ngay, nhả khoá ngay</b>; bước sau hỏng thì <b>bù trừ ngược</b> các bước trước. Hệ thống có thể <b>tạm thời</b> không nhất quán nhưng <b>không bao giờ khoá ai</b>.'],
+        ['<b>Đức</b> phải trả lời được: Vì sao at-least-once + idempotent receiver lại cho ra hiệu ứng exactly-once?',
+         'Kafka <b>không</b> cho exactly-once xuyên biên service — consumer xử lý xong rồi chết <b>trước khi commit offset</b> thì message <b>sẽ được giao lại</b>. Ta <b>không ép Kafka</b> làm điều nó không làm được; ta làm cho <b>hiệu ứng nghiệp vụ</b> đúng một lần: bảng <code>processed_events</code> (khoá chính = <code>event_id</code>) ghi trong <b>cùng transaction</b> với business write. Giao lại ⇒ trùng khoá ⇒ bỏ qua. <b>Giao nhiều lần, tác dụng một lần.</b>'],
+        ['<b>Văn</b> phải trả lời được: Vì sao user-service là SPOF, và vì sao vẫn chấp nhận?',
+         'Mọi route protected của <b>9 service kia</b> đều gọi gRPC <code>CheckPermission</code> sang user-service ⇒ user-service chết là <b>toàn hệ thống ngừng phục vụ route protected</b>. Chấp nhận vì phương án kia — <b>mỗi service tự giữ bản sao phân quyền</b> — tạo ra <b>10 nguồn sự thật</b>: thu quyền một người phải cập nhật 10 chỗ, và trong lúc chưa đồng bộ xong thì <b>quyền đã bị thu vẫn còn hiệu lực</b>. Với <b>phân quyền</b>, một nguồn sự thật duy nhất <b>đáng giá hơn</b> tính sẵn sàng. Giảm nhẹ bằng <b>cache 5 phút</b> + invalidate chủ động.']
+      ]
+    },
+
+    {
+      id: 'x-traps',
+      title: 'Câu bẫy — trả lời sai là mất điểm ngay',
+      eyebrow: ['đọc kỹ'],
+      lede: 'Những câu này nghe như hỏi kiến thức phổ thông, nhưng câu trả lời “thuộc lòng” lại <b>sai</b>.',
+      probes: [
+        ['Kafka có đảm bảo exactly-once không?',
+         '<b>KHÔNG</b> — trả lời “có” là mất điểm. Kafka đảm bảo <b>at-least-once</b>. Nó <b>có</b> tính năng exactly-once, nhưng chỉ <b>trong phạm vi Kafka</b> (topic → topic, Kafka Streams). Khi consumer phải ghi vào <b>Postgres</b> — một hệ thống bên ngoài — thì Kafka <b>không thể</b> đảm bảo hai bên cùng commit. Đó là lý do <b>phía nhận phải tự idempotent</b>.'],
+        ['Kafka có đảm bảo thứ tự message không?',
+         'Chỉ <b>trong một partition</b>, <b>không</b> phải toàn cục. Nên phải <b>chọn khoá partition</b> cho đúng: các sự kiện của <b>cùng một đơn</b> dùng cùng khoá ⇒ vào cùng partition ⇒ đúng thứ tự. Đây là <b>quyết định thiết kế</b>, không phải hành vi mặc định.'],
+        ['Circuit breaker có nên trip khi service trả về lỗi 404 / NotFound không?',
+         '<b>KHÔNG.</b> Chỉ lỗi <b>hạ tầng</b> (<code>Unavailable</code>, <code>DeadlineExceeded</code>) mới trip. <code>NotFound</code> nghĩa là service <b>vẫn khoẻ</b> — nó đang từ chối <b>đúng</b>. Để lỗi nghiệp vụ trip breaker thì chỉ cần <b>5 khách gõ nhầm mã voucher</b> là cả hệ thống ngắt kết nối tới promotion-service.'],
+        ['Compensation của một bước chưa từng chạy thì nên báo lỗi chứ?',
+         '<b>KHÔNG — phải trả về succeed.</b> Đó là <b>null compensation</b>. Nếu nó báo lỗi thì DTM sẽ retry <b>mãi mãi</b> một việc <b>không bao giờ thành công được</b>, và saga <b>treo vĩnh viễn</b>. Bù trừ <b>bắt buộc phải là no-op idempotent</b>. (Đây từng là <b>bug thật</b> trong <code>refund_usecase.go</code> và đã sửa.)'],
+        ['Redis chết thì cho token đi qua để hệ thống còn chạy được chứ?',
+         '<b>KHÔNG — fail-closed.</b> Đó chính là <b>lỗ hổng fail-open</b>. Nếu dùng blacklist thì Redis chết ⇒ sổ đen rỗng ⇒ <b>mọi token bị thu hồi đều sống lại</b>. Kẻ tấn công chỉ cần <b>làm Redis quá tải</b> là mở được cửa. Ta dùng <b>whitelist</b>: không xác minh được thì <b>từ chối</b>.'],
+        ['Có 10 microservice thì tốt hơn 3 chứ?',
+         '<b>Không nhất thiết</b> — và trả lời “càng nhiều càng tốt” là bẫy. Chia nhỏ quá thì mọi lời gọi hàm trở thành <b>lời gọi mạng</b> (chậm hơn, hỏng được, phải retry). Tiêu chí đúng là <b>bounded context</b>: cái gì <b>thay đổi cùng nhau</b> thì ở <b>cùng một chỗ</b>. Ta có 10 vì có 10 miền dữ liệu tách bạch — và ta <b>nói được ranh giới nào mỏng nhất</b> (location).']
+      ]
+    },
+
+    {
+      id: 'x-limits',
+      title: 'Hạn chế — tự nêu trước khi bị hỏi',
+      eyebrow: ['chiến thuật'],
+      lede: 'Tự nêu hạn chế <b>không</b> mất điểm — nó chứng minh mình hiểu <b>giới hạn của chính hệ thống mình</b>. Bị hỏi mới lúng túng thì <b>tệ hơn nhiều</b>.',
+      html: [
+        '<div class="tablewrap"><table style="min-width:560px">',
+        '<thead><tr><th>Hạn chế</th><th>Ai nêu</th><th>Nêu kèm hướng khắc phục</th></tr></thead><tbody>',
+        '<tr><td>Trace <b>chưa nối qua biên Kafka</b> — span consumer là span gốc mới</td>',
+        '<td style="color:var(--owner-van)">Văn</td><td>Truyền <code>traceparent</code> qua header của Kafka message</td></tr>',
+        '<tr><td><b>Chưa có service discovery động</b> (Consul/etcd)</td>',
+        '<td style="color:var(--owner-van)">Văn</td><td>Nhưng <b>mọi</b> địa chỉ đã config-driven ⇒ sang K8s chỉ đổi DNS trong YAML, <b>không sửa code</b></td></tr>',
+        '<tr><td><b>user-service là SPOF</b></td>',
+        '<td style="color:var(--owner-duc)">Đức</td><td>Đánh đổi có ý thức: một nguồn sự thật RBAC. Giảm nhẹ bằng cache 5 phút</td></tr>',
+        '<tr><td><b>Chưa có Kubernetes</b></td>',
+        '<td style="color:var(--owner-duc)">Đức</td><td>Nhưng auto-migrate dùng <b>advisory lock</b> ⇒ nhiều replica start song song không đua migration</td></tr>',
+        '<tr><td>Một instance Postgres chung (10 DB logic tách biệt)</td>',
+        '<td style="color:var(--owner-duc)">Đức</td><td>Giới hạn của máy đồ án. Tách instance thật chỉ là đổi host trong config</td></tr>',
+        '<tr><td><b><code>processed_events</code> chưa có cơ chế dọn</b></td>',
+        '<td style="color:var(--owner-nam)">Nam</td><td>Nên xoá dòng cũ hơn cửa sổ giao lại tối đa (ví dụ 7 ngày)</td></tr>',
+        '<tr><td><b>Chưa có schema registry</b> cho sự kiện</td>',
+        '<td style="color:var(--owner-nam)">Nam</td><td>Envelope có <code>version</code> là đủ ở quy mô này; registry (Avro/Protobuf) sẽ <b>ép</b> kiểm tra tương thích lúc publish</td></tr>',
+        '<tr><td><b>RabbitMQ có code nhưng 0 call site</b></td>',
+        '<td>cả nhóm</td><td>Khai đúng: <b>đã hiện thực, chưa wire</b>. <b>Đừng ai nhận bừa</b> là có dùng</td></tr>',
+        '</tbody></table></div>'
+      ].join('')
+    }
+  ]
+};
+/* Ráp trang: tab → rail mục lục → các thẻ khái niệm → gắn hoạt cảnh. */
+(function () {
+  var TABS = ['tongquan', 'van', 'duc', 'nam', 'hoicheo'];
+
+  var tabsEl = document.getElementById('tabs');
+  var railEl = document.getElementById('rail');
+  var colEl = document.getElementById('column');
+  var shell = document.getElementById('shell');
+
+  function cardHTML(c) {
+    var h = '<section class="card" id="' + c.id + '"><header>';
+    if (c.eyebrow && c.eyebrow.length) {
+      h += '<div class="eyebrow">' + c.eyebrow.map(function (e, i) {
+        return i === 0 ? '<span class="req">' + e + '</span>' : '<span>' + e + '</span>';
+      }).join('') + '</div>';
+    }
+    h += '<h2>' + c.title + '</h2>';
+    if (c.lede) h += '<p class="lede">' + c.lede + '</p>';
+    h += '</header>';
+
+    if (c.scene) h += '<div data-scene="' + c.scene + '"></div>';
+    if (c.html) h += '<div class="freeform">' + c.html + '</div>';
+
+    if (c.say && c.say.length) {
+      h += '<div class="say"><span class="label">Câu phải nói</span>' +
+           c.say.map(function (p) { return '<p>' + p + '</p>'; }).join('') + '</div>';
+    }
+
+    if (c.probes && c.probes.length) {
+      h += '<div class="probe"><span class="label">Nếu thầy hỏi sâu</span>';
+      c.probes.forEach(function (p) {
+        h += '<details><summary>' + p[0] + '</summary><div class="a">' + p[1] + '</div></details>';
+      });
+      h += '</div>';
+    }
+
+    if (c.srcs && c.srcs.length) {
+      h += '<div class="srcs">' + c.srcs.map(function (s) {
+        return '<span class="src">' + VF.esc(s) + '</span>';
+      }).join('') + '</div>';
+    }
+
+    return h + '</section>';
+  }
+
+  function render(key) {
+    var data = VF.content[key];
+    shell.style.setProperty('--tab-accent', data.accent);
+
+    railEl.innerHTML = '<div class="rail-title">' + VF.esc(data.label) + '</div><ol>' +
+      data.cards.map(function (c, i) {
+        return '<li><a href="#' + c.id + '"' + (c.scene ? ' class="has-scene"' : '') + '>' +
+               '<span class="n">' + (i + 1) + '</span><span>' + stripTags(c.title) + '</span></a></li>';
+      }).join('') + '</ol>';
+
+    colEl.innerHTML = '<p class="lede" style="font-size:18px;border-bottom:1px solid var(--rule);padding-bottom:24px;margin:0">' +
+      data.blurb + '</p>' + data.cards.map(cardHTML).join('');
+
+    VF.mountAll(colEl);
+    spy();
+    window.scrollTo(0, 0);
+  }
+
+  function stripTags(s) { return s.replace(/<[^>]+>/g, ''); }
+
+  /* Tô sáng mục đang đọc trong rail */
+  function spy() {
+    var links = Array.prototype.slice.call(railEl.querySelectorAll('a'));
+    var cards = links.map(function (a) { return document.querySelector(a.getAttribute('href')); });
+    function update() {
+      var best = 0;
+      cards.forEach(function (c, i) {
+        if (c && c.getBoundingClientRect().top < 160) best = i;
+      });
+      links.forEach(function (a, i) { a.classList.toggle('on', i === best); });
+    }
+    window.removeEventListener('scroll', window.__vfSpy);
+    window.__vfSpy = update;
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  }
+
+  TABS.forEach(function (key, i) {
+    var d = VF.content[key];
+    var b = document.createElement('button');
+    b.className = 'tab';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', String(i === 0));
+    b.innerHTML = VF.esc(d.label) + (d.tally ? '<span class="count">' + d.tally + '</span>' : '');
+    b.addEventListener('click', function () {
+      tabsEl.querySelectorAll('.tab').forEach(function (t) { t.setAttribute('aria-selected', 'false'); });
+      b.setAttribute('aria-selected', 'true');
+      location.hash = '#tab=' + key;
+      render(key);
+    });
+    tabsEl.append(b);
+  });
+
+  var start = (location.hash.match(/^#tab=(\w+)$/) || [])[1];
+  if (TABS.indexOf(start) < 0) start = 'tongquan';
+  tabsEl.querySelectorAll('.tab')[TABS.indexOf(start)].setAttribute('aria-selected', 'true');
+  tabsEl.querySelectorAll('.tab')[0].setAttribute('aria-selected', String(start === 'tongquan'));
+  render(start);
+})();
+</script>
